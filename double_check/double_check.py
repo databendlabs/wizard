@@ -1,5 +1,5 @@
 import os
-from databend import Client
+from databend_py import Client
 import pandas as pd
 import sys
 
