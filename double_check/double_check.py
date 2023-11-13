@@ -17,15 +17,15 @@ async def create_database(conn, database_name):
 async def execute_sql_file(conn, file_path, database_name):
     print(f"Executing SQL file: {file_path}")
     try:
+        await conn.exec(f"USE {database_name}")
         with open(file_path, 'r') as file:
             sql_script = file.read()
         commands = sql_script.split(';')
         for idx, command in enumerate(commands, start=1):
             command = command.strip()
             if command != '':
-                full_command = f"USE {database_name}; {command}"
-                print(f"Executing command #{idx}: {full_command.replace('\n', ' ')}")
-                await conn.exec(full_command)
+                print("Executing command #{}:\n{}".format(idx, command))
+                await conn.exec(command)
         print("SQL file executed successfully.")
     except Exception as e:
         print(f"Error executing SQL file: {e}")
@@ -35,15 +35,15 @@ async def execute_queries_to_file(conn, queries_file, output_file, database_name
     print(f"Executing queries from file: {queries_file} and saving to {output_file}")
     executed_queries = []
     try:
+        await conn.exec(f"USE {database_name}")
         with open(queries_file, 'r') as file:
             queries = file.read().split(';')
         results = []
         for idx, query in enumerate(queries, start=1):
             query = query.strip()
             if query != '':
-                full_query = f"USE {database_name}; {query}"
-                print(f"Executing query #{idx}: {full_query.replace('\n', ' ')}")
-                rows = await conn.query_iter(full_query)
+                print("Executing query #{}:\n{}".format(idx, query))
+                rows = await conn.query_iter(query)
                 async for row in rows:
                     results.append(row.values())
                 executed_queries.append((idx, query))
