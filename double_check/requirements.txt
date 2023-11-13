@@ -1,1 +1,2 @@
-databend-py==0.4.9
+databend-driver
+pandas
