@@ -60,7 +60,8 @@ async def execute_and_compare_queries(conn_v1, conn_v2, queries_file, database_n
         for idx, query in enumerate(queries, start=1):
             query = query.strip()
             if query != '':
-                print(colored(f"Executing query #{idx}:\n{query}", 'green'))
+                print(colored(f"Executing query #{idx}:", 'green'))
+                print(f"{query}")
                 result_v1 = await fetch_query_results(conn_v1, query)
                 result_v2 = await fetch_query_results(conn_v2, query)
                 await compare_and_print_results(result_v1, result_v2, idx, query)
