@@ -87,7 +87,7 @@ async def compare_and_print_results(result1, result2, query_idx, query_text):
         print(diff)
         raise ValueError("Results are not consistent between V1 and V2.")
     else:
-        print(colored(f"Query #{query_idx} results are the same.", 'green'))
+        print(colored(f"Query #{query_idx} results are the same.\n", 'green'))
 
 
 async def main():

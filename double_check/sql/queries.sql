@@ -196,8 +196,9 @@ SELECT p.product_name, p.category, COALESCE(COUNT(s.sale_id), 0) AS sale_count
 FROM products p
          RIGHT JOIN sales s ON p.product_id = s.product_id
 GROUP BY p.product_name, p.category
-ORDER BY sale_count DESC
+ORDER BY p.product_name, sale_count DESC
     LIMIT 10;
+
 
 -- full outer join
 SELECT IFNULL(c.customer_name, 'No Customer') AS customer, IFNULL(p.product_name, 'No Product') AS product, s.sale_date
