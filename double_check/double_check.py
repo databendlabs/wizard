@@ -22,8 +22,8 @@ async def execute_sql_file(conn, file_path, database_name):
         commands = sql_script.split(';')
         for idx, command in enumerate(commands, start=1):
             command = command.strip()
-            if command != '':
-                print("Executing command #{}:\n{}".format(idx, command))
+            if command:
+                print(f"Executing command #{idx}:\n{command}")
                 await conn.exec(command)
         print("SQL file executed successfully.")
     except Exception as e:
@@ -35,18 +35,22 @@ async def fetch_query_results(conn, query):
     rows = await conn.query_iter(query)
     return [row.values() async for row in rows]
 
-def format_result_diff(diff):
-    """Formats the difference between query results for colored printing."""
+def format_result_diff(result1, result2):
+    """Formats the difference between two query results."""
+    result1_lines = str(result1).splitlines()
+    result2_lines = str(result2).splitlines()
+
+    diff = list(difflib.unified_diff(result1_lines, result2_lines, lineterm=''))
+
     formatted_diff = []
     for line in diff:
-        if line.startswith('+ '):
+        if line.startswith('+'):
             formatted_diff.append(colored(line, 'green'))
-        elif line.startswith('- '):
+        elif line.startswith('-'):
             formatted_diff.append(colored(line, 'red'))
-        elif line.startswith('? '):
-            formatted_diff.append(colored(line, 'blue'))
         else:
             formatted_diff.append(line)
+
     return '\n'.join(formatted_diff)
 
 async def execute_and_compare_queries(conn_v1, conn_v2, queries_file, database_name):
@@ -59,7 +63,7 @@ async def execute_and_compare_queries(conn_v1, conn_v2, queries_file, database_n
             queries = file.read().split(';')
         for idx, query in enumerate(queries, start=1):
             query = query.strip()
-            if query != '':
+            if query:
                 print(colored(f"Executing query #{idx}:", 'green'))
                 print(f"{query}")
                 result_v1 = await fetch_query_results(conn_v1, query)
@@ -73,12 +77,11 @@ async def compare_and_print_results(result1, result2, query_idx, query_text):
     """Compares two query results and prints the difference."""
     if result1 != result2:
         print(f"Results differ at query #{query_idx}: {query_text}")
-        diff = difflib.ndiff(str(result1), str(result2))
-        print(format_result_diff(diff))
+        diff = format_result_diff(result1, result2)
+        print(diff)
         raise ValueError("Results are not consistent between V1 and V2.")
     else:
         print(colored(f"Query #{query_idx} results are the same.", 'green'))
-
 
 async def main():
     """Main function to execute and compare Databend queries."""
@@ -101,12 +104,10 @@ async def main():
         client_v1 = AsyncDatabendClient(dsn_v1)
         conn_v1 = await client_v1.get_conn()
 
-        # Only execute setup operations if --setup flag is provided
         if args.setup:
             await create_database(conn_v1, database_name)
             await execute_sql_file(conn_v1, setup_file, database_name)
         else:
-            # Execute and compare queries if --setup flag is not provided
             client_v2 = AsyncDatabendClient(dsn_v2)
             conn_v2 = await client_v2.get_conn()
             await execute_and_compare_queries(conn_v1, conn_v2, queries_file, database_name)

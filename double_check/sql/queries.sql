@@ -107,14 +107,15 @@ SELECT
     p.product_name,
     p.category,
     SUM(s.quantity) as total_sold,
-    RANK() OVER (PARTITION BY dd.year, p.category ORDER BY SUM(s.quantity) DESC) as rank_in_category
+    RANK() OVER (PARTITION BY dd.year, p.category ORDER BY SUM(s.quantity) DESC, p.product_name) as rank_in_category
 FROM sales s
          JOIN date_dim dd ON s.sale_date = dd.date_key
          JOIN products p ON s.product_id = p.product_id
 GROUP BY dd.year, p.product_name, p.category
 HAVING dd.year = 2021
-ORDER BY dd.year, p.category, total_sold DESC
+ORDER BY dd.year, p.category, total_sold DESC, p.product_name
     LIMIT 10;
+
 
 -- Q12
 SELECT
