@@ -1,20 +1,19 @@
 import os
 import asyncio
-import pandas as pd
 from databend_driver import AsyncDatabendClient
 import argparse
 import datetime
-
-def ensure_dir(directory):
-    if not os.path.exists(directory):
-        os.makedirs(directory)
+import difflib
+from termcolor import colored
 
 async def create_database(conn, database_name):
+    """Creates a new database, dropping it first if it exists."""
     print(f"Creating database: {database_name}")
     await conn.exec(f"DROP DATABASE IF EXISTS {database_name}")
     await conn.exec(f"CREATE DATABASE {database_name}")
 
 async def execute_sql_file(conn, file_path, database_name):
+    """Executes SQL commands from a file in the specified database."""
     print(f"Executing SQL file: {file_path}")
     try:
         await conn.exec(f"USE {database_name}")
@@ -31,55 +30,59 @@ async def execute_sql_file(conn, file_path, database_name):
         print(f"Error executing SQL file: {e}")
         raise
 
-async def execute_queries_to_file(conn, queries_file, output_file, database_name):
-    print(f"Executing queries from file: {queries_file} and saving to {output_file}")
-    executed_queries = []
+async def fetch_query_results(conn, query):
+    """Fetches the results of a query."""
+    rows = await conn.query_iter(query)
+    return [row.values() async for row in rows]
+
+def format_result_diff(diff):
+    """Formats the difference between query results for colored printing."""
+    formatted_diff = []
+    for line in diff:
+        if line.startswith('+ '):
+            formatted_diff.append(colored(line, 'green'))
+        elif line.startswith('- '):
+            formatted_diff.append(colored(line, 'red'))
+        elif line.startswith('? '):
+            formatted_diff.append(colored(line, 'blue'))
+        else:
+            formatted_diff.append(line)
+    return '\n'.join(formatted_diff)
+
+async def execute_and_compare_queries(conn_v1, conn_v2, queries_file, database_name):
+    """Executes and compares queries from a file."""
+    print(f"Executing and comparing queries from file: {queries_file}")
     try:
-        await conn.exec(f"USE {database_name}")
+        await conn_v1.exec(f"USE {database_name}")
+        await conn_v2.exec(f"USE {database_name}")
         with open(queries_file, 'r') as file:
             queries = file.read().split(';')
-        results = []
         for idx, query in enumerate(queries, start=1):
             query = query.strip()
             if query != '':
-                print("Executing query #{}:\n{}".format(idx, query))
-                rows = await conn.query_iter(query)
-                async for row in rows:
-                    results.append(row.values())
-                executed_queries.append((idx, query))
-        combined_results = pd.DataFrame(results)
-        combined_results.to_csv(output_file, index=False)
-        print(f"Queries executed and saved to {output_file}")
+                print(colored(f"Executing query #{idx}:\n{query}", 'green'))
+                result_v1 = await fetch_query_results(conn_v1, query)
+                result_v2 = await fetch_query_results(conn_v2, query)
+                await compare_and_print_results(result_v1, result_v2, idx, query)
     except Exception as e:
-        print(f"Error executing queries: {e}")
+        print(f"Error executing or comparing queries: {e}")
         raise
-    return executed_queries
 
-async def compare_results(file1, file2, executed_queries):
-    print(f"Comparing results from {file1} and {file2}")
-    try:
-        df1 = pd.read_csv(file1)
-        df2 = pd.read_csv(file2)
-        if df1.shape != df2.shape:
-            print("Results differ in shape.")
-            return
-        for idx, row in enumerate(zip(df1.values, df2.values)):
-            row1, row2 = row
-            if not (row1 == row2).all():
-                query_idx, query_text = executed_queries[idx]
-                print(f"Results differ at query #{query_idx}: {query_text}")
-                print(f"V1 Result: {row1}")
-                print(f"V2 Result: {row2}")
-                break
-        else:
-            print("Results are the same.")
-    except Exception as e:
-        print(f"Error comparing results: {e}")
-        raise
+async def compare_and_print_results(result1, result2, query_idx, query_text):
+    """Compares two query results and prints the difference."""
+    if result1 != result2:
+        print(f"Results differ at query #{query_idx}: {query_text}")
+        diff = difflib.ndiff(str(result1), str(result2))
+        print(format_result_diff(diff))
+        raise ValueError("Results are not consistent between V1 and V2.")
+    else:
+        print(colored(f"Query #{query_idx} results are the same.", 'green'))
+
 
 async def main():
+    """Main function to execute and compare Databend queries."""
     parser = argparse.ArgumentParser(description='Run Databend queries and compare results.')
-    parser.add_argument('--skipsetup', action='store_true', help='Skip the setup SQL execution if provided')
+    parser.add_argument('--setup', action='store_true', help='Setup the database by executing the setup SQL')
     args = parser.parse_args()
 
     today = datetime.datetime.now().strftime("%Y%m%d")
@@ -90,37 +93,25 @@ async def main():
 
     setup_file = "sql/setup.sql"
     queries_file = "sql/queries.sql"
-    results_dir = "results"
-    results_v1 = os.path.join(results_dir, "results_v1.csv")
-    results_v2 = os.path.join(results_dir, "results_v2.csv")
 
     print("Starting script execution.")
 
     try:
-        ensure_dir(results_dir)
-
-        if not args.skipsetup:
-            client_v1 = AsyncDatabendClient(dsn_v1)
-            conn_v1 = await client_v1.get_conn()
-            await create_database(conn_v1, database_name)
-            await execute_sql_file(conn_v1, setup_file, database_name)
-
         client_v1 = AsyncDatabendClient(dsn_v1)
         conn_v1 = await client_v1.get_conn()
-        executed_queries_v1 = await execute_queries_to_file(conn_v1, queries_file, results_v1, database_name)
 
-        client_v2 = AsyncDatabendClient(dsn_v2)
-        conn_v2 = await client_v2.get_conn()
-        executed_queries_v2 = await execute_queries_to_file(conn_v2, queries_file, results_v2, database_name)
+        # Only execute setup operations if --setup flag is provided
+        if args.setup:
+            await create_database(conn_v1, database_name)
+            await execute_sql_file(conn_v1, setup_file, database_name)
+        else:
+            # Execute and compare queries if --setup flag is not provided
+            client_v2 = AsyncDatabendClient(dsn_v2)
+            conn_v2 = await client_v2.get_conn()
+            await execute_and_compare_queries(conn_v1, conn_v2, queries_file, database_name)
 
-        if executed_queries_v1 != executed_queries_v2:
-            print("Warning: The queries executed in V1 and V2 are different.")
-        await compare_results(results_v1, results_v2, executed_queries_v1)
     except Exception as e:
         print(f"Database connection or execution error: {e}")
-    finally:
-        await conn_v1.close()
-        await conn_v2.close()
 
     print("Script execution completed.")
 

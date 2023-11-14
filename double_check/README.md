@@ -11,14 +11,14 @@ export DATABEND_DSN_V1=your_dsn_for_v1
 export DATABEND_DSN_V2=your_dsn_for_v2
 ```
 
+Setup:
+```bash
+python double_check.py --setup
+```
+
 Run:
 ```bash
 python double_check.py
-```
-
-To skip the setup:
-```bash
-python double_check.py --skipsetup
 ```
 
 
