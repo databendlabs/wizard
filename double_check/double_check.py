@@ -6,11 +6,13 @@ import datetime
 import difflib
 from termcolor import colored
 
+
 async def create_database(conn, database_name):
     """Creates a new database, dropping it first if it exists."""
     print(f"Creating database: {database_name}")
     await conn.exec(f"DROP DATABASE IF EXISTS {database_name}")
     await conn.exec(f"CREATE DATABASE {database_name}")
+
 
 async def execute_sql_file(conn, file_path, database_name):
     """Executes SQL commands from a file in the specified database."""
@@ -30,10 +32,12 @@ async def execute_sql_file(conn, file_path, database_name):
         print(f"Error executing SQL file: {e}")
         raise
 
+
 async def fetch_query_results(conn, query):
     """Fetches the results of a query."""
     rows = await conn.query_iter(query)
     return [row.values() async for row in rows]
+
 
 def format_result_diff(result1, result2):
     """Formats the difference between two query results."""
@@ -52,6 +56,7 @@ def format_result_diff(result1, result2):
             formatted_diff.append(line)
 
     return '\n'.join(formatted_diff)
+
 
 async def execute_and_compare_queries(conn_v1, conn_v2, queries_file, database_name):
     """Executes and compares queries from a file."""
@@ -73,6 +78,7 @@ async def execute_and_compare_queries(conn_v1, conn_v2, queries_file, database_n
         print(f"Error executing or comparing queries: {e}")
         raise
 
+
 async def compare_and_print_results(result1, result2, query_idx, query_text):
     """Compares two query results and prints the difference."""
     if result1 != result2:
@@ -82,6 +88,7 @@ async def compare_and_print_results(result1, result2, query_idx, query_text):
         raise ValueError("Results are not consistent between V1 and V2.")
     else:
         print(colored(f"Query #{query_idx} results are the same.", 'green'))
+
 
 async def main():
     """Main function to execute and compare Databend queries."""
@@ -116,5 +123,6 @@ async def main():
         print(f"Database connection or execution error: {e}")
 
     print("Script execution completed.")
+
 
 asyncio.run(main())
