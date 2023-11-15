@@ -38,24 +38,23 @@ async def fetch_query_results(conn, query):
     rows = await conn.query_iter(query)
     return [row.values() async for row in rows]
 
-
 def format_result_diff(result1, result2):
-    """Formats the difference between two query results."""
-    result1_lines = str(result1).splitlines()
-    result2_lines = str(result2).splitlines()
+    """Formats the difference between two query results in a style similar to Git diff."""
 
-    diff = list(difflib.unified_diff(result1_lines, result2_lines, lineterm=''))
+    result1_set = set(map(tuple, result1))
+    result2_set = set(map(tuple, result2))
 
-    formatted_diff = []
-    for line in diff:
-        if line.startswith('+'):
-            formatted_diff.append(colored(line, 'green'))
-        elif line.startswith('-'):
-            formatted_diff.append(colored(line, 'red'))
-        else:
-            formatted_diff.append(line)
+    diff = []
 
-    return '\n'.join(formatted_diff)
+    # Rows removed in result2
+    for row in result1_set - result2_set:
+        diff.append(colored(f"- {row}", 'red'))
+
+    # Rows added in result2
+    for row in result2_set - result1_set:
+        diff.append(colored(f"+ {row}", 'green'))
+
+    return '\n'.join(diff)
 
 
 async def execute_and_compare_queries(conn_v1, conn_v2, queries_file, database_name):
