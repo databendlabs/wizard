@@ -3,7 +3,6 @@ import asyncio
 from databend_driver import AsyncDatabendClient
 import argparse
 import datetime
-import difflib
 from termcolor import colored
 
 
@@ -93,10 +92,15 @@ async def main():
     """Main function to execute and compare Databend queries."""
     parser = argparse.ArgumentParser(description='Run Databend queries and compare results.')
     parser.add_argument('--setup', action='store_true', help='Setup the database by executing the setup SQL')
+    parser.add_argument('--database', type=str, help='Specify the database name to use')
     args = parser.parse_args()
 
-    today = datetime.datetime.now().strftime("%Y%m%d")
-    database_name = f"double_check_{today}"
+    # Use provided database name or create a default one
+    if args.database:
+        database_name = args.database
+    else:
+        today = datetime.datetime.now().strftime("%Y%m%d")
+        database_name = f"double_check_{today}"
 
     dsn_v1 = os.getenv('DATABEND_DSN_V1', 'default_dsn_v1')
     dsn_v2 = os.getenv('DATABEND_DSN_V2', 'default_dsn_v2')
