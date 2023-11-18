@@ -137,7 +137,8 @@ FROM customers c
          JOIN sales ON sales.customer_id = c.customer_id
          JOIN products p ON sales.product_id = p.product_id
 WHERE c.active = TRUE
-ORDER BY p.category, sales_rank;
+ORDER BY p.category, sales_rank
+LIMIT 10;
 
 -- Q13
 WITH monthly_sales AS (
@@ -188,7 +189,9 @@ SELECT c.customer_name, c.segment, COALESCE(SUM(s.net_paid), 0) AS total_spent
 FROM customers c
          LEFT JOIN sales s ON c.customer_id = s.customer_id
 GROUP BY c.customer_name, c.segment
-ORDER BY total_spent DESC
+ORDER BY
+    total_spent DESC,
+    c.customer_name ASC -- or c.customer_id ASC
     LIMIT 10;
 
 --right join
