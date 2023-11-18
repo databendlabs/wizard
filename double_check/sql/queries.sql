@@ -249,7 +249,9 @@ ORDER BY c.customer_name
 
 -- Query 21 - Right Mark Join
 -- List all products and mark whether they have sales
-SELECT p.product_name, IF(s.sale_id IS NULL, 'No Sales', 'Has Sales') AS sale_status
-FROM products p
-         LEFT JOIN sales s ON p.product_id = s.product_id
-ORDER BY p.product_name, sale_status;
+SELECT p.product_name, IF(COUNT(DISTINCT s.sale_id) > 0, 'Has Sales', 'No Sales') AS sale_status
+FROM sales s
+         RIGHT JOIN products p ON s.product_id = p.product_id
+GROUP BY p.product_name
+ORDER BY p.product_name, sale_status
+    LIMIT 10;
