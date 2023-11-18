@@ -8,13 +8,22 @@ import time
 
 
 def execute_sql(query):
-    """Execute an SQL query using bendsql(need >=0.8.0)."""
+    """Execute an SQL query using bendsql and check for 'APIError: ResponseError'."""
     command = ["bendsql", "--query=" + query, "--time=server"]
-    try:
-        result = subprocess.run(command, text=True, capture_output=True, check=True)
-        return result.stdout
-    except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"bendsql command failed: {e.stderr}")
+    result = subprocess.run(command, text=True, capture_output=True)
+
+    # Check for 'APIError: ResponseError' in stderr
+    if "APIError: ResponseError" in result.stderr:
+        raise RuntimeError(
+            f"'APIError: ResponseError' found in bendsql output: {result.stderr}"
+        )
+    elif result.returncode != 0:
+        # Handle other types of errors
+        raise RuntimeError(
+            f"bendsql command failed with return code {result.returncode}: {result.stderr}"
+        )
+
+    return result.stdout
 
 
 def extract_time(output):
