@@ -1,4 +1,5 @@
 import argparse
+import os
 from sqlalchemy import create_engine, text
 from termcolor import colored
 
@@ -39,29 +40,41 @@ def fetch_query_results(engine, query, database_name):
 def main():
     database = parse_arguments()
 
-    # Define database connection URLs (replace with actual connection details)
-    databend_url = f"databend://YOUR_USER:YOUR_PASSWORD@localhost:9090/{database}"
-    snowflake_url = f"snowflake://YOUR_USER:YOUR_PASSWORD@YOUR_ACCOUNT.snowflakecomputing.com/{database}"
+    # Read database connection DSNs from environment variables with format hints
+    databend_dsn = os.environ.get("DATABEND_DSN")
+    snowflake_dsn = os.environ.get("SNOWFLAKE_DSN")
+
+    if not databend_dsn:
+        print(
+            "Please set the DATABEND_DSN environment variable in the format 'databend://{username}:{password}@{host_port_name}/{database_name}?secure=false'"
+        )
+        return
+
+    if not snowflake_dsn:
+        print(
+            "Please set the SNOWFLAKE_DSN environment variable in the format 'snowflake://USER:PASSWORD@ACCOUNT.snowflakecomputing.com/DB'"
+        )
+        return
 
     # Create engine for Databend and Snowflake
-    databend_engine = create_engine(databend_url)
-    snowflake_engine = create_engine(snowflake_url)
+    databend_engine = create_engine(databend_dsn)
+    snowflake_engine = create_engine(snowflake_dsn)
 
     # Execute setup scripts
-    execute_sql_scripts(databend_engine, "sql/bend/setup.sql", "Databend")
-    execute_sql_scripts(snowflake_engine, "sql/snow/setup.sql", "Snowflake")
+    execute_sql_scripts(databend_engine, "sql/bend/setup.sql", database)
+    execute_sql_scripts(snowflake_engine, "sql/snow/setup.sql", database)
 
     # Execute action scripts
-    execute_sql_scripts(databend_engine, "sql/bend/action.sql", "Databend")
-    execute_sql_scripts(snowflake_engine, "sql/snow/action.sql", "Snowflake")
+    execute_sql_scripts(databend_engine, "sql/bend/action.sql", database)
+    execute_sql_scripts(snowflake_engine, "sql/snow/action.sql", database)
 
     # Compare results from check.sql
     with open("sql/check.sql", "r") as file:
         check_queries = file.read().split(";")
     for query in check_queries:
         if query.strip():
-            bend_result = fetch_query_results(databend_engine, query, "Databend")
-            snow_result = fetch_query_results(snowflake_engine, query, "Snowflake")
+            bend_result = fetch_query_results(databend_engine, query, database)
+            snow_result = fetch_query_results(snowflake_engine, query, database)
 
             if bend_result == snow_result:
                 print(colored("OK", "green"))
