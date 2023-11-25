@@ -1,9 +1,9 @@
--- Asset Types Distribution
+-- 1. Asset Types Distribution
 SELECT asset_type, COUNT(*) AS count
 FROM assets
 GROUP BY asset_type;
 
--- Aggregated Quantity and Value Statistics
+-- 2. Aggregated Quantity and Value Statistics
 SELECT
     SUM(quantity) AS total_quantity,
     AVG(quantity) AS average_quantity,
@@ -11,12 +11,12 @@ SELECT
     AVG(value) AS average_value
 FROM assets;
 
--- Assets Counts by User
+-- 3. Assets Counts by User
 SELECT user_id, COUNT(*) AS count
 FROM assets
 GROUP BY user_id;
 
--- Date Range Analysis of Last Update
+-- 4. Date Range Analysis of Last Update
 SELECT
     CASE
         WHEN last_updated < '2022-01-01' THEN 'Before 2022'
@@ -26,13 +26,12 @@ SELECT
 FROM assets
 GROUP BY date_range;
 
-
--- General Status Distribution
+-- 5. General Status Distribution
 SELECT status, COUNT(*) AS count
 FROM orders
 GROUP BY status;
 
--- General Quantity Statistics
+-- 6. General Quantity Statistics
 SELECT
     SUM(quantity) AS total_quantity,
     AVG(quantity) AS average_quantity,
@@ -40,7 +39,7 @@ SELECT
     MAX(quantity) AS max_quantity
 FROM orders;
 
--- New Orders vs Existing Orders Count
+-- 7. New Orders vs Existing Orders Count
 SELECT
     CASE
         WHEN order_id > 500000 THEN 'New Order'
@@ -50,12 +49,12 @@ SELECT
 FROM orders
 GROUP BY order_category;
 
--- Order Type Distribution
+-- 8. Order Type Distribution
 SELECT order_type, COUNT(*) AS count
 FROM orders
 GROUP BY order_type;
 
--- Date Range Analysis
+-- 9. Date Range Analysis
 SELECT
     CASE
         WHEN created_at < '2022-01-01' THEN 'Before 2022'
@@ -66,7 +65,7 @@ SELECT
 FROM orders
 GROUP BY date_range;
 
--- Price Analysis After Adjustments
+-- 10. Price Analysis After Adjustments
 SELECT
     SUM(price) AS total_price,
     AVG(price) AS average_price,
@@ -74,12 +73,12 @@ SELECT
     MAX(price) AS max_price
 FROM orders;
 
--- Transaction Types Distribution
+-- 11. Transaction Types Distribution
 SELECT transaction_type, COUNT(*) AS count
 FROM transactions
 GROUP BY transaction_type;
 
--- Aggregated Quantity Statistics
+-- 12. Aggregated Quantity Statistics
 SELECT
     SUM(quantity) AS total_quantity,
     AVG(quantity) AS average_quantity,
@@ -87,12 +86,12 @@ SELECT
     MAX(quantity) AS max_quantity
 FROM transactions;
 
--- Transaction Counts by User and Asset Type
+-- 13. Transaction Counts by User and Asset Type
 SELECT user_id, asset_type, COUNT(*) AS count
 FROM transactions
 GROUP BY user_id, asset_type;
 
--- Date Range Analysis of Transactions
+-- 14. Date Range Analysis of Transactions
 SELECT
     CASE
         WHEN transaction_time < '2022-01-01' THEN 'Before 2022'
@@ -101,4 +100,3 @@ SELECT
     COUNT(*) AS count
 FROM transactions
 GROUP BY date_range;
-
