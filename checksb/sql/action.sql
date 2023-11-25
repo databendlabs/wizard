@@ -110,18 +110,6 @@ MERGE INTO orders USING (
     WHEN MATCHED THEN
         UPDATE SET orders.status = complex_data.quantity_status;
 
--- Query 10: Merge with User-Based Aggregation and Conditional Insertion
--- This query inserts new orders for users who have more than 5 orders for each asset type.
-MERGE INTO orders USING (
-    SELECT user_id, asset_type, COUNT(*) AS order_count
-    FROM orders
-    GROUP BY user_id, asset_type
-    HAVING COUNT(*) > 5
-) AS frequent_traders ON orders.user_id = frequent_traders.user_id AND orders.asset_type = frequent_traders.asset_type
-    WHEN NOT MATCHED THEN
-        INSERT (order_id, user_id, order_type, asset_type, quantity, price, status, created_at, updated_at)
-            VALUES ((SELECT MAX(order_id) FROM orders) + 1, frequent_traders.user_id, 'buy', frequent_traders.asset_type, 10, 100, 'completed', CURRENT_DATE, CURRENT_DATE);
-
 -- Query 11: Merge with Multi-level Subquery and Status Overhaul
 -- This query updates the status of the latest order for each user to 'latest'.
 MERGE INTO orders USING (
