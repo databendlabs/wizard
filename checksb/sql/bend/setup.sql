@@ -1,3 +1,4 @@
+DROP TABLE IF EXISTS assets;
 CREATE TABLE assets (
                         user_id       INT          NOT NULL,
                         asset_type    VARCHAR      NOT NULL,
@@ -6,6 +7,7 @@ CREATE TABLE assets (
                         last_updated  DATE         NOT NULL
 );
 
+DROP TABLE IF EXISTS orders;
 CREATE TABLE orders (
                         order_id      INT          NOT NULL,
                         user_id       INT          NOT NULL,
@@ -18,6 +20,7 @@ CREATE TABLE orders (
                         updated_at    DATE         NOT NULL
 );
 
+DROP TABLE IF EXISTS transactions;
 CREATE TABLE transactions (
                               transaction_id    INT          NOT NULL,
                               user_id           INT          NOT NULL,
