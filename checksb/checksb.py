@@ -55,6 +55,8 @@ def execute_sql(query, sql_tool, database, warehouse=None):
 
     try:
         result = subprocess.run(command, text=True, capture_output=True, check=True)
+        print("Command executed successfully. Output:")
+        print(result.stdout)
         return result.stdout
     except subprocess.CalledProcessError as e:
         error_message = f"{sql_tool} command failed: {e.stderr}"
