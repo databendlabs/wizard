@@ -1,88 +1,138 @@
 import argparse
 import os
-from sqlalchemy import create_engine, text
+import subprocess
 from termcolor import colored
+import difflib
 
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
-        description="Check SQL scripts on Databend and Snowflake."
+        description="Compare SQL execution on different databases."
     )
     parser.add_argument("--database", help="Database name", required=True)
+    parser.add_argument(
+        "--warehouse", help="Warehouse name for snowsql", required=False
+    )
     args = parser.parse_args()
-    return args.database
+    print(f"Database selected: {args.database}")
+    if args.warehouse:
+        print(f"Warehouse selected for snowsql: {args.warehouse}")
+    return args.database, args.warehouse
 
 
-def execute_sql_scripts(engine, script_path, database_name):
+def execute_sql(query, sql_tool, database, warehouse=None):
+    """Execute an SQL query using snowsql or bendsql and return the output."""
+    command = [sql_tool]
+    if sql_tool == "snowsql":
+        # Enclosing the query in double quotes
+        snowsql_query = f'"{query}"'
+        command.extend(
+            [
+                "--query",
+                snowsql_query,
+                "-d",
+                database,
+                "-o",
+                "output_format=tsv",
+                "-o",
+                "header=false",
+                "-o",
+                "timing=false",
+                "-o",
+                "friendly=false",
+            ]
+        )
+        if warehouse:
+            command.extend(["--warehouse", warehouse])
+    elif sql_tool == "bendsql":
+        command.extend(["--query=" + query, "-D", database])
+
+    # Logging the command to be executed
+    print(f"Executing command: {' '.join(command)}")
+
+    try:
+        result = subprocess.run(command, text=True, capture_output=True, check=True)
+        print("Command executed successfully. Output:")
+        print(result.stdout)
+        return result.stdout
+    except subprocess.CalledProcessError as e:
+        error_message = f"{sql_tool} command failed: {e.stderr}"
+        print(error_message)
+        raise RuntimeError(error_message)
+
+
+def execute_sql_scripts(sql_tool, script_path, database, warehouse=None):
+    print(f"Executing SQL scripts from: {script_path} using {sql_tool}")
     with open(script_path, "r") as file:
         sql_script = file.read()
     queries = sql_script.split(";")
     for query in queries:
         if query.strip():
-            print(f"Executing query for {database_name}:")
-            print(query)
+            print(f"Executing query on {sql_tool}: {query}")
             # Execute each query
-            with engine.begin() as conn:
-                conn.execute(text(query))
-            print(f"Query executed for {database_name}.")
+            execute_sql(query, sql_tool, database, warehouse)
 
 
-def fetch_query_results(engine, query, database_name):
-    with engine.begin() as conn:
-        print(f"Fetching results for {database_name}:")
-        print(query)
-        result = conn.execute(text(query))
-        results = result.fetchall()
-        print(f"Results fetched for {database_name}.")
-        return results
+def fetch_query_results(query, sql_tool, database, warehouse=None):
+    print(f"Fetching results for {sql_tool} with query: {query}")
+    result = execute_sql(query, sql_tool, database, warehouse)
+    print(f"Results fetched for {sql_tool}:")
+    print(result)
+    return result
 
 
 def main():
-    database = parse_arguments()
+    database_name, warehouse = parse_arguments()
 
-    # Read database connection DSNs from environment variables with format hints
+    # Read DSN from environment variable
     databend_dsn = os.environ.get("DATABEND_DSN")
-    snowflake_dsn = os.environ.get("SNOWFLAKE_DSN")
-
+    print("Checking DATABEND_DSN environment variable...")
     if not databend_dsn:
-        print(
-            "Please set the DATABEND_DSN environment variable in the format 'databend://{username}:{password}@{host_port_name}/{database_name}?secure=false'"
-        )
+        print("Please set the DATABEND_DSN environment variable.")
         return
-
-    if not snowflake_dsn:
-        print(
-            "Please set the SNOWFLAKE_DSN environment variable in the format 'snowflake://USER:PASSWORD@ACCOUNT.snowflakecomputing.com/DB'"
-        )
-        return
-
-    # Create engine for Databend and Snowflake
-    databend_engine = create_engine(databend_dsn)
-    snowflake_engine = create_engine(snowflake_dsn)
+    else:
+        print("DATABEND_DSN environment variable found.")
 
     # Execute setup scripts
-    execute_sql_scripts(databend_engine, "sql/bend/setup.sql", database)
-    execute_sql_scripts(snowflake_engine, "sql/snow/setup.sql", database)
+    print("Starting setup script execution...")
+    execute_sql_scripts("bendsql", "sql/bend/setup.sql", database_name)
+    execute_sql_scripts("snowsql", "sql/snow/setup.sql", database_name, warehouse)
 
     # Execute action scripts
-    execute_sql_scripts(databend_engine, "sql/bend/action.sql", database)
-    execute_sql_scripts(snowflake_engine, "sql/snow/action.sql", database)
+    print("Starting action script execution...")
+    execute_sql_scripts("bendsql", "sql/action.sql", database_name)
+    execute_sql_scripts("snowsql", "sql/action.sql", database_name, warehouse)
 
     # Compare results from check.sql
+    print("Starting comparison of results from check.sql...")
     with open("sql/check.sql", "r") as file:
         check_queries = file.read().split(";")
+
     for query in check_queries:
         if query.strip():
-            bend_result = fetch_query_results(databend_engine, query, database)
-            snow_result = fetch_query_results(snowflake_engine, query, database)
+            print(f"Comparing results for query: {query}")
+            bend_result = fetch_query_results(query, "bendsql", database_name)
+            snow_result = fetch_query_results(
+                query, "snowsql", database_name, warehouse
+            )
 
-            if bend_result == snow_result:
-                print(colored("OK", "green"))
-            else:
-                print(colored("ERROR", "red"))
+            if bend_result != snow_result:
+                print(colored("DIFFERENCE FOUND", "red"))
                 print("Query:")
                 print(query)
+                print("\nDifferences:")
+                diff = difflib.unified_diff(
+                    bend_result.splitlines(),
+                    snow_result.splitlines(),
+                    fromfile="bendsql",
+                    tofile="snowsql",
+                    lineterm="",
+                )
+                for line in diff:
+                    print(line)
                 break
+            else:
+                print(colored("OK", "green"))
 
 
 if __name__ == "__main__":
