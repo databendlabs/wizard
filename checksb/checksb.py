@@ -1,8 +1,6 @@
 import argparse
-import os
 import subprocess
 from termcolor import colored
-import difflib
 
 
 def parse_arguments():
@@ -12,7 +10,7 @@ def parse_arguments():
     parser.add_argument("--database", help="Database name", required=True)
     parser.add_argument(
         "--warehouse",
-        action="COMPUTE_WH",
+        default="COMPUTE_WH",
         help="Warehouse name for snowsql",
         required=False,
     )

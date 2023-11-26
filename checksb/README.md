@@ -1,3 +1,2 @@
 
-
-Wait the checksb.py to work...
+python checksb.py
