@@ -1,9 +1,12 @@
 -- 1. Asset Types Distribution
 SELECT asset_type, COUNT(*) AS count
 FROM assets
-GROUP BY asset_type;
+GROUP BY asset_type
+ORDER BY count DESC, asset_type
+    LIMIT 13;
 
 -- 2. Aggregated Quantity and Value Statistics
+-- (No LIMIT needed as it returns a single row)
 SELECT
     SUM(quantity) AS total_quantity,
     AVG(quantity) AS average_quantity,
@@ -14,7 +17,9 @@ FROM assets;
 -- 3. Assets Counts by User
 SELECT user_id, COUNT(*) AS count
 FROM assets
-GROUP BY user_id;
+GROUP BY user_id
+ORDER BY count DESC, user_id
+    LIMIT 13;
 
 -- 4. Date Range Analysis of Last Update
 SELECT
@@ -24,14 +29,19 @@ SELECT
         END AS date_range,
     COUNT(*) AS count
 FROM assets
-GROUP BY date_range;
+GROUP BY date_range
+ORDER BY date_range
+    LIMIT 13;
 
 -- 5. General Status Distribution
 SELECT status, COUNT(*) AS count
 FROM orders
-GROUP BY status;
+GROUP BY status
+ORDER BY count DESC, status
+    LIMIT 13;
 
 -- 6. General Quantity Statistics
+-- (No LIMIT needed as it returns a single row)
 SELECT
     SUM(quantity) AS total_quantity,
     AVG(quantity) AS average_quantity,
@@ -47,12 +57,16 @@ SELECT
         END AS order_category,
     COUNT(*) AS count
 FROM orders
-GROUP BY order_category;
+GROUP BY order_category
+ORDER BY count DESC
+    LIMIT 13;
 
 -- 8. Order Type Distribution
 SELECT order_type, COUNT(*) AS count
 FROM orders
-GROUP BY order_type;
+GROUP BY order_type
+ORDER BY count DESC, order_type
+    LIMIT 13;
 
 -- 9. Date Range Analysis
 SELECT
@@ -63,9 +77,12 @@ SELECT
         END AS date_range,
     COUNT(*) AS count
 FROM orders
-GROUP BY date_range;
+GROUP BY date_range
+ORDER BY date_range
+    LIMIT 13;
 
 -- 10. Price Analysis After Adjustments
+-- (No LIMIT needed as it returns a single row)
 SELECT
     SUM(price) AS total_price,
     AVG(price) AS average_price,
@@ -76,9 +93,12 @@ FROM orders;
 -- 11. Transaction Types Distribution
 SELECT transaction_type, COUNT(*) AS count
 FROM transactions
-GROUP BY transaction_type;
+GROUP BY transaction_type
+ORDER BY count DESC, transaction_type
+    LIMIT 13;
 
 -- 12. Aggregated Quantity Statistics
+-- (No LIMIT needed as it returns a single row)
 SELECT
     SUM(quantity) AS total_quantity,
     AVG(quantity) AS average_quantity,
@@ -89,7 +109,9 @@ FROM transactions;
 -- 13. Transaction Counts by User and Asset Type
 SELECT user_id, asset_type, COUNT(*) AS count
 FROM transactions
-GROUP BY user_id, asset_type;
+GROUP BY user_id, asset_type
+ORDER BY count DESC, user_id, asset_type
+    LIMIT 13;
 
 -- 14. Date Range Analysis of Transactions
 SELECT
@@ -99,4 +121,6 @@ SELECT
         END AS date_range,
     COUNT(*) AS count
 FROM transactions
-GROUP BY date_range;
+GROUP BY date_range
+ORDER BY date_range
+    LIMIT 13;

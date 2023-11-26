@@ -13,18 +13,20 @@ def parse_arguments():
     parser.add_argument(
         "--warehouse", help="Warehouse name for snowsql", required=False
     )
+    # New argument to enable running only check.sql
+    parser.add_argument(
+        "--run-check-only", action="store_true", help="Run only check.sql if set"
+    )
     args = parser.parse_args()
     print(f"Database selected: {args.database}")
     if args.warehouse:
         print(f"Warehouse selected for snowsql: {args.warehouse}")
-    return args.database, args.warehouse
+    return args
 
 
 def execute_sql(query, sql_tool, database, warehouse=None):
-    """Execute an SQL query using snowsql or bendsql and return the output."""
     command = [sql_tool]
     if sql_tool == "snowsql":
-        # Remove the extra double quotes around the query
         command.extend(
             [
                 "--query",
@@ -48,7 +50,6 @@ def execute_sql(query, sql_tool, database, warehouse=None):
     elif sql_tool == "bendsql":
         command.extend(["--query=" + query, "-D", database])
 
-    # Logging the command to be executed
     print(f"Executing command: {' '.join(command)}")
 
     try:
@@ -69,7 +70,6 @@ def execute_sql_scripts(sql_tool, script_path, database, warehouse=None):
     queries = sql_script.split(";")
     for query in queries:
         if query.strip():
-            # Execute each query
             execute_sql(query, sql_tool, database, warehouse)
 
 
@@ -81,30 +81,7 @@ def fetch_query_results(query, sql_tool, database, warehouse=None):
     return result
 
 
-def main():
-    database_name, warehouse = parse_arguments()
-
-    # Read DSN from environment variable
-    databend_dsn = os.environ.get("BENDSQL_DSN")
-    print("Checking BENDSQL_DSN environment variable...")
-    if not databend_dsn:
-        print("Please set the BENDSQL_DSN environment variable.")
-        return
-    else:
-        print("BENDSQL_DSN environment variable found.")
-
-    # Execute setup scripts
-    print("Starting setup script execution...")
-    execute_sql_scripts("bendsql", "sql/bend/setup.sql", database_name)
-    execute_sql_scripts("snowsql", "sql/snow/setup.sql", database_name, warehouse)
-
-    # Execute action scripts
-    print("Starting action script execution...")
-    execute_sql_scripts("bendsql", "sql/action.sql", database_name)
-    execute_sql_scripts("snowsql", "sql/action.sql", database_name, warehouse)
-
-    # Compare results from check.sql
-    print("Starting comparison of results from check.sql...")
+def run_check_sql(database_name, warehouse):
     with open("sql/check.sql", "r") as file:
         check_queries = file.read().split(";")
 
@@ -130,9 +107,31 @@ def main():
                 )
                 for line in diff:
                     print(line)
-                break
             else:
                 print(colored("OK", "green"))
+
+
+def main():
+    args = parse_arguments()
+
+    # Proceed based on the run-check-only flag
+    if args.run_check_only:
+        run_check_sql(args.database, args.warehouse)
+    else:
+        database_name, warehouse = args.database, args.warehouse
+
+        # Execute setup scripts
+        print("Starting setup script execution...")
+        execute_sql_scripts("bendsql", "sql/bend/setup.sql", database_name)
+        execute_sql_scripts("snowsql", "sql/snow/setup.sql", database_name, warehouse)
+
+        # Execute action scripts
+        print("Starting action script execution...")
+        execute_sql_scripts("bendsql", "sql/action.sql", database_name)
+        execute_sql_scripts("snowsql", "sql/action.sql", database_name, warehouse)
+
+        # Compare results from check.sql
+        run_check_sql(database_name, warehouse)
 
 
 if __name__ == "__main__":
