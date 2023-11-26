@@ -30,8 +30,10 @@ def execute_sql(query, sql_tool, database, warehouse=None):
             [
                 "--query",
                 snowsql_query,
-                "-d",
+                "--dbname",
                 database,
+                "--schemaname",
+                "PUBLIC",
                 "-o",
                 "output_format=tsv",
                 "-o",
