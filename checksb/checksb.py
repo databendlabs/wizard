@@ -24,12 +24,11 @@ def execute_sql(query, sql_tool, database, warehouse=None):
     """Execute an SQL query using snowsql or bendsql and return the output."""
     command = [sql_tool]
     if sql_tool == "snowsql":
-        # Enclosing the query in double quotes
-        snowsql_query = f'"{query}"'
+        # Remove the extra double quotes around the query
         command.extend(
             [
                 "--query",
-                snowsql_query,
+                query,
                 "--dbname",
                 database,
                 "--schemaname",
@@ -47,7 +46,7 @@ def execute_sql(query, sql_tool, database, warehouse=None):
         if warehouse:
             command.extend(["--warehouse", warehouse])
     elif sql_tool == "bendsql":
-        command.extend(["--query=" + query])
+        command.extend(["--query=" + query, "-D", database])
 
     # Logging the command to be executed
     print(f"Executing command: {' '.join(command)}")
