@@ -11,7 +11,10 @@ def parse_arguments():
     )
     parser.add_argument("--database", help="Database name", required=True)
     parser.add_argument(
-        "--warehouse", help="Warehouse name for snowsql", required=False
+        "--warehouse",
+        action="COMPUTE_WH",
+        help="Warehouse name for snowsql",
+        required=False,
     )
     # New argument to enable running only check.sql
     parser.add_argument(
@@ -54,8 +57,6 @@ def execute_sql(query, sql_tool, database, warehouse=None):
 
     try:
         result = subprocess.run(command, text=True, capture_output=True, check=True)
-        print("Command executed successfully. Output:")
-        print(result.stdout)
         return result.stdout
     except subprocess.CalledProcessError as e:
         error_message = f"{sql_tool} command failed: {e.stderr}"
@@ -74,10 +75,7 @@ def execute_sql_scripts(sql_tool, script_path, database, warehouse=None):
 
 
 def fetch_query_results(query, sql_tool, database, warehouse=None):
-    print(f"Fetching results for {sql_tool} with query: {query}")
     result = execute_sql(query, sql_tool, database, warehouse)
-    print(f"Results fetched for {sql_tool}:")
-    print(result)
     return result
 
 
@@ -95,18 +93,9 @@ def run_check_sql(database_name, warehouse):
 
             if bend_result != snow_result:
                 print(colored("DIFFERENCE FOUND", "red"))
-                print("Query:")
-                print(query)
                 print("\nDifferences:")
-                diff = difflib.unified_diff(
-                    bend_result.splitlines(),
-                    snow_result.splitlines(),
-                    fromfile="bendsql",
-                    tofile="snowsql",
-                    lineterm="",
-                )
-                for line in diff:
-                    print(line)
+                print("\nbensql:\n" + bend_result)
+                print("\nsnowsql:\n" + snow_result)
             else:
                 print(colored("OK", "green"))
 
