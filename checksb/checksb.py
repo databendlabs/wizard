@@ -92,10 +92,11 @@ def run_check_sql(database_name, warehouse):
             if bend_result != snow_result:
                 print(colored("DIFFERENCE FOUND", "red"))
                 print("\nDifferences:")
-                print("\nbensql:\n" + bend_result)
-                print("\nsnowsql:\n" + snow_result)
+                print(colored("\nbendsql:\n" + bend_result, "red"))
+                print(colored("\nsnowsql:\n" + snow_result, "red"))
             else:
                 print(colored("OK", "green"))
+                print(colored(bend_result, "green"))
 
 
 def main():
