@@ -45,7 +45,7 @@ def execute_sql(query, sql_tool, database, warehouse=None):
         if warehouse:
             command.extend(["--warehouse", warehouse])
     elif sql_tool == "bendsql":
-        command.extend(["--query=" + query, "-D", database])
+        command.extend(["--query=" + query])
 
     # Logging the command to be executed
     print(f"Executing command: {' '.join(command)}")
@@ -68,7 +68,6 @@ def execute_sql_scripts(sql_tool, script_path, database, warehouse=None):
     queries = sql_script.split(";")
     for query in queries:
         if query.strip():
-            print(f"Executing query on {sql_tool}: {query}")
             # Execute each query
             execute_sql(query, sql_tool, database, warehouse)
 
@@ -85,13 +84,13 @@ def main():
     database_name, warehouse = parse_arguments()
 
     # Read DSN from environment variable
-    databend_dsn = os.environ.get("DATABEND_DSN")
-    print("Checking DATABEND_DSN environment variable...")
+    databend_dsn = os.environ.get("BENDSQL_DSN")
+    print("Checking BENDSQL_DSN environment variable...")
     if not databend_dsn:
-        print("Please set the DATABEND_DSN environment variable.")
+        print("Please set the BENDSQL_DSN environment variable.")
         return
     else:
-        print("DATABEND_DSN environment variable found.")
+        print("BENDSQL_DSN environment variable found.")
 
     # Execute setup scripts
     print("Starting setup script execution...")
