@@ -14,14 +14,19 @@ def parse_arguments():
         help="Warehouse name for snowsql",
         required=False,
     )
-    # New argument to enable running only check.sql
     parser.add_argument(
         "--run-check-only", action="store_true", help="Run only check.sql if set"
+    )
+    # New argument for specifying the case to execute
+    parser.add_argument(
+        "--case", help="Case to execute (e.g., mergeinto, join)", required=True
     )
     args = parser.parse_args()
     print(f"Database selected: {args.database}")
     if args.warehouse:
         print(f"Warehouse selected for snowsql: {args.warehouse}")
+    if args.case:
+        print(f"Case selected: {args.case}")
     return args
 
 
@@ -79,8 +84,8 @@ def fetch_query_results(query, sql_tool, database, warehouse=None):
     return result
 
 
-def run_check_sql(database_name, warehouse):
-    with open("sql/check.sql", "r") as file:
+def run_check_sql(database_name, warehouse, script_path):
+    with open(script_path, "r") as file:
         check_queries = file.read().split(";")
 
     for query in check_queries:
@@ -104,24 +109,31 @@ def run_check_sql(database_name, warehouse):
 def main():
     args = parse_arguments()
 
-    # Proceed based on the run-check-only flag
+    # Base directory path for SQL scripts based on the case argument
+    base_sql_dir = f"sql/{args.case}"
+
     if args.run_check_only:
         run_check_sql(args.database, args.warehouse)
     else:
         database_name, warehouse = args.database, args.warehouse
 
-        # Execute setup scripts
+        # Execute setup scripts for both bendsql and snowsql based on the case
         print("Starting setup script execution...")
-        execute_sql_scripts("bendsql", "sql/bend/setup.sql", database_name)
-        execute_sql_scripts("snowsql", "sql/snow/setup.sql", database_name, warehouse)
+        execute_sql_scripts("bendsql", f"{base_sql_dir}/bend/setup.sql", database_name)
+        execute_sql_scripts(
+            "snowsql", f"{base_sql_dir}/snow/setup.sql", database_name, warehouse
+        )
 
         # Execute action scripts
         print("Starting action script execution...")
-        execute_sql_scripts("bendsql", "sql/action.sql", database_name)
-        execute_sql_scripts("snowsql", "sql/action.sql", database_name, warehouse)
+        execute_sql_scripts("bendsql", f"{base_sql_dir}/action.sql", database_name)
+        execute_sql_scripts(
+            "snowsql", f"{base_sql_dir}/action.sql", database_name, warehouse
+        )
 
         # Compare results from check.sql
-        run_check_sql(database_name, warehouse)
+        check_sql_path = f"{base_sql_dir}/check.sql"
+        run_check_sql(database_name, warehouse, check_sql_path)
 
 
 if __name__ == "__main__":
