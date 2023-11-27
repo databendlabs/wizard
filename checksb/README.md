@@ -33,7 +33,7 @@ password = <pwd>
 # Run
 
 ```bash
-python3 checksb.py --database mergeinto --warehouse COMPUTE_WH --case mergeinto
+python3 checksb.py --database mergeinto --warehouse COMPUTE_WH --case <mergeinto|selects>
 
 options:
   --run-check-only      Run only check.sql if set
