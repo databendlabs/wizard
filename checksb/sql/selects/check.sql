@@ -359,3 +359,52 @@ FROM sales
 ORDER BY distinct_product_count DESC, customer_id
     LIMIT 10;
 
+-- Query W11: Calculate each customer's average sale value and rank these averages within each customer segment
+WITH CustomerAverage AS (
+    SELECT
+        c.customer_id,
+        c.customer_name,
+        c.segment,
+        AVG(s.net_paid) AS avg_sale_value
+    FROM
+        customers c
+            JOIN
+        sales s ON c.customer_id = s.customer_id
+    GROUP BY
+        c.customer_id, c.customer_name, c.segment
+)
+SELECT
+    customer_id,
+    customer_name,
+    segment,
+    avg_sale_value,
+    RANK() OVER (PARTITION BY segment ORDER BY avg_sale_value DESC) AS rank_in_segment
+FROM
+    CustomerAverage
+ORDER BY
+    segment, rank_in_segment
+    LIMIT 10;
+
+-- Query W12: Display the top 5 products with the highest average sales quantity, along with their rank across all categories
+WITH ProductAverage AS (
+    SELECT
+        p.product_id,
+        p.product_name,
+        AVG(s.quantity) AS avg_quantity
+    FROM
+        products p
+            JOIN
+        sales s ON p.product_id = s.product_id
+    GROUP BY
+        p.product_id, p.product_name
+)
+SELECT
+    product_id,
+    product_name,
+    avg_quantity,
+    RANK() OVER (ORDER BY avg_quantity DESC) AS overall_rank
+FROM
+    ProductAverage
+ORDER BY
+    overall_rank
+    LIMIT 5;
