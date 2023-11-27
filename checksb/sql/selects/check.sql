@@ -297,14 +297,6 @@ ORDER BY
     LIMIT 10;
 
 
--- Query W2: Calculate the cumulative and average sales quantity per month for the first 6 months of 2021
-SELECT sale_date, SUM(quantity) OVER (ORDER BY sale_date) AS cumulative_sales,
-        AVG(quantity) OVER (ORDER BY sale_date ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS avg_monthly_sales
-FROM sales
-WHERE sale_date BETWEEN '2021-01-01' AND '2021-06-30'
-ORDER BY sale_date
-    LIMIT 10;
-
 -- Query W3: Determine the growth in sales quantity for each product from the first sale to the latest sale, with stable ordering
 SELECT product_id,
        first_sale_quantity,
@@ -408,3 +400,76 @@ FROM
 ORDER BY
     overall_rank
     LIMIT 5;
+
+-- Query W13: Calculate a cumulative total of sales and a running three-month average, then rank these by customer
+WITH SalesData AS (
+    SELECT
+        customer_id,
+        sale_date,
+        net_paid,
+        SUM(net_paid) OVER (PARTITION BY customer_id ORDER BY sale_date) AS cumulative_sales,
+            AVG(net_paid) OVER (PARTITION BY customer_id ORDER BY sale_date ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS running_3m_avg
+    FROM
+        sales
+)
+SELECT
+    customer_id,
+    sale_date,
+    cumulative_sales,
+    running_3m_avg,
+    RANK() OVER (ORDER BY running_3m_avg DESC, cumulative_sales DESC) AS sales_rank
+FROM
+    SalesData
+ORDER BY
+    customer_id, sale_date
+    LIMIT 10;
+
+-- Query W14: Find the top 5 days with the highest sales, along with a row number indicating their rank ordered by date
+SELECT
+    sale_date,
+    daily_total,
+    ROW_NUMBER() OVER (ORDER BY sale_date) AS date_rank
+FROM (
+         SELECT
+             sale_date,
+             SUM(net_paid) AS daily_total
+         FROM
+             sales
+         GROUP BY
+             sale_date
+     ) AS DailySales
+ORDER BY
+    daily_total DESC
+    LIMIT 5;
+
+-- Query W15: For each product, calculate the first and last sale dates and the total duration in days between them
+SELECT
+    product_id,
+    first_sale_date,
+    last_sale_date,
+    last_sale_date - first_sale_date AS duration
+FROM (
+         SELECT
+             product_id,
+             MIN(sale_date) OVER (PARTITION BY product_id) AS first_sale_date,
+                 MAX(sale_date) OVER (PARTITION BY product_id) AS last_sale_date
+         FROM
+             sales
+     ) AS ProductSales
+GROUP BY
+    product_id, first_sale_date, last_sale_date
+ORDER BY
+    duration DESC
+    LIMIT 10;
+
+-- Query W16: Compare each sale's net_paid to the average of the previous 5 sales of the same customer
+SELECT
+    customer_id,
+    sale_id,
+    net_paid,
+    AVG(net_paid) OVER (PARTITION BY customer_id ORDER BY sale_date ROWS BETWEEN 5 PRECEDING AND 1 PRECEDING) AS prev_5_avg
+FROM
+    sales
+ORDER BY
+    customer_id, sale_id
+    LIMIT 10;
