@@ -334,16 +334,6 @@ FROM sales
 ORDER BY net_paid DESC, sale_id ASC
     LIMIT 10;
 
-
--- Query W7: Display the top 10 products with the most fluctuation in sale quantities (measured by standard deviation), with secondary sorting for unique order
-SELECT product_id,
-       STDDEV(quantity) OVER (PARTITION BY product_id) AS quantity_stddev
-FROM sales
-GROUP BY product_id
-ORDER BY quantity_stddev DESC, product_id ASC
-    LIMIT 10;
-
-
 -- Query W8: Calculate the average sale value for each customer, compared to the overall average, top 10 customers
 SELECT
     customer_id,
