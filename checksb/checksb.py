@@ -114,7 +114,8 @@ def main():
     base_sql_dir = f"sql/{args.case}"
 
     if args.run_check_only:
-        run_check_sql(args.database, args.warehouse)
+        check_sql_path = f"{base_sql_dir}/check.sql"  # Construct the path to check.sql
+        run_check_sql(args.database, args.warehouse, check_sql_path)
     else:
         database_name, warehouse = args.database, args.warehouse
 
