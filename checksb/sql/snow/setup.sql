@@ -30,6 +30,7 @@ CREATE TABLE transactions (
                               transaction_time DATE NOT NULL
 );
 
+CREATE OR REPLACE STAGE wizardbend URL='s3://wizardbend/mergeinto/';
 CREATE OR REPLACE FILE FORMAT parquet_format TYPE = 'parquet';
 
 COPY INTO assets
@@ -39,7 +40,7 @@ COPY INTO assets
     $1:quantity::DECIMAL(18, 8),
     $1:value::DECIMAL(18, 8),
     $1:last_updated::DATE
-    FROM @snow/assets (file_format => 'parquet_format'));
+    FROM @wizardbend/assets.parquet (file_format => 'parquet_format'));
 
 COPY INTO orders
     FROM (SELECT
@@ -52,7 +53,7 @@ COPY INTO orders
     $1:status::VARCHAR,
     $1:created_at::DATE,
     $1:updated_at::DATE
-    FROM @snow/orders (file_format => 'parquet_format'));
+    FROM @wizardbend/orders.parquet (file_format => 'parquet_format'));
 
 COPY INTO transactions
     FROM (SELECT
@@ -62,4 +63,4 @@ COPY INTO transactions
     $1:asset_type::VARCHAR,
     $1:quantity::DECIMAL(18, 8),
     $1:transaction_time::DATE
-    FROM @snow/transactions (file_format => 'parquet_format'));
+    FROM @wizardbend/transactions.parquet (file_format => 'parquet_format'));

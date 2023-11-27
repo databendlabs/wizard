@@ -31,19 +31,14 @@ CREATE TABLE transactions (
 );
 
 COPY INTO assets
-    FROM (
-    SELECT * FROM @bohu_unload/assets/
-    )
+    FROM 's3://wizardbend/mergeinto/assets.parquet' CONNECTION = (allow_anonymous='true')
     FILE_FORMAT = (type = parquet);
 
+
 COPY INTO orders
-    FROM (
-    SELECT * FROM @bohu_unload/orders/
-    )
+    FROM 's3://wizardbend/mergeinto/orders.parquet' CONNECTION = (allow_anonymous='true')
     FILE_FORMAT = (type = parquet);
 
 COPY INTO transactions
-    FROM (
-    SELECT * FROM @bohu_unload/transactions/
-    )
+    FROM 's3://wizardbend/mergeinto/transactions.parquet' CONNECTION = (allow_anonymous='true')
     FILE_FORMAT = (type = parquet);
