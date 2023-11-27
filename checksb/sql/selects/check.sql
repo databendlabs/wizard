@@ -238,3 +238,37 @@ HAVING
 ORDER BY
     p.product_id, total_sales DESC LIMIT 10;
 
+-- Query J01: LEFT JOIN with COUNT - Find top 3 customers with the least purchases
+SELECT c.customer_id, c.customer_name, COALESCE(COUNT(s.sale_id), 0) AS purchase_count
+FROM customers c
+         LEFT JOIN sales s ON c.customer_id = s.customer_id
+GROUP BY c.customer_id, c.customer_name
+ORDER BY purchase_count ASC, c.customer_id ASC
+    LIMIT 3;
+
+
+-- Query J02: INNER JOIN with SUM - Top 3 products by total sales value
+SELECT p.product_id, p.product_name, SUM(s.net_paid) AS total_sales_value
+FROM products p
+         INNER JOIN sales s ON p.product_id = s.product_id
+GROUP BY p.product_id, p.product_name
+ORDER BY total_sales_value DESC, p.product_id ASC
+    LIMIT 3;
+
+-- Query J03: INNER JOIN with AVG - Top 3 product categories by average product price
+SELECT p.category, AVG(p.price) AS avg_price
+FROM products p
+         INNER JOIN sales s ON p.product_id = s.product_id
+GROUP BY p.category
+ORDER BY avg_price DESC, p.category
+    LIMIT 3;
+
+-- Query J04: RIGHT JOIN with COUNT - Count of sales for products not sold to 'Large' segment customers
+SELECT p.product_id, p.product_name, COUNT(s.sale_id) AS sales_count
+FROM products p
+         RIGHT JOIN sales s ON p.product_id = s.product_id
+         LEFT JOIN customers c ON s.customer_id = c.customer_id AND c.segment != 'Large'
+GROUP BY p.product_id, p.product_name
+ORDER BY sales_count DESC, p.product_id ASC
+    LIMIT 3;
+
