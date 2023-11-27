@@ -147,7 +147,7 @@ GROUP BY c.segment
 ORDER BY c.segment;
 
 
--- Query 16: Customers' last purchase date and the total number of purchases
+-- Query 16: Customers' last purchase date and the total number of purchases, with stable results
 WITH CustomerPurchases AS (
     SELECT
         c.customer_id,
@@ -163,7 +163,8 @@ WITH CustomerPurchases AS (
 )
 SELECT *
 FROM CustomerPurchases
-ORDER BY last_purchase_date DESC
+ORDER BY
+    last_purchase_date DESC, total_purchases DESC, customer_id
     LIMIT 10;
 
 
