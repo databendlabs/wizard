@@ -38,10 +38,14 @@ WHERE dd.year = 2021
 GROUP BY dd.month
 ORDER BY dd.month;
 
--- Query 6: Customers with the highest number of transactions in 2021
+-- Query 6: Detailed view of customers with the highest number of transactions in 2021
 SELECT
     c.customer_id,
     c.customer_name,
+    c.segment,
+    MIN(s.sale_date) AS first_transaction_date,
+    MAX(s.sale_date) AS last_transaction_date,
+    SUM(s.net_paid) AS total_spent,
     COUNT(*) AS transaction_count
 FROM
     sales s
@@ -50,11 +54,10 @@ FROM
 WHERE
         s.sale_date >= '2021-01-01' AND s.sale_date < '2022-01-01'
 GROUP BY
-    c.customer_id, c.customer_name
+    c.customer_id, c.customer_name, c.segment
 ORDER BY
-    transaction_count DESC
+    transaction_count DESC, total_spent DESC, c.customer_id
     LIMIT 5;
-
 
 -- Query 7: Average product price by category
 SELECT p.category, AVG(p.price) AS avg_price
@@ -119,13 +122,19 @@ GROUP BY p.product_id, p.product_name
 ORDER BY total_sales DESC
     LIMIT 10;
 
-
--- Query 14: Customers with the most transactions, top 10
-SELECT c.customer_id, c.customer_name, COUNT(*) AS transaction_count
-FROM sales s
-         JOIN customers c ON s.customer_id = c.customer_id
-GROUP BY c.customer_id, c.customer_name
-ORDER BY transaction_count DESC
+-- Query 14: Customers with the most transactions, top 10, with stable results
+SELECT
+    c.customer_id,
+    c.customer_name,
+    COUNT(*) AS transaction_count
+FROM
+    sales s
+        JOIN
+    customers c ON s.customer_id = c.customer_id
+GROUP BY
+    c.customer_id, c.customer_name
+ORDER BY
+    transaction_count DESC, c.customer_id
     LIMIT 10;
 
 
