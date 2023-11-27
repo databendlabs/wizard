@@ -305,7 +305,7 @@ WHERE sale_date BETWEEN '2021-01-01' AND '2021-06-30'
 ORDER BY sale_date
     LIMIT 10;
 
--- Query W3: Determine the growth in sales quantity for each product from the first sale to the latest sale
+-- Query W3: Determine the growth in sales quantity for each product from the first sale to the latest sale, with stable ordering
 SELECT product_id,
        first_sale_quantity,
        last_sale_quantity,
@@ -316,6 +316,7 @@ FROM (
                  LAST_VALUE(quantity) OVER (PARTITION BY product_id ORDER BY sale_date RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS last_sale_quantity
          FROM sales
      ) AS sub
+ORDER BY growth DESC, product_id ASC
     LIMIT 10;
 
 
