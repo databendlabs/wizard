@@ -97,10 +97,11 @@ def run_check_sql(database_name, warehouse, script_path):
             )
 
             if bend_result != snow_result:
-                print(colored("DIFFERENCE FOUND", "red"))
-                print("\nDifferences:")
-                print(colored("\nbendsql:\n" + bend_result, "red"))
-                print(colored("\nsnowsql:\n" + snow_result, "red"))
+                print(colored("DIFFERENCE FOUND\n", "red"))
+                print(colored("query:\n" + query, "red"))
+                print("Differences:\n")
+                print(colored("bendsql:\n" + bend_result, "red"))
+                print(colored("snowsql:\n" + snow_result, "red"))
             else:
                 print(colored("OK", "green"))
                 print(colored(bend_result, "green"))
