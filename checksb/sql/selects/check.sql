@@ -272,3 +272,99 @@ GROUP BY p.product_id, p.product_name
 ORDER BY sales_count DESC, p.product_id ASC
     LIMIT 3;
 
+-- Query W1: Rank customers by total spending within each segment and show their average purchase value, limited to top 10
+SELECT
+    sub.customer_id,
+    sub.customer_name,
+    sub.segment,
+    sub.total_spending,
+    RANK() OVER (PARTITION BY sub.segment ORDER BY sub.total_spending DESC) AS rank_in_segment
+FROM (
+         SELECT
+             c.customer_id,
+             c.customer_name,
+             c.segment,
+             SUM(s.net_paid) AS total_spending
+         FROM
+             customers c
+                 JOIN
+             sales s ON c.customer_id = s.customer_id
+         GROUP BY
+             c.customer_id, c.customer_name, c.segment
+     ) AS sub
+ORDER BY
+    sub.segment, rank_in_segment
+    LIMIT 10;
+
+
+-- Query W2: Calculate the cumulative and average sales quantity per month for the first 6 months of 2021
+SELECT sale_date, SUM(quantity) OVER (ORDER BY sale_date) AS cumulative_sales,
+        AVG(quantity) OVER (ORDER BY sale_date ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS avg_monthly_sales
+FROM sales
+WHERE sale_date BETWEEN '2021-01-01' AND '2021-06-30'
+ORDER BY sale_date
+    LIMIT 10;
+
+-- Query W3: Determine the growth in sales quantity for each product from the first sale to the latest sale
+SELECT product_id,
+       first_sale_quantity,
+       last_sale_quantity,
+       last_sale_quantity - first_sale_quantity AS growth
+FROM (
+         SELECT product_id,
+                FIRST_VALUE(quantity) OVER (PARTITION BY product_id ORDER BY sale_date) AS first_sale_quantity,
+                 LAST_VALUE(quantity) OVER (PARTITION BY product_id ORDER BY sale_date RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS last_sale_quantity
+         FROM sales
+     ) AS sub
+    LIMIT 10;
+
+
+-- Query W5: Show the first 10 sales with a running total and running average of net_paid per customer
+SELECT customer_id, sale_id, net_paid,
+       SUM(net_paid) OVER (PARTITION BY customer_id ORDER BY sale_date) AS running_total,
+        AVG(net_paid) OVER (PARTITION BY customer_id ORDER BY sale_date) AS running_avg
+FROM sales
+ORDER BY customer_id, sale_date
+    LIMIT 10;
+
+-- Query W6: Find the top 10 sales with the highest net_paid, including their percentage contribution to total sales, with secondary sorting for unique order
+SELECT sale_id, product_id, customer_id, net_paid,
+       net_paid / SUM(net_paid) OVER () AS percent_of_total_sales
+FROM sales
+ORDER BY net_paid DESC, sale_id ASC
+    LIMIT 10;
+
+
+-- Query W7: Display the top 10 products with the most fluctuation in sale quantities (measured by standard deviation), with secondary sorting for unique order
+SELECT product_id,
+       STDDEV(quantity) OVER (PARTITION BY product_id) AS quantity_stddev
+FROM sales
+GROUP BY product_id
+ORDER BY quantity_stddev DESC, product_id ASC
+    LIMIT 10;
+
+
+-- Query W8: Calculate the average sale value for each customer, compared to the overall average, top 10 customers
+SELECT
+    customer_id,
+    AVG(net_paid) OVER (PARTITION BY customer_id) AS customer_avg,
+        AVG(net_paid) OVER () - AVG(net_paid) OVER (PARTITION BY customer_id) AS diff_from_overall_avg
+FROM
+    sales
+ORDER BY
+    diff_from_overall_avg DESC, customer_id ASC
+    LIMIT 10;
+
+
+-- Query W9: Top 10 sales with the most recent previous sale date for each product
+SELECT sale_id, product_id, sale_date, LAG(sale_date, 1) OVER (PARTITION BY product_id ORDER BY sale_date) AS previous_sale_date
+FROM sales
+ORDER BY product_id, sale_date
+    LIMIT 10;
+
+-- Query W10: Display the top 10 customers by the number of distinct products they have purchased
+SELECT customer_id, COUNT(DISTINCT product_id) OVER (PARTITION BY customer_id) AS distinct_product_count
+FROM sales
+ORDER BY distinct_product_count DESC, customer_id
+    LIMIT 10;
+
