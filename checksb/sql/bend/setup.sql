@@ -30,15 +30,19 @@ CREATE TABLE transactions (
                               transaction_time  DATE         NOT NULL
 );
 
+CREATE STAGE IF NOT EXISTS wizardbend
+    URL = 's3://wizardbend/'
+    CONNECTION = (ALLOW_ANONYMOUS = 'true');
+
 COPY INTO assets
-    FROM 's3://wizardbend/mergeinto/assets.parquet' CONNECTION = (allow_anonymous='true')
-    FILE_FORMAT = (type = parquet);
+    FROM @wizardbend/mergeinto/assets.parquet
+    FILE_FORMAT = (TYPE = parquet);
 
 
 COPY INTO orders
-    FROM 's3://wizardbend/mergeinto/orders.parquet' CONNECTION = (allow_anonymous='true')
+    FROM @wizardbend/mergeinto/orders.parquet
     FILE_FORMAT = (type = parquet);
 
 COPY INTO transactions
-    FROM 's3://wizardbend/mergeinto/transactions.parquet' CONNECTION = (allow_anonymous='true')
+    FROM @wizardbend/mergeinto/transactions.parquet
     FILE_FORMAT = (type = parquet);
