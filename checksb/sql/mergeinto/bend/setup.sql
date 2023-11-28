@@ -1,3 +1,4 @@
+-- row_per_block is set to 513, 5113, 51113 to ensure that the data is distributed across multiple blocks.
 DROP TABLE IF EXISTS assets;
 CREATE TABLE assets (
                         user_id       INT          NOT NULL,
@@ -5,7 +6,7 @@ CREATE TABLE assets (
                         quantity      DECIMAL(18,8) NOT NULL,
                         value         DECIMAL(18,8) NOT NULL,
                         last_updated  DATE         NOT NULL
-);
+) row_per_block=513;
 
 DROP TABLE IF EXISTS orders;
 CREATE TABLE orders (
@@ -18,7 +19,7 @@ CREATE TABLE orders (
                         status        VARCHAR      NOT NULL,
                         created_at    DATE         NOT NULL,
                         updated_at    DATE         NOT NULL
-);
+) row_per_block=5113;
 
 DROP TABLE IF EXISTS transactions;
 CREATE TABLE transactions (
@@ -28,7 +29,7 @@ CREATE TABLE transactions (
                               asset_type        VARCHAR      NOT NULL,
                               quantity          DECIMAL(18,8) NOT NULL,
                               transaction_time  DATE         NOT NULL
-);
+) row_per_block=51113;
 
 CREATE STAGE IF NOT EXISTS wizardbend
     URL = 's3://wizardbend/'
