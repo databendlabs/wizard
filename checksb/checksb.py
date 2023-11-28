@@ -17,16 +17,17 @@ def parse_arguments():
     parser.add_argument(
         "--run-check-only", action="store_true", help="Run only check.sql if set"
     )
-    # New argument for specifying the case to execute
     parser.add_argument(
-        "--case", help="Case to execute (e.g., mergeinto, join)", required=True
+        "--case", help="Case to execute (e.g., mergeinto, selects)", required=True
+    )
+    # New arguments for executing only bendsql or snowsql
+    parser.add_argument(
+        "--runbend", action="store_true", help="Run only bendsql setup and action"
+    )
+    parser.add_argument(
+        "--runsnow", action="store_true", help="Run only snowsql setup and action"
     )
     args = parser.parse_args()
-    print(f"Database selected: {args.database}")
-    if args.warehouse:
-        print(f"Warehouse selected for snowsql: {args.warehouse}")
-    if args.case:
-        print(f"Case selected: {args.case}")
     return args
 
 
@@ -110,28 +111,41 @@ def run_check_sql(database_name, warehouse, script_path):
 def main():
     args = parse_arguments()
 
-    # Base directory path for SQL scripts based on the case argument
     base_sql_dir = f"sql/{args.case}"
 
     if args.run_check_only:
-        check_sql_path = f"{base_sql_dir}/check.sql"  # Construct the path to check.sql
+        check_sql_path = f"{base_sql_dir}/check.sql"
         run_check_sql(args.database, args.warehouse, check_sql_path)
     else:
         database_name, warehouse = args.database, args.warehouse
 
-        # Execute setup scripts for both bendsql and snowsql based on the case
-        print("Starting setup script execution...")
-        execute_sql_scripts("bendsql", f"{base_sql_dir}/bend/setup.sql", database_name)
-        execute_sql_scripts(
-            "snowsql", f"{base_sql_dir}/snow/setup.sql", database_name, warehouse
-        )
-
-        # Execute action scripts
-        print("Starting action script execution...")
-        execute_sql_scripts("bendsql", f"{base_sql_dir}/action.sql", database_name)
-        execute_sql_scripts(
-            "snowsql", f"{base_sql_dir}/action.sql", database_name, warehouse
-        )
+        # Execute setup and action scripts based on the specified arguments
+        if args.runbend:
+            print("Executing setup and action scripts for bendsql...")
+            execute_sql_scripts(
+                "bendsql", f"{base_sql_dir}/bend/setup.sql", database_name
+            )
+            execute_sql_scripts("bendsql", f"{base_sql_dir}/action.sql", database_name)
+        elif args.runsnow:
+            print("Executing setup and action scripts for snowsql...")
+            execute_sql_scripts(
+                "snowsql", f"{base_sql_dir}/snow/setup.sql", database_name, warehouse
+            )
+            execute_sql_scripts(
+                "snowsql", f"{base_sql_dir}/action.sql", database_name, warehouse
+            )
+        else:
+            print("Executing setup and action scripts for both bendsql and snowsql...")
+            execute_sql_scripts(
+                "bendsql", f"{base_sql_dir}/bend/setup.sql", database_name
+            )
+            execute_sql_scripts("bendsql", f"{base_sql_dir}/action.sql", database_name)
+            execute_sql_scripts(
+                "snowsql", f"{base_sql_dir}/snow/setup.sql", database_name, warehouse
+            )
+            execute_sql_scripts(
+                "snowsql", f"{base_sql_dir}/action.sql", database_name, warehouse
+            )
 
         # Compare results from check.sql
         check_sql_path = f"{base_sql_dir}/check.sql"

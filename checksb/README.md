@@ -37,4 +37,7 @@ python3 checksb.py --database mergeinto --warehouse COMPUTE_WH --case <mergeinto
 
 options:
   --run-check-only      Run only check.sql if set
+  --case CASE           Case to execute (e.g., mergeinto, selects)
+  --runbend             Run only bendsql setup and action
+  --runsnow             Run only snowsql setup and action
 ```
