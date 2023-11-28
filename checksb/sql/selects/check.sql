@@ -272,6 +272,80 @@ GROUP BY p.product_id, p.product_name
 ORDER BY sales_count DESC, p.product_id ASC
     LIMIT 3;
 
+-- Query J05: Join all tables, aggregate data, and use window functions to rank products within each customer segment based on their net paid amount
+SELECT
+    c.customer_id,
+    c.customer_name,
+    c.segment,
+    p.product_name,
+    p.category,
+    s.sale_date,
+    SUM(s.net_paid) as total_net_paid,
+    RANK() OVER (PARTITION BY c.segment ORDER BY SUM(s.net_paid) DESC) as rank_in_segment
+FROM customers c
+         JOIN sales s ON c.customer_id = s.customer_id
+         JOIN products p ON s.product_id = p.product_id
+         JOIN date_dim d ON s.sale_date = d.date_key
+GROUP BY c.customer_id, c.customer_name, c.segment, p.product_name, p.category, s.sale_date
+ORDER BY c.segment, rank_in_segment
+    LIMIT 10;
+
+
+-- Query J06: Aggregate sales data by product category and month, and find top selling categories each month
+SELECT
+    p.category, d.month, d.year,
+    SUM(s.quantity) as total_quantity_sold,
+    ROW_NUMBER() OVER (PARTITION BY d.month, d.year ORDER BY SUM(s.quantity) DESC) as rank
+FROM sales s
+         JOIN products p ON s.product_id = p.product_id
+         JOIN date_dim d ON s.sale_date = d.date_key
+GROUP BY p.category, d.month, d.year
+ORDER BY d.year, d.month, rank
+    LIMIT 10;
+
+
+-- Query J07: Check the distribution of product categories purchased per customer
+SELECT
+    c.customer_id,
+    c.customer_name,
+    COUNT(DISTINCT p.category) as categories_purchased,
+    SUM(s.net_paid) as total_spent
+FROM customers c
+         JOIN sales s ON c.customer_id = s.customer_id
+         JOIN products p ON s.product_id = p.product_id
+GROUP BY c.customer_id, c.customer_name
+ORDER BY categories_purchased DESC, total_spent DESC
+    LIMIT 10;
+
+-- Query J08: List sales where customers bought more than one item, ranked by the number of items bought and the total net paid in each sale, with sale_id ensuring stable order
+SELECT
+    s.sale_id,
+    s.customer_id,
+    c.customer_name,
+    s.product_id,
+    p.product_name,
+    s.quantity,
+    DENSE_RANK() OVER (ORDER BY s.quantity DESC, s.net_paid DESC, s.sale_id) as quantity_rank
+FROM sales s
+         JOIN customers c ON s.customer_id = c.customer_id
+         JOIN products p ON s.product_id = p.product_id
+WHERE s.quantity > 1
+ORDER BY quantity_rank, s.sale_id
+    LIMIT 10;
+
+
+-- Query J09: Aggregate sales and customer data to find the average sale amount per customer segment, ranked by average sale amount
+SELECT
+    c.segment,
+    AVG(s.net_paid) as avg_sale_amount,
+    COUNT(s.sale_id) as number_of_sales,
+    RANK() OVER (ORDER BY AVG(s.net_paid) DESC) as avg_sale_rank
+FROM customers c
+         JOIN sales s ON c.customer_id = s.customer_id
+GROUP BY c.segment
+ORDER BY avg_sale_rank
+    LIMIT 10;
+
 -- Query W1: Rank customers by total spending within each segment and show their average purchase value, limited to top 10
 SELECT
     sub.customer_id,
