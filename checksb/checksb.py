@@ -115,9 +115,9 @@ def run_check_sql(database_name, warehouse, script_path):
                     print("Differences:\n")
                     for line in diff_lines:
                         if line.startswith("-"):
-                            print(colored(line, "red"))
+                            print(colored(line + " [bendsql]", "red"))
                         elif line.startswith("+"):
-                            print(colored(line, "green"))
+                            print(colored(line + " [snowsql]", "green"))
                 else:
                     print("No visible line differences found.")
             else:
