@@ -22,14 +22,6 @@ FROM sales s
 GROUP BY c.segment
 ORDER BY avg_sale_amount DESC;
 
--- Query BASE-4: Top 3 most sold products in each category
-SELECT p.category, p.product_name, COUNT(*) AS total_sales
-FROM sales s
-         JOIN products p ON s.product_id = p.product_id
-GROUP BY p.category, p.product_name
-ORDER BY p.category, total_sales DESC
-    LIMIT 3;
-
 -- Query BASE-5: Sales trend by month in 2021
 SELECT dd.month, SUM(s.net_paid) AS monthly_sales
 FROM sales s
