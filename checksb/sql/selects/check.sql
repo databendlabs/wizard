@@ -1,4 +1,4 @@
--- Query 1: Top 5 customers by total spending, including only active customers
+-- Query BASE-1: Top 5 customers by total spending, including only active customers
 SELECT c.customer_id, c.customer_name, SUM(s.net_paid) AS total_spent
 FROM sales s
          JOIN customers c ON s.customer_id = c.customer_id
@@ -7,7 +7,7 @@ GROUP BY c.customer_id, c.customer_name
 ORDER BY total_spent DESC
     LIMIT 5;
 
--- Query 2: Total sales per category for the first quarter of 2021
+-- Query BASE-2: Total sales per category for the first quarter of 2021
 SELECT p.category, SUM(s.net_paid) AS total_sales
 FROM sales s
          JOIN products p ON s.product_id = p.product_id
@@ -15,22 +15,22 @@ WHERE s.sale_date BETWEEN '2021-01-01' AND '2021-03-31'
 GROUP BY p.category
 ORDER BY total_sales DESC;
 
--- Query 3: Average sale amount per customer segment
+-- Query BASE-3: Average sale amount per customer segment
 SELECT c.segment, AVG(s.net_paid) AS avg_sale_amount
 FROM sales s
          JOIN customers c ON s.customer_id = c.customer_id
 GROUP BY c.segment
 ORDER BY avg_sale_amount DESC;
 
--- Query 4: Top 3 most sold products in each category
+-- Query BASE-4: Top 3 most sold products in each category
 SELECT p.category, p.product_name, COUNT(*) AS total_sales
 FROM sales s
          JOIN products p ON s.product_id = p.product_id
 GROUP BY p.category, p.product_name
-ORDER BY p.category, p.product_name DESC, total_sales DESC
+ORDER BY p.category, total_sales DESC
     LIMIT 3;
 
--- Query 5: Sales trend by month in 2021
+-- Query BASE-5: Sales trend by month in 2021
 SELECT dd.month, SUM(s.net_paid) AS monthly_sales
 FROM sales s
          JOIN date_dim dd ON s.sale_date = dd.date_key
@@ -38,7 +38,7 @@ WHERE dd.year = 2021
 GROUP BY dd.month
 ORDER BY dd.month;
 
--- Query 6: Detailed view of customers with the highest number of transactions in 2021
+-- Query BASE-6: Detailed view of customers with the highest number of transactions in 2021
 SELECT
     c.customer_id,
     c.customer_name,
@@ -59,13 +59,13 @@ ORDER BY
     transaction_count DESC, total_spent DESC, c.customer_id
     LIMIT 5;
 
--- Query 7: Average product price by category
+-- Query BASE-7: Average product price by category
 SELECT p.category, AVG(p.price) AS avg_price
 FROM products p
 GROUP BY p.category
 ORDER BY avg_price DESC;
 
--- Query 8: Customer ranking by total spending using window function
+-- Query BASE-8: Customer ranking by total spending using window function
 SELECT
     c.customer_id,
     c.customer_name,
@@ -81,15 +81,14 @@ ORDER BY
     spending_rank
     LIMIT 10;
 
-
--- Query 9: Count of active and inactive customers per segment
+-- Query BASE-9: Count of active and inactive customers per segment
 SELECT c.segment, SUM(CASE WHEN c.active = TRUE THEN 1 ELSE 0 END) AS active_customers,
        SUM(CASE WHEN c.active = FALSE THEN 1 ELSE 0 END) AS inactive_customers
 FROM customers c
 GROUP BY c.segment
 ORDER BY c.segment;
 
--- Query 10: Total sales per day for the first week of 2021
+-- Query BASE-10: Total sales per day for the first week of 2021
 SELECT dd.date_key, SUM(s.net_paid) AS daily_sales
 FROM sales s
          JOIN date_dim dd ON s.sale_date = dd.date_key
@@ -97,7 +96,7 @@ WHERE dd.date_key BETWEEN '2021-01-01' AND '2021-01-07'
 GROUP BY dd.date_key
 ORDER BY dd.date_key;
 
--- Query 11: Top 5 customers with the least spending in Electronics
+-- Query BASE-11: Top 5 customers with the least spending in Electronics
 SELECT c.customer_id, c.customer_name, SUM(s.net_paid) AS total_spent
 FROM sales s
          JOIN customers c ON s.customer_id = c.customer_id
@@ -107,14 +106,14 @@ GROUP BY c.customer_id, c.customer_name
 ORDER BY total_spent ASC
     LIMIT 5;
 
--- Query 12: Number of products sold per category
+-- Query BASE-12: Number of products sold per category
 SELECT p.category, COUNT(*) AS products_sold
 FROM sales s
          JOIN products p ON s.product_id = p.product_id
 GROUP BY p.category
 ORDER BY products_sold DESC;
 
--- Query 13: Total sales and average quantity sold per product
+-- Query BASE-13: Total sales and average quantity sold per product
 SELECT p.product_id, p.product_name, SUM(s.net_paid) AS total_sales, AVG(s.quantity) AS avg_quantity_sold
 FROM sales s
          JOIN products p ON s.product_id = p.product_id
@@ -122,7 +121,7 @@ GROUP BY p.product_id, p.product_name
 ORDER BY total_sales DESC
     LIMIT 10;
 
--- Query 14: Customers with the most transactions, top 10, with stable results
+-- Query BASE-14: Customers with the most transactions, top 10, with stable results
 SELECT
     c.customer_id,
     c.customer_name,
@@ -137,8 +136,7 @@ ORDER BY
     transaction_count DESC, c.customer_id
     LIMIT 10;
 
-
--- Query 15: Sales comparison between Small and Large segment customers
+-- Query BASE-15: Sales comparison between Small and Large segment customers
 SELECT c.segment, SUM(s.net_paid) AS total_sales
 FROM sales s
          JOIN customers c ON s.customer_id = c.customer_id
@@ -146,8 +144,7 @@ WHERE c.segment IN ('Small', 'Large')
 GROUP BY c.segment
 ORDER BY c.segment;
 
-
--- Query 16: Customers' last purchase date and the total number of purchases, with stable results
+-- Query BASE-16: Customers' last purchase date and the total number of purchases, with stable results
 WITH CustomerPurchases AS (
     SELECT
         c.customer_id,
@@ -167,8 +164,7 @@ ORDER BY
     last_purchase_date DESC, total_purchases DESC, customer_id
     LIMIT 10;
 
-
--- Query 18: Customers with average spending higher than the overall average
+-- Query BASE-18: Customers with average spending higher than the overall average
 WITH AverageSpending AS (
     SELECT
         AVG(s.net_paid) AS avg_spending
@@ -191,7 +187,7 @@ ORDER BY
     customer_avg_spending DESC
     LIMIT 10;
 
--- Query 19: Total sales per category in each year
+-- Query BASE-19: Total sales per category in each year
 SELECT
     p.category,
     dd.year,
@@ -207,7 +203,7 @@ GROUP BY
 ORDER BY
     p.category, dd.year;
 
--- Query 21: Products with sales above average in their category
+-- Query BASE-21: Products with sales above average in their category
 WITH CategoryAverage AS (
     SELECT
         p.category,
@@ -287,9 +283,8 @@ FROM customers c
          JOIN products p ON s.product_id = p.product_id
          JOIN date_dim d ON s.sale_date = d.date_key
 GROUP BY c.customer_id, c.customer_name, c.segment, p.product_name, p.category, s.sale_date
-ORDER BY c.segment, rank_in_segment
+ORDER BY c.segment, rank_in_segment, c.customer_id, s.sale_date
     LIMIT 10;
-
 
 -- Query J06: Aggregate sales data by product category and month, and find top selling categories each month
 SELECT
@@ -515,26 +510,6 @@ FROM (
 ORDER BY
     daily_total DESC
     LIMIT 5;
-
--- Query W15: For each product, calculate the first and last sale dates and the total duration in days between them
-SELECT
-    product_id,
-    first_sale_date,
-    last_sale_date,
-    last_sale_date - first_sale_date AS duration
-FROM (
-         SELECT
-             product_id,
-             MIN(sale_date) OVER (PARTITION BY product_id) AS first_sale_date,
-                 MAX(sale_date) OVER (PARTITION BY product_id) AS last_sale_date
-         FROM
-             sales
-     ) AS ProductSales
-GROUP BY
-    product_id, first_sale_date, last_sale_date
-ORDER BY
-    duration DESC
-    LIMIT 10;
 
 -- Query W16: Compare each sale's net_paid to the average of the previous 5 sales of the same customer
 SELECT
