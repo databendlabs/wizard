@@ -1,3 +1,4 @@
+import difflib
 import argparse
 import subprocess
 from termcolor import colored
@@ -99,9 +100,26 @@ def run_check_sql(database_name, warehouse, script_path):
             if bend_result != snow_result:
                 print(colored("DIFFERENCE FOUND\n", "red"))
                 print(colored("query:\n" + query, "red"))
-                print("Differences:\n")
-                print(colored("bendsql:\n" + bend_result, "red"))
-                print(colored("snowsql:\n" + snow_result, "red"))
+
+                bend_lines = bend_result.split("\n")
+                snow_lines = snow_result.split("\n")
+
+                diff = difflib.ndiff(bend_lines, snow_lines)
+                diff_lines = [
+                    line
+                    for line in diff
+                    if line.startswith("+ ") or line.startswith("- ")
+                ]
+
+                if diff_lines:
+                    print("Differences:\n")
+                    for line in diff_lines:
+                        if line.startswith("-"):
+                            print(colored(line, "red"))
+                        elif line.startswith("+"):
+                            print(colored(line, "green"))
+                else:
+                    print("No visible line differences found.")
             else:
                 print(colored("OK", "green"))
                 print(colored(bend_result, "green"))
