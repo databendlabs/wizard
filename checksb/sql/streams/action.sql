@@ -1,22 +1,35 @@
--- Query SA-1: Set 'active' status to FALSE for all customers with odd-numbered IDs
-UPDATE customers
-SET active = FALSE
-WHERE MOD(customer_id, 2) = 1;
+-- SA01: Simulated Update as Insert for 'customers'
+INSERT INTO customers (customer_id, customer_name, segment, create_timestamp, active)
+SELECT
+        customer_id + 1000000, -- Ensuring a unique customer_id
+        CONCAT(customer_name, ' - Updated'),
+        CASE WHEN segment = 'Small' THEN 'Medium' ELSE 'Large' END as segment, -- Changing segment
+        '2022-01-01', -- Fixed date for simulation
+        NOT active -- Inverting active status
+FROM customers
+ORDER BY customer_id
+    LIMIT 1000;
 
--- Query SA-2: Decrease the price of all 'Grocery' products by 10%
-UPDATE products
-SET price = price * 0.90
-WHERE category = 'Grocery';
+-- SA02: Simulated Update as Insert for 'products'
+INSERT INTO products (product_id, product_name, price, category)
+SELECT
+        product_id + 100000, -- Ensuring a unique product_id
+        CONCAT(product_name, ' - New Edition'),
+        price * 1.1, -- Increasing price
+        category
+FROM products
+ORDER BY product_id
+    LIMIT 500;
 
--- Query SA-3: Delete sales records with quantities greater than 15
-DELETE FROM sales
-WHERE quantity > 15;
-
--- Query SA-4: Update the sale date to '2023-01-01' for all sales of 'Furniture' category products
-UPDATE sales
-SET sale_date = '2023-01-01'
-WHERE product_id IN (
-    SELECT product_id
-    FROM products
-    WHERE category = 'Furniture'
-);
+-- SA03: Simulated Update as Insert for 'sales'
+INSERT INTO sales (sale_id, product_id, customer_id, sale_date, quantity, net_paid)
+SELECT
+        sale_id + 5000000, -- Ensuring a unique sale_id
+        product_id,
+        customer_id,
+        '2022-02-01', -- Fixed date for simulation
+        quantity + 1, -- Incremented quantity
+        net_paid * 1.05 -- Adjusted net_paid
+FROM sales
+ORDER BY sale_id
+    LIMIT 2000;

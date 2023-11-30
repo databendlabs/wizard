@@ -1,32 +1,24 @@
--- Query SC-1: Aggregate changes in 'customers_stream'
+-- SC01
 SELECT
-    'customers' AS table_name,
-    COUNT(*) AS total_changes,
-    SUM(CASE WHEN active = FALSE THEN 1 ELSE 0 END) AS total_deactivations,
-    SUM(CASE WHEN active = TRUE THEN 1 ELSE 0 END) AS total_activations
+    'Customers' AS table_name,
+    COUNT(*) AS total_records,
+    COUNT(DISTINCT CASE WHEN customer_id > 1000000 AND customer_id < 2000000 THEN customer_id END) AS updated_customers,
+    COUNT(DISTINCT CASE WHEN active = FALSE THEN customer_id END) AS inactivated_customers
 FROM customers_stream;
 
--- Query SC-2: Aggregate changes in 'products_stream' by category
+-- SC02
 SELECT
-    'products' AS table_name,
-    category,
-    COUNT(*) AS changes_per_category,
-    AVG(price) AS average_price_after_change
-FROM products_stream
-GROUP BY category;
+SELECT
+    'Products' AS table_name,
+    COUNT(*) AS total_records,
+    COUNT(DISTINCT CASE WHEN product_id > 100000 AND product_id < 200000 THEN product_id END) AS new_editions,
+    AVG(CASE WHEN product_id > 100000 AND product_id < 200000 THEN price END) AS avg_price_new_editions
+FROM products_stream;
 
--- Query SC-3: Summary of changes in 'sales_stream' by sale date
+-- SC03
 SELECT
-    'sales' AS table_name,
-    DATE_TRUNC('month', sale_date) AS month_of_sale,
-    COUNT(*) AS number_of_sales_changes,
-    SUM(quantity) AS total_quantity_changed
-FROM sales_stream
-GROUP BY DATE_TRUNC('month', sale_date);
-
--- Query SC-4: Check updates in 'date_dim_stream'
-SELECT
-    'date_dim' AS table_name,
-    COUNT(*) AS total_changes,
-    MAX(date_key) AS latest_date_updated
-FROM date_dim_stream;
+    'Sales' AS table_name,
+    COUNT(*) AS total_records,
+    SUM(CASE WHEN sale_id > 5000000 AND sale_id < 6000000 THEN quantity END) AS total_quantity_new_sales,
+    AVG(CASE WHEN sale_id > 5000000 AND sale_id < 6000000 THEN net_paid END) AS avg_net_paid_new_sales
+FROM sales_stream;
