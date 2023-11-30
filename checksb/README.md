@@ -1,9 +1,10 @@
 
 Check the operation behaves as expected, by comparing the result of the operation with snowflake.
 
-1. set up the tables and same data in Databend and Snowflake.
-2. run the same actions in Databend and Snowflake.
-3. run the same checks in Databend and Snowflake.
+# How it works
+1. setup.sql: set up the tables and same data in Databend and Snowflake.
+2. action.sql: run the same actions in Databend and Snowflake.
+3. check.sql: run the check query to compare the result of the action in Databend and Snowflake.
 
 # Requirements
 
