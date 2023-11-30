@@ -6,9 +6,7 @@ SELECT
         CASE WHEN segment = 'Small' THEN 'Medium' ELSE 'Large' END as segment, -- Changing segment
         '2022-01-01', -- Fixed date for simulation
         NOT active -- Inverting active status
-FROM customers
-ORDER BY customer_id
-    LIMIT 1000;
+FROM customers;
 
 -- SA02: Simulated Update as Insert for 'products'
 INSERT INTO products (product_id, product_name, price, category)
@@ -17,9 +15,7 @@ SELECT
         CONCAT(product_name, ' - New Edition'),
         price * 1.1, -- Increasing price
         category
-FROM products
-ORDER BY product_id
-    LIMIT 500;
+FROM products;
 
 -- SA03: Simulated Update as Insert for 'sales'
 INSERT INTO sales (sale_id, product_id, customer_id, sale_date, quantity, net_paid)
@@ -30,6 +26,4 @@ SELECT
         '2022-02-01', -- Fixed date for simulation
         quantity + 1, -- Incremented quantity
         net_paid * 1.05 -- Adjusted net_paid
-FROM sales
-ORDER BY sale_id
-    LIMIT 2000;
+FROM sales;
