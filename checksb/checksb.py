@@ -18,7 +18,9 @@ def parse_arguments():
         "--run-check-only", action="store_true", help="Run only check.sql if set"
     )
     parser.add_argument(
-        "--case", help="Case to execute (e.g., mergeinto, selects)", required=True
+        "--case",
+        help="Case to execute (e.g., mergeinto, selects, streams)",
+        required=True,
     )
     # New arguments for executing only bendsql or snowsql
     parser.add_argument(
