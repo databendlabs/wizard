@@ -8,7 +8,6 @@ FROM customers_stream;
 
 -- SC02
 SELECT
-SELECT
     'Products' AS table_name,
     COUNT(*) AS total_records,
     COUNT(DISTINCT CASE WHEN product_id > 100000 AND product_id < 200000 THEN product_id END) AS new_editions,
