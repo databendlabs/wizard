@@ -2,8 +2,8 @@
 SELECT
     'customers' AS table_name,
     COUNT(*) AS total_changes,
-    COUNT(DISTINCT CASE WHEN active IS FALSE THEN customer_id END) AS total_deactivations,
-    COUNT(DISTINCT CASE WHEN active IS TRUE THEN customer_id END) AS total_activations
+    SUM(CASE WHEN active = FALSE THEN 1 ELSE 0 END) AS total_deactivations,
+    SUM(CASE WHEN active = TRUE THEN 1 ELSE 0 END) AS total_activations
 FROM customers_stream;
 
 -- Query SC-2: Aggregate changes in 'products_stream' by category
