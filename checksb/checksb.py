@@ -99,7 +99,7 @@ def run_check_sql(database_name, warehouse, script_path):
             query_identifier = match.group(1).strip() if match else "Unknown Query"
 
             # Print the preparing message in yellow
-            print(colored(f"Preparing to run {query_identifier}: {query}", "yellow"))
+            print(colored(f"Preparing to run {query_identifier}...", "yellow"))
 
             bend_result = fetch_query_results(query, "bendsql", database_name)
             snow_result = fetch_query_results(
