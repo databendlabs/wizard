@@ -1,25 +1,25 @@
--- Query MC1: Asset Types Distribution
+-- MERGE-INTO-C1: Asset Types Distribution
 SELECT asset_type, COUNT(*) AS count
 FROM assets
 GROUP BY asset_type
 ORDER BY count DESC, asset_type
     LIMIT 13;
 
--- Query MC2: Aggregated Quantity and Value Statistics
+-- MERGE-INTO-C2: Aggregated Quantity and Value Statistics
 SELECT SUM(quantity) AS total_quantity,
        AVG(quantity) AS average_quantity,
        SUM(value) AS total_value,
        AVG(value) AS average_value
 FROM assets;
 
--- Query MC3: Assets Counts by User
+-- MERGE-INTO-C3: Assets Counts by User
 SELECT user_id, COUNT(*) AS count
 FROM assets
 GROUP BY user_id
 ORDER BY count DESC, user_id
     LIMIT 13;
 
--- Query MC4: Date Range Analysis of Last Update
+-- MERGE-INTO-C4: Date Range Analysis of Last Update
 SELECT CASE
            WHEN last_updated < '2022-01-01' THEN 'Before 2022'
            ELSE 'After 2021-12-31'
@@ -30,21 +30,21 @@ GROUP BY date_range
 ORDER BY date_range
     LIMIT 13;
 
--- Query MC5: General Status Distribution
+-- MERGE-INTO-C5: General Status Distribution
 SELECT status, COUNT(*) AS count
 FROM orders
 GROUP BY status
 ORDER BY count DESC, status
     LIMIT 13;
 
--- Query MC6: General Quantity Statistics
+-- MERGE-INTO-C6: General Quantity Statistics
 SELECT SUM(quantity) AS total_quantity,
        AVG(quantity) AS average_quantity,
        MIN(quantity) AS min_quantity,
        MAX(quantity) AS max_quantity
 FROM orders;
 
--- Query MC7: New Orders vs Existing Orders Count
+-- MERGE-INTO-C7: New Orders vs Existing Orders Count
 SELECT CASE
            WHEN order_id > 500000 THEN 'New Order'
            ELSE 'Existing Order'
@@ -55,14 +55,14 @@ GROUP BY order_category
 ORDER BY count DESC
     LIMIT 13;
 
--- Query MC8: Order Type Distribution
+-- MERGE-INTO-C8: Order Type Distribution
 SELECT order_type, COUNT(*) AS count
 FROM orders
 GROUP BY order_type
 ORDER BY count DESC, order_type
     LIMIT 13;
 
--- Query MC9: Date Range Analysis
+-- MERGE-INTO-C9: Date Range Analysis
 SELECT CASE
            WHEN created_at < '2022-01-01' THEN 'Before 2022'
            WHEN created_at BETWEEN '2021-01-01' AND '2021-06-30' THEN 'First Half 2021'
@@ -74,35 +74,35 @@ GROUP BY date_range
 ORDER BY date_range
     LIMIT 13;
 
--- Query MC10: Price Analysis After Adjustments
+-- MERGE-INTO-C10: Price Analysis After Adjustments
 SELECT SUM(price) AS total_price,
        AVG(price) AS average_price,
        MIN(price) AS min_price,
        MAX(price) AS max_price
 FROM orders;
 
--- Query MC11: Transaction Types Distribution
+-- MERGE-INTO-C11: Transaction Types Distribution
 SELECT transaction_type, COUNT(*) AS count
 FROM transactions
 GROUP BY transaction_type
 ORDER BY count DESC, transaction_type
     LIMIT 13;
 
--- Query MC12: Aggregated Quantity Statistics
+-- MERGE-INTO-C12: Aggregated Quantity Statistics
 SELECT SUM(quantity) AS total_quantity,
        AVG(quantity) AS average_quantity,
        MIN(quantity) AS min_quantity,
        MAX(quantity) AS max_quantity
 FROM transactions;
 
--- Query MC13: Transaction Counts by User and Asset Type
+-- MERGE-INTO-C13: Transaction Counts by User and Asset Type
 SELECT user_id, asset_type, COUNT(*) AS count
 FROM transactions
 GROUP BY user_id, asset_type
 ORDER BY count DESC, user_id, asset_type
     LIMIT 13;
 
--- Query MC14: Date Range Analysis of Transactions
+-- MERGE-INTO-C14: Date Range Analysis of Transactions
 SELECT CASE
            WHEN transaction_time < '2022-01-01' THEN 'Before 2022'
            ELSE 'After 2021-12-31'

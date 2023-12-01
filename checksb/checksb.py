@@ -1,4 +1,5 @@
 import argparse
+import re
 import subprocess
 from termcolor import colored
 
@@ -93,7 +94,13 @@ def run_check_sql(database_name, warehouse, script_path):
 
     for query in check_queries:
         if query.strip():
-            print(f"Comparing results for query: {query}")
+            # Extract the query identifier from the comment
+            match = re.search(r"-- ([\w\s]+)", query)
+            query_identifier = match.group(1).strip() if match else "Unknown Query"
+
+            # Print the preparing message in yellow
+            print(colored(f"Preparing to run {query_identifier}: {query}", "yellow"))
+
             bend_result = fetch_query_results(query, "bendsql", database_name)
             snow_result = fetch_query_results(
                 query, "snowsql", database_name, warehouse
@@ -101,12 +108,12 @@ def run_check_sql(database_name, warehouse, script_path):
 
             if bend_result != snow_result:
                 print(colored("DIFFERENCE FOUND\n", "red"))
-                print(colored("query:\n" + query, "red"))
+                print(colored(f"{query_identifier}:\n" + query, "red"))
                 print("Differences:\n")
                 print(colored("bendsql:\n" + bend_result, "red"))
                 print(colored("snowsql:\n" + snow_result, "red"))
             else:
-                print(colored("OK", "green"))
+                print(colored(f"OK - {query_identifier}", "green"))
                 print(colored(bend_result, "green"))
 
 

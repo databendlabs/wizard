@@ -1,4 +1,4 @@
--- SA01: Simulated Update as Insert for 'customers'
+-- STREAM-A01: Simulated Update as Insert for 'customers'
 INSERT INTO customers (customer_id, customer_name, segment, create_timestamp, active)
 SELECT
         customer_id + 1000000, -- Ensuring a unique customer_id
@@ -8,7 +8,7 @@ SELECT
         NOT active -- Inverting active status
 FROM customers;
 
--- SA02: Simulated Update as Insert for 'products'
+-- STREAM-A02: Simulated Update as Insert for 'products'
 INSERT INTO products (product_id, product_name, price, category)
 SELECT
         product_id + 100000, -- Ensuring a unique product_id
@@ -17,7 +17,7 @@ SELECT
         category
 FROM products;
 
--- SA03: Simulated Update as Insert for 'sales'
+-- STREAM-A03: Simulated Update as Insert for 'sales'
 INSERT INTO sales (sale_id, product_id, customer_id, sale_date, quantity, net_paid)
 SELECT
         sale_id + 5000000, -- Ensuring a unique sale_id

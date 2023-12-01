@@ -1,4 +1,4 @@
--- SC01
+-- STREAM-C01: Customer Analysis
 SELECT
     'Customers' AS table_name,
     COUNT(*) AS total_records,
@@ -6,7 +6,7 @@ SELECT
     COUNT(DISTINCT CASE WHEN active = FALSE THEN customer_id END) AS inactivated_customers
 FROM customers_stream;
 
--- SC02
+-- STREAM-C02: Product Analysis
 SELECT
     'Products' AS table_name,
     COUNT(*) AS total_records,
@@ -14,7 +14,7 @@ SELECT
     AVG(CASE WHEN product_id > 100000 AND product_id < 200000 THEN price END) AS avg_price_new_editions
 FROM products_stream;
 
--- SC03
+-- STREAM-C03: Sales Analysis
 SELECT
     'Sales' AS table_name,
     COUNT(*) AS total_records,
