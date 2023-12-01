@@ -94,8 +94,8 @@ def run_check_sql(database_name, warehouse, script_path):
 
     for query in check_queries:
         if query.strip():
-            # Extract the query identifier from the comment
-            match = re.search(r"-- ([\w\s]+)", query)
+            # Extract the query identifier (like MERGE-INTO-C13) from the comment
+            match = re.search(r"--\s*([\w-]+):", query)
             query_identifier = match.group(1).strip() if match else "Unknown Query"
 
             # Print the preparing message in yellow
