@@ -119,3 +119,63 @@ MERGE INTO orders USING (
 ) AS asset_data ON orders.user_id = asset_data.user_id AND orders.asset_type = asset_data.asset_type
     WHEN MATCHED THEN
         UPDATE SET orders.price = orders.price + asset_data.avg_value;
+
+-- MERGE-INTO-A11: asserts
+MERGE INTO assets USING (
+    SELECT a.user_id, a.asset_type,
+           SUM(a.quantity) AS total_quantity,
+           AVG(a.value) AS average_value
+    FROM assets a
+    GROUP BY a.user_id, a.asset_type
+    UNION ALL
+    SELECT a.user_id, 'NEW_ASSET' AS asset_type,  -- New asset type for insert
+           100 AS quantity,                       -- Example quantity
+           1000 AS value                          -- Example value
+    FROM assets a
+    WHERE a.user_id % 2 = 0  -- Condition to select subset for new data
+    GROUP BY a.user_id
+) AS combined_assets ON assets.user_id = combined_assets.user_id AND assets.asset_type = combined_assets.asset_type
+    WHEN MATCHED THEN
+        UPDATE SET assets.quantity = combined_assets.total_quantity, assets.value = combined_assets.average_value
+    WHEN NOT MATCHED THEN
+        INSERT (user_id, asset_type, quantity, value, last_updated)
+            VALUES (combined_assets.user_id, combined_assets.asset_type, combined_assets.total_quantity, combined_assets.average_value, '2023-01-01');
+
+-- MERGE-INTO-A12: transactions
+MERGE INTO transactions USING (
+    SELECT t.user_id, t.asset_type,
+           SUM(t.quantity) AS total_quantity
+    FROM transactions t
+    GROUP BY t.user_id, t.asset_type
+    UNION ALL
+    SELECT t.user_id, 'NEW_TRANSACTION' AS asset_type,  -- New transaction type for insert
+           30 AS quantity                                -- Example quantity
+    FROM transactions t
+    WHERE t.user_id % 2 = 0  -- Condition to select subset for new data
+    GROUP BY t.user_id
+) AS combined_transactions ON transactions.user_id = combined_transactions.user_id AND transactions.asset_type = combined_transactions.asset_type
+    WHEN MATCHED THEN
+        UPDATE SET transactions.quantity = combined_transactions.total_quantity
+    WHEN NOT MATCHED THEN
+        INSERT (user_id, transaction_type, asset_type, quantity, transaction_time)
+            VALUES (combined_transactions.user_id, 'trade', combined_transactions.asset_type, combined_transactions.total_quantity, '2023-01-01');
+
+-- MERGE-INTO-A13: orders
+MERGE INTO orders USING (
+    SELECT o.user_id, o.asset_type,
+           SUM(o.quantity) AS total_quantity,
+           AVG(o.price) AS average_price
+    FROM orders o
+    GROUP BY o.user_id, o.asset_type
+    UNION ALL
+    SELECT o.user_id, 'NEW_ORDER' AS asset_type,
+           50 AS quantity,
+           500 AS price
+    FROM orders o
+    WHERE o.user_id % 2 = 0
+    GROUP BY o.user_id
+) AS combined_orders ON orders.user_id = combined_orders.user_id AND orders.asset_type = combined_orders.asset_type
+    WHEN MATCHED THEN
+        UPDATE SET orders.quantity = combined_orders.total_quantity, orders.price = combined_orders.average_price
+    WHEN NOT MATCHED THEN
+    INSERT (user_id, order_type, asset_type, quantity, price, status, created_at, updated_at)

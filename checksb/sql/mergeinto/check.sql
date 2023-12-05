@@ -112,3 +112,18 @@ FROM transactions
 GROUP BY date_range
 ORDER BY date_range
     LIMIT 13;
+
+-- MERGE-INTO-C15: asserts
+SELECT asset_type, SUM(quantity) AS total_quantity, SUM(value) AS total_value
+FROM assets
+GROUP BY asset_type;
+
+-- MERGE-INTO-C16: orders
+SELECT asset_type, SUM(quantity) AS total_quantity, AVG(price) AS average_price
+FROM orders
+GROUP BY asset_type;
+
+-- MERGE-INTO-C17: transactions
+SELECT transaction_type, SUM(quantity) AS total_quantity
+FROM transactions
+GROUP BY transaction_type;
