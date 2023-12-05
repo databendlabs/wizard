@@ -178,4 +178,5 @@ MERGE INTO orders USING (
     WHEN MATCHED THEN
         UPDATE SET orders.quantity = combined_orders.total_quantity, orders.price = combined_orders.average_price
     WHEN NOT MATCHED THEN
-    INSERT (user_id, order_type, asset_type, quantity, price, status, created_at, updated_at)
+        INSERT (user_id, order_type, asset_type, quantity, price, status, created_at, updated_at)
+            VALUES (combined_orders.user_id, 'buy', combined_orders.asset_type, combined_orders.total_quantity, combined_orders.average_price, 'Pending', '2023-01-01', '2023-01-01');
