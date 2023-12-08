@@ -142,41 +142,72 @@ MERGE INTO assets USING (
             VALUES (combined_assets.user_id, combined_assets.asset_type, combined_assets.total_quantity, combined_assets.average_value, '2023-01-01');
 
 -- MERGE-INTO-A12: transactions
-MERGE INTO transactions USING (
-    SELECT t.user_id, t.asset_type,
-           SUM(t.quantity) AS total_quantity
-    FROM transactions t
-    GROUP BY t.user_id, t.asset_type
-    UNION ALL
-    SELECT t.user_id, 'NEW_TRANSACTION' AS asset_type,  -- New transaction type for insert
-           30 AS quantity                                -- Example quantity
-    FROM transactions t
-    WHERE t.user_id % 2 = 0  -- Condition to select subset for new data
-    GROUP BY t.user_id
-) AS combined_transactions ON transactions.user_id = combined_transactions.user_id AND transactions.asset_type = combined_transactions.asset_type
+MERGE INTO transactions
+    USING (
+        SELECT
+            t.user_id,
+            t.asset_type,
+            SUM(t.quantity) AS total_quantity,
+            (SELECT MAX(transaction_id) FROM transactions) + ROW_NUMBER() OVER (ORDER BY t.user_id, t.asset_type) AS next_transaction_id
+        FROM transactions t
+        GROUP BY t.user_id, t.asset_type
+        UNION ALL
+        SELECT
+            t.user_id,
+            'NEW_TRANSACTION' AS asset_type,
+            30 AS total_quantity,
+            (SELECT MAX(transaction_id) FROM transactions) + ROW_NUMBER() OVER (ORDER BY t.user_id, 'NEW_TRANSACTION') AS next_transaction_id
+        FROM transactions t
+        WHERE t.user_id % 2 = 0
+        GROUP BY t.user_id
+    ) AS combined_transactions
+    ON transactions.user_id = combined_transactions.user_id
+        AND transactions.asset_type = combined_transactions.asset_type
     WHEN MATCHED THEN
         UPDATE SET transactions.quantity = combined_transactions.total_quantity
     WHEN NOT MATCHED THEN
-        INSERT (user_id, transaction_type, asset_type, quantity, transaction_time)
-            VALUES (combined_transactions.user_id, 'trade', combined_transactions.asset_type, combined_transactions.total_quantity, '2023-01-01');
+        INSERT (transaction_id, user_id, transaction_type, asset_type, quantity, transaction_time)
+            VALUES (combined_transactions.next_transaction_id,
+                    combined_transactions.user_id,
+                    'trade',
+                    combined_transactions.asset_type,
+                    combined_transactions.total_quantity,
+                    '2023-01-01');
+
 
 -- MERGE-INTO-A13: orders
-MERGE INTO orders USING (
-    SELECT o.user_id, o.asset_type,
-           SUM(o.quantity) AS total_quantity,
-           AVG(o.price) AS average_price
-    FROM orders o
-    GROUP BY o.user_id, o.asset_type
-    UNION ALL
-    SELECT o.user_id, 'NEW_ORDER' AS asset_type,
-           50 AS quantity,
-           500 AS price
-    FROM orders o
-    WHERE o.user_id % 2 = 0
-    GROUP BY o.user_id
-) AS combined_orders ON orders.user_id = combined_orders.user_id AND orders.asset_type = combined_orders.asset_type
+MERGE INTO orders
+    USING (
+        SELECT
+            o.user_id,
+            o.asset_type,
+            SUM(o.quantity) AS total_quantity,
+            AVG(o.price) AS average_price,
+            (SELECT MAX(order_id) FROM orders) + ROW_NUMBER() OVER (ORDER BY o.user_id, o.asset_type) AS next_order_id
+        FROM orders o
+        GROUP BY o.user_id, o.asset_type
+        UNION ALL
+        SELECT
+            o.user_id,
+            'NEW_ORDER' AS asset_type,
+            50 AS total_quantity,
+            500 AS average_price,
+            (SELECT MAX(order_id) FROM orders) + ROW_NUMBER() OVER (ORDER BY o.user_id, 'NEW_ORDER') AS next_order_id
+        FROM orders o
+        WHERE o.user_id % 2 = 0
+        GROUP BY o.user_id
+    ) AS combined_orders
+    ON orders.user_id = combined_orders.user_id AND orders.asset_type = combined_orders.asset_type
     WHEN MATCHED THEN
         UPDATE SET orders.quantity = combined_orders.total_quantity, orders.price = combined_orders.average_price
     WHEN NOT MATCHED THEN
-        INSERT (user_id, order_type, asset_type, quantity, price, status, created_at, updated_at)
-            VALUES (combined_orders.user_id, 'buy', combined_orders.asset_type, combined_orders.total_quantity, combined_orders.average_price, 'Pending', '2023-01-01', '2023-01-01');
+        INSERT (order_id, user_id, order_type, asset_type, quantity, price, status, created_at, updated_at)
+            VALUES (combined_orders.next_order_id,
+                    combined_orders.user_id,
+                    'buy',
+                    combined_orders.asset_type,
+                    combined_orders.total_quantity,
+                    combined_orders.average_price,
+                    'Pending',
+                    '2023-01-01',
+                    '2023-01-01');
