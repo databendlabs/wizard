@@ -14,12 +14,12 @@ Install [bendsql](https://github.com/datafuselabs/bendsql)
  
 Config:
 ```bash
-export BENDSQL_DSN="databend://<user>:<pwd>@<host>:443/<database>?tenant=<tenant>&warehouse=<warehouse>"
+export BENDSQL_DSN="databend://<user>:<pwd>@<host>:443/?tenant=<tenant>&warehouse=<warehouse>"
 ```
 
 For example:
 ```bash
-export BENDSQL_DSN="databend://usera:pwdb@gw.aws-us-east-2.default.databend.com/mergeinto?tenant=tenant_t1&warehouse=bh-v224"
+export BENDSQL_DSN="databend://usera:pwdb@gw.aws-us-east-2.default.databend.com/?tenant=tenant_t1&warehouse=bh-v224"
 ```
 
 ## snowsql
