@@ -1,8 +1,10 @@
 -- UPDATE-C1: Count the number of BTC assets
 SELECT COUNT(*) FROM assets WHERE asset_type = 'BTC';
 
--- UPDATE-C2: Count the number of cancelled orders after 2021-06-01
-SELECT COUNT(*) FROM orders WHERE status = 'cancelled' AND created_at < '2021-06-01';
+-- UPDATE-C2: Count the number of orders that were pending and are now cancelled, with a creation date before 2021-06-01
+SELECT COUNT(*)
+FROM orders
+WHERE status = 'cancelled' AND created_at < '2021-06-01';
 
 -- UPDATE-C3: Calculate the average value of ETH assets
 SELECT AVG(value) FROM assets WHERE asset_type = 'ETH';
