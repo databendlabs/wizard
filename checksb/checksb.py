@@ -21,7 +21,7 @@ def parse_arguments():
     )
     parser.add_argument(
         "--case",
-        help="Case to execute (e.g., mergeinto, selects, streams, updates)",
+        help="Case to execute (e.g., selects, mergeinto, streams, updates, deletes)",
         required=True,
     )
     # New arguments for executing only bendsql or snowsql
