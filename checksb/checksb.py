@@ -1,5 +1,6 @@
 import argparse
 import re
+import sys
 import subprocess
 from termcolor import colored
 
@@ -64,13 +65,21 @@ def execute_sql(query, sql_tool, database, warehouse=None):
 
     try:
         result = subprocess.run(command, text=True, capture_output=True, check=True)
+        output = result.stdout
+        error = result.stderr
+
+        # Check if the output contains an error message
+        if "error" in output.lower() or "error" in error.lower():
+            print(f"Error detected in command output: {output}")
+            sys.exit(1)
+
         print("Command executed successfully. Output:")
-        print(result.stdout)
-        return result.stdout
+        print(output)
+        return output
     except subprocess.CalledProcessError as e:
         error_message = f"{sql_tool} command failed: {e.stderr}"
         print(error_message)
-        raise RuntimeError(error_message)
+        sys.exit(1)
 
 
 def execute_sql_scripts(sql_tool, script_path, database, warehouse=None):
