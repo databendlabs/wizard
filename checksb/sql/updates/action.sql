@@ -28,11 +28,6 @@ UPDATE orders
 SET price = price * 1.15
 WHERE status = 'completed';
 
--- UPDATE-A7: Add one year to the last_updated date for all assets with a quantity greater than 500
-UPDATE assets
-SET last_updated = date_add('year', 1, last_updated)
-WHERE quantity > 500;
-
 -- UPDATE-A8: Convert all 'trade' transactions in 2021 to 'deposit'
 UPDATE transactions
 SET transaction_type = 'deposit'

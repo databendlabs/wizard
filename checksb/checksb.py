@@ -64,13 +64,18 @@ def execute_sql(query, sql_tool, database, warehouse=None):
     print(f"Executing command: {' '.join(command)}")
 
     try:
-        result = subprocess.run(command, text=True, capture_output=True, check=True)
+        result = subprocess.run(command, text=True, capture_output=True, check=False)
         output = result.stdout
         error = result.stderr
 
-        # Check if the output contains an error message
-        if "error" in output.lower() or "error" in error.lower():
-            print(f"Error detected in command output: {output}")
+        # Custom check for known error patterns
+        if (
+            "error" in output.lower()
+            or "error" in error.lower()
+            or "unknown function" in output.lower()
+        ):
+            error_message = f"Error detected in command output: {output or error}"
+            print(colored(error_message, "red"))  # Print the error in red
             sys.exit(1)
 
         print("Command executed successfully. Output:")
@@ -78,7 +83,7 @@ def execute_sql(query, sql_tool, database, warehouse=None):
         return output
     except subprocess.CalledProcessError as e:
         error_message = f"{sql_tool} command failed: {e.stderr}"
-        print(error_message)
+        print(colored(error_message, "red"))  # Print the error in red
         sys.exit(1)
 
 
