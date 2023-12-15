@@ -358,19 +358,20 @@ ORDER BY
     LIMIT 10;
 
 
--- SELECT-W3: Determine the growth in sales quantity for each product from the first sale to the latest sale, with stable ordering
+-- SELECT-W3: Determine the growth in sales quantity for each product from the first sale to the latest sale
 SELECT product_id,
        first_sale_quantity,
        last_sale_quantity,
        last_sale_quantity - first_sale_quantity AS growth
 FROM (
          SELECT product_id,
-                FIRST_VALUE(quantity) OVER (PARTITION BY product_id ORDER BY sale_date ASC) AS first_sale_quantity,
-                 LAST_VALUE(quantity) OVER (PARTITION BY product_id ORDER BY sale_date ASC RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS last_sale_quantity
+                FIRST_VALUE(quantity) OVER (PARTITION BY product_id ORDER BY sale_date ASC, sale_id ASC) AS first_sale_quantity,
+                 LAST_VALUE(quantity) OVER (PARTITION BY product_id ORDER BY sale_date ASC, sale_id ASC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS last_sale_quantity
          FROM sales
      ) AS sub
 ORDER BY growth DESC, product_id ASC
-    LIMIT 10;
+    LIMIT 10
+
 
 
 -- SELECT-W5: Show the first 10 sales with a running total and running average of net_paid per customer
