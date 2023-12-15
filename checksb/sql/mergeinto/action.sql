@@ -163,6 +163,7 @@ MERGE INTO transactions
     ) AS combined_transactions
     ON transactions.user_id = combined_transactions.user_id
         AND transactions.asset_type = combined_transactions.asset_type
+    WHEN MATCHED AND combined_transactions.user_id > 5000 THEN DELETE
     WHEN MATCHED THEN
         UPDATE SET transactions.quantity = combined_transactions.total_quantity
     WHEN NOT MATCHED THEN
