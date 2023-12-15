@@ -469,8 +469,17 @@ WITH SalesData AS (
         customer_id,
         sale_date,
         net_paid,
-        SUM(net_paid) OVER (PARTITION BY customer_id ORDER BY sale_date) AS cumulative_sales,
-            AVG(net_paid) OVER (PARTITION BY customer_id ORDER BY sale_date ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS running_3m_avg
+        -- Cumulative total of sales for each customer, ordered by sale_date and net_paid to handle ties
+        SUM(net_paid) OVER (
+            PARTITION BY customer_id
+            ORDER BY sale_date, net_paid
+        ) AS cumulative_sales,
+        -- Running three-month average of sales, ordered by sale_date and net_paid to handle ties
+            AVG(net_paid) OVER (
+            PARTITION BY customer_id
+            ORDER BY sale_date, net_paid
+            ROWS BETWEEN 2 PRECEDING AND CURRENT ROW
+        ) AS running_3m_avg
     FROM
         sales
 )
@@ -479,7 +488,10 @@ SELECT
     sale_date,
     cumulative_sales,
     running_3m_avg,
-    RANK() OVER (ORDER BY running_3m_avg DESC, cumulative_sales DESC) AS sales_rank
+    -- Rank the results by running average and cumulative sales to handle ties
+    RANK() OVER (
+        ORDER BY running_3m_avg DESC, cumulative_sales DESC
+    ) AS sales_rank
 FROM
     SalesData
 ORDER BY
