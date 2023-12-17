@@ -370,8 +370,7 @@ FROM (
          FROM sales
      ) AS sub
 ORDER BY growth DESC, product_id ASC
-    LIMIT 10
-
+    LIMIT 10;
 
 
 -- SELECT-W5: Show the first 10 sales with a running total and running average of net_paid per customer
@@ -486,6 +485,7 @@ FROM
 ORDER BY
     customer_id, sale_date
     LIMIT 10;
+
 -- SELECT-W14: Find the top 5 days with the highest sales, along with a row number indicating their rank ordered by date
 SELECT
     sale_date,
