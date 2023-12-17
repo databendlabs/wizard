@@ -469,17 +469,9 @@ WITH SalesData AS (
         customer_id,
         sale_date,
         net_paid,
-        -- Cumulative total of sales for each customer, ordered by sale_date and net_paid to handle ties
-        SUM(net_paid) OVER (
-            PARTITION BY customer_id
-            ORDER BY sale_date, net_paid
-        ) AS cumulative_sales,
-        -- Running three-month average of sales, ordered by sale_date and net_paid to handle ties
-            AVG(net_paid) OVER (
-            PARTITION BY customer_id
-            ORDER BY sale_date, net_paid
-            ROWS BETWEEN 2 PRECEDING AND CURRENT ROW
-        ) AS running_3m_avg
+        sale_id, -- assuming sale_id is a unique identifier for each sale
+        SUM(net_paid) OVER (PARTITION BY customer_id ORDER BY sale_date, sale_id) AS cumulative_sales,
+            AVG(net_paid) OVER (PARTITION BY customer_id ORDER BY sale_date, sale_id ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS running_3m_avg
     FROM
         sales
 )
@@ -488,16 +480,12 @@ SELECT
     sale_date,
     cumulative_sales,
     running_3m_avg,
-    -- Rank the results by running average and cumulative sales to handle ties
-    RANK() OVER (
-        ORDER BY running_3m_avg DESC, cumulative_sales DESC
-    ) AS sales_rank
+    RANK() OVER (ORDER BY running_3m_avg DESC, cumulative_sales DESC, customer_id, sale_date, sale_id) AS sales_rank
 FROM
     SalesData
 ORDER BY
     customer_id, sale_date
     LIMIT 10;
-
 -- SELECT-W14: Find the top 5 days with the highest sales, along with a row number indicating their rank ordered by date
 SELECT
     sale_date,
