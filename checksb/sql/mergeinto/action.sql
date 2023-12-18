@@ -648,14 +648,14 @@ INSERT INTO orders SELECT * FROM orders_25;
 -- INSERT-INTO-A28: orders
 INSERT INTO orders SELECT * FROM orders_25w;
 
--- INSERT-INTO-A29: orders
+-- INSERT-INTO-A29: transactions
 INSERT INTO transactions SELECT * FROM transactions_50;
 
--- INSERT-INTO-A30: orders
+-- INSERT-INTO-A30: transactions
 INSERT INTO transactions SELECT * FROM transactions_50w;
 
--- INSERT-INTO-A31: orders
+-- INSERT-INTO-A31: assets
 INSERT INTO assets SELECT * FROM assets_10;
 
--- INSERT-INTO-A32: orders
+-- INSERT-INTO-A32: assets
 INSERT INTO assets SELECT * FROM assets_10w;
