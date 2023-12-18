@@ -99,20 +99,16 @@ CREATE STAGE IF NOT EXISTS wizardbend
     URL = 's3://wizardbend/'
     CONNECTION = (ALLOW_ANONYMOUS = 'true');
 
-CREATE STAGE IF NOT EXISTS tanboyu
-    URL = 's3://tanboyu/'
-    CONNECTION = (ALLOW_ANONYMOUS = 'true');
-
 COPY INTO assets
     FROM @wizardbend/mergeinto/assets.parquet
     FILE_FORMAT = (TYPE = parquet);
 
 COPY INTO assets_10w
-    FROM @tanboyu/mergeinto/assets_10w.parquet
+    FROM @wizardbend/mergeinto/assets_10w.parquet
     FILE_FORMAT = (TYPE = parquet);
 
 COPY INTO assets_10
-    FROM @tanboyu/mergeinto/assets_10.parquet
+    FROM @wizardbend/mergeinto/assets_10.parquet
     FILE_FORMAT = (TYPE = parquet);
 
 COPY INTO orders
@@ -120,11 +116,11 @@ COPY INTO orders
     FILE_FORMAT = (type = parquet);
 
 COPY INTO orders_25w
-    FROM @tanboyu/mergeinto/orders_25w.parquet
+    FROM @wizardbend/mergeinto/orders_25w.parquet
     FILE_FORMAT = (type = parquet);
 
 COPY INTO orders_25
-    FROM @tanboyu/mergeinto/orders_25.parquet
+    FROM @wizardbend/mergeinto/orders_25.parquet
     FILE_FORMAT = (type = parquet);
 
 COPY INTO transactions
@@ -132,9 +128,9 @@ COPY INTO transactions
     FILE_FORMAT = (type = parquet);
 
 COPY INTO transactions_50w
-    FROM @tanboyu/mergeinto/transactions_50w.parquet
+    FROM @wizardbend/mergeinto/transactions_50w.parquet
     FILE_FORMAT = (type = parquet);
 
 COPY INTO transactions_50
-    FROM @tanboyu/mergeinto/transactions_50.parquet
+    FROM @wizardbend/mergeinto/transactions_50.parquet
     FILE_FORMAT = (type = parquet);

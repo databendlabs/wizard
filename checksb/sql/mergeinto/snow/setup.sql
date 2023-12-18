@@ -95,7 +95,6 @@ CREATE TABLE transactions_50 (
 );
 
 CREATE OR REPLACE STAGE wizardbend URL='s3://wizardbend/';
-CREATE OR REPLACE STAGE tanboyu URL = 's3://tanboyu/';
 CREATE OR REPLACE FILE FORMAT parquet_format TYPE = 'parquet';
 
 COPY INTO assets
@@ -114,7 +113,7 @@ COPY INTO assets_10w
     $1:quantity::DECIMAL(18, 8),
     $1:value::DECIMAL(18, 8),
     $1:last_updated::DATE
-    FROM @tanboyu/mergeinto/assets_10w.parquet (file_format => 'parquet_format'));
+    FROM @wizardbend/mergeinto/assets_10w.parquet (file_format => 'parquet_format'));
 
 COPY INTO assets_10
     FROM (SELECT
@@ -123,7 +122,7 @@ COPY INTO assets_10
     $1:quantity::DECIMAL(18, 8),
     $1:value::DECIMAL(18, 8),
     $1:last_updated::DATE
-    FROM @tanboyu/mergeinto/assets_10.parquet (file_format => 'parquet_format'));
+    FROM @wizardbend/mergeinto/assets_10.parquet (file_format => 'parquet_format'));
 
 COPY INTO orders
     FROM (SELECT
@@ -149,7 +148,7 @@ COPY INTO orders_25w
     $1:status::VARCHAR,
     $1:created_at::DATE,
     $1:updated_at::DATE
-    FROM @tanboyu/mergeinto/orders_25w.parquet (file_format => 'parquet_format'));
+    FROM @wizardbend/mergeinto/orders_25w.parquet (file_format => 'parquet_format'));
 
 COPY INTO orders_25
     FROM (SELECT
@@ -162,7 +161,7 @@ COPY INTO orders_25
     $1:status::VARCHAR,
     $1:created_at::DATE,
     $1:updated_at::DATE
-    FROM @tanboyu/mergeinto/orders_25.parquet (file_format => 'parquet_format'));
+    FROM @wizardbend/mergeinto/orders_25.parquet (file_format => 'parquet_format'));
 
 COPY INTO transactions
     FROM (SELECT
@@ -182,7 +181,7 @@ COPY INTO transactions_50w
     $1:asset_type::VARCHAR,
     $1:quantity::DECIMAL(18, 8),
     $1:transaction_time::DATE
-    FROM @tanboyu/mergeinto/transactions_50w.parquet (file_format => 'parquet_format'));
+    FROM @wizardbend/mergeinto/transactions_50w.parquet (file_format => 'parquet_format'));
 
 COPY INTO transactions_50
     FROM (SELECT
@@ -192,4 +191,4 @@ COPY INTO transactions_50
     $1:asset_type::VARCHAR,
     $1:quantity::DECIMAL(18, 8),
     $1:transaction_time::DATE
-    FROM @tanboyu/mergeinto/transactions_50.parquet (file_format => 'parquet_format'));
+    FROM @wizardbend/mergeinto/transactions_50.parquet (file_format => 'parquet_format'));
