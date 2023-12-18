@@ -16,7 +16,7 @@ GROUP BY p.category
 ORDER BY total_sales DESC;
 
 -- SELECT-BASE-3: Average sale amount per customer segment
-SELECT c.segment, AVG(s.net_paid) AS avg_sale_amount
+SELECT c.segment, TRUNCATE(AVG(s.net_paid), 7) AS avg_sale_amount
 FROM sales s
          JOIN customers c ON s.customer_id = c.customer_id
 GROUP BY c.segment
@@ -52,7 +52,7 @@ ORDER BY
     LIMIT 5;
 
 -- SELECT-BASE-7: Average product price by category
-SELECT p.category, AVG(p.price) AS avg_price
+SELECT p.category, TRUNCATE(AVG(p.price), 7) AS avg_price
 FROM products p
 GROUP BY p.category
 ORDER BY avg_price DESC;
@@ -212,7 +212,7 @@ SELECT
     p.product_name,
     p.category,
     SUM(s.net_paid) AS total_sales,
-    ca.avg_sales
+    TRUNCATE(ca.avg_sales, 7)
 FROM
     sales s
         JOIN
@@ -244,7 +244,7 @@ ORDER BY total_sales_value DESC, p.product_id ASC
     LIMIT 3;
 
 -- SELECT-J03: INNER JOIN with AVG - Top 3 product categories by average product price
-SELECT p.category, AVG(p.price) AS avg_price
+SELECT p.category, TRUNCATE(AVG(p.price), 7) AS avg_price
 FROM products p
          INNER JOIN sales s ON p.product_id = s.product_id
 GROUP BY p.category
@@ -324,7 +324,7 @@ ORDER BY quantity_rank, s.sale_id
 -- SELECT-J09: Aggregate sales and customer data to find the average sale amount per customer segment, ranked by average sale amount
 SELECT
     c.segment,
-    AVG(s.net_paid) as avg_sale_amount,
+    TRUNCATE(AVG(s.net_paid), 7) as avg_sale_amount,
     COUNT(s.sale_id) as number_of_sales,
     RANK() OVER (ORDER BY AVG(s.net_paid) DESC) as avg_sale_rank
 FROM customers c
@@ -454,7 +454,7 @@ WITH ProductAverage AS (
 SELECT
     product_id,
     product_name,
-    avg_quantity,
+    TRUNCATE(avg_quantity, 2),
     RANK() OVER (ORDER BY avg_quantity DESC) AS overall_rank
 FROM
     ProductAverage
@@ -478,7 +478,7 @@ SELECT
     customer_id,
     sale_date,
     cumulative_sales,
-    running_3m_avg,
+    TRUNCATE(running_3m_avg, 4),
     RANK() OVER (ORDER BY running_3m_avg DESC, cumulative_sales DESC, customer_id, sale_date, sale_id) AS sales_rank
 FROM
     SalesData
