@@ -19,7 +19,7 @@ export BENDSQL_DSN="databend://<user>:<pwd>@<host>:443/?tenant=<tenant>&warehous
 
 For example:
 ```bash
-export BENDSQL_DSN="databend://usera:pwdb@gw.aws-us-east-2.default.databend.com/?tenant=tenant_t1&warehouse=bh-v224"
+export BENDSQL_DSN="databend://user:pwd@gw.aws-us-east-2.default.databend.com/?tenant=tenant_t1&warehouse=bh-v224"
 ```
 
 ## snowsql

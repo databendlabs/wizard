@@ -106,7 +106,7 @@ GROUP BY p.category
 ORDER BY products_sold DESC;
 
 -- SELECT-BASE-13: Total sales and average quantity sold per product
-SELECT p.product_id, p.product_name, SUM(s.net_paid) AS total_sales, AVG(s.quantity) AS avg_quantity_sold
+SELECT p.product_id, p.product_name, SUM(s.net_paid) AS total_sales, TRUCATE(AVG(s.quantity), 2) AS avg_quantity_sold
 FROM sales s
          JOIN products p ON s.product_id = p.product_id
 GROUP BY p.product_id, p.product_name
