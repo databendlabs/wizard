@@ -167,18 +167,25 @@ def run_benchmark(operation_function, total_operations, num_threads):
 
 
 def print_status():
+    start_time = time.time()  # Record the start time of the benchmark
+
     while not shutdown_flag.value:
         time.sleep(1)
-        with operations_lock:
-            avg_operation_time = (
-                total_operation_time.value / total_executed_operations.value
-                if total_executed_operations.value > 0
-                else 0
-            )
-            print(
-                f"Execute times: {total_executed_operations.value}, Avg cost: {avg_operation_time:.4f} seconds, Concurrency: {ongoing_operations.value}"
-            )
+        current_time = time.time()
+        elapsed_time = current_time - start_time  # Calculate the total elapsed time
 
+        with operations_lock:
+            if elapsed_time > 0:
+                throughput = total_executed_operations.value / elapsed_time
+            else:
+                throughput = 0
+
+            print(
+                f"Total elapsed time: {elapsed_time:.2f} seconds, "
+                f"Operations executed: {total_executed_operations.value}, "
+                f"Throughput: {throughput:.2f} operations/second, "
+                f"Concurrency: {ongoing_operations.value}"
+            )
 
 def main():
     args = parse_arguments()
