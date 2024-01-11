@@ -87,19 +87,6 @@ CREATE TABLE IF NOT EXISTS supplier (
     s_comment STRING not null
     ) ;
 
--- TPC-H 15-create
-create view revenue0 (supplier_no, total_revenue) as
-select
-    l_suppkey,
-    sum(l_extendedprice * (1 - l_discount))
-from
-    snowflake_sample_data.tpch_sf1.lineitem
-where
-        l_shipdate >= date '1996-01-01'
-  AND l_shipdate < DATEADD(month, 3, '1996-01-01')
-group by
-    l_suppkey;
-
 
 COPY INTO customer FROM 's3://redshift-downloads/TPC-H/2.18/100GB/customer/' file_format =(TYPE = CSV, field_delimiter = '|');
 COPY INTO lineitem FROM 's3://redshift-downloads/TPC-H/2.18/100GB/lineitem/' file_format =(TYPE = CSV, field_delimiter = '|');
