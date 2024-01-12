@@ -51,7 +51,7 @@ def execute_bendsql(query, database):
 
 def extract_bendsql_time(output):
     """Extract execution time from the bendsql output."""
-    match = re.search(r"Time:\s*([0-9.]+)s", output)
+    match = re.search(r"([0-9.]+)$", output)
     return match.group(1) if match else None
 
 
