@@ -1,7 +1,3 @@
-CREATE DATABASE tpch_sf100;
-
-USE tpch_sf100;
-
 DROP TABLE IF EXISTS customer;
 CREATE TABLE IF NOT EXISTS customer (
     c_custkey    BIGINT NOT NULL,

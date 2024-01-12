@@ -1,7 +1,3 @@
-CREATE DATABASE tpch_sf100;
-
-USE tpch_sf100;
-
 DROP TABLE IF EXISTS customer;
 CREATE TABLE IF NOT EXISTS customer (
     c_custkey    BIGINT NOT NULL,
@@ -12,7 +8,7 @@ CREATE TABLE IF NOT EXISTS customer (
     c_acctbal    DECIMAL(15, 2) NOT NULL,
     c_mktsegment VARCHAR NOT NULL,
     c_comment    VARCHAR NOT NULL
-    );
+);
 
 DROP TABLE IF EXISTS lineitem;
 CREATE TABLE IF NOT EXISTS lineitem (
@@ -95,43 +91,11 @@ CREATE TABLE IF NOT EXISTS supplier (
     s_comment   VARCHAR NOT NULL
 );
 
--- ETL
-COPY INTO customer
-    FROM 's3://redshift-downloads/TPC-H/2.18/100GB/customer/'
-    CONNECTION = (allow_anonymous = 'true')
-    FILE_FORMAT = (TYPE = CSV, FIELD_DELIMITER = '|');
-
-COPY INTO lineitem
-    FROM 's3://redshift-downloads/TPC-H/2.18/100GB/lineitem/'
-    CONNECTION = (allow_anonymous = 'true')
-    FILE_FORMAT = (TYPE = CSV, FIELD_DELIMITER = '|');
-
-COPY INTO nation
-    FROM 's3://redshift-downloads/TPC-H/2.18/100GB/nation/'
-    CONNECTION = (allow_anonymous = 'true')
-    FILE_FORMAT = (TYPE = CSV, FIELD_DELIMITER = '|');
-
-COPY INTO orders
-    FROM 's3://redshift-downloads/TPC-H/2.18/100GB/orders/'
-    CONNECTION = (allow_anonymous = 'true')
-    FILE_FORMAT = (TYPE = CSV, FIELD_DELIMITER = '|');
-
-COPY INTO part
-    FROM 's3://redshift-downloads/TPC-H/2.18/100GB/part/'
-    CONNECTION = (allow_anonymous = 'true')
-    FILE_FORMAT = (TYPE = CSV, FIELD_DELIMITER = '|');
-
-COPY INTO partsupp
-    FROM 's3://redshift-downloads/TPC-H/2.18/100GB/partsupp/'
-    CONNECTION = (allow_anonymous = 'true')
-    FILE_FORMAT = (TYPE = CSV, FIELD_DELIMITER = '|');
-
-COPY INTO region
-    FROM 's3://redshift-downloads/TPC-H/2.18/100GB/region/'
-    CONNECTION = (allow_anonymous = 'true')
-    FILE_FORMAT = (TYPE = CSV, FIELD_DELIMITER = '|');
-
-COPY INTO supplier
-    FROM 's3://redshift-downloads/TPC-H/2.18/100GB/supplier/'
-    CONNECTION = (allow_anonymous = 'true')
-    FILE_FORMAT = (TYPE = CSV, FIELD_DELIMITER = '|');
+COPY INTO customer FROM 's3://redshift-downloads/TPC-H/2.18/100GB/customer/' FILE_FORMAT =(TYPE = CSV, FIELD_DELIMITER = '|');
+COPY INTO lineitem FROM 's3://redshift-downloads/TPC-H/2.18/100GB/lineitem/' FILE_FORMAT =(TYPE = CSV, FIELD_DELIMITER = '|');
+COPY INTO nation FROM 's3://redshift-downloads/TPC-H/2.18/100GB/nation/' FILE_FORMAT =(TYPE = CSV, FIELD_DELIMITER = '|');
+COPY INTO orders FROM 's3://redshift-downloads/TPC-H/2.18/100GB/orders/' FILE_FORMAT =(TYPE = CSV, FIELD_DELIMITER = '|');
+COPY INTO partsupp FROM 's3://redshift-downloads/TPC-H/2.18/100GB/partsupp/' FILE_FORMAT =(TYPE = CSV, FIELD_DELIMITER = '|');
+COPY INTO part FROM 's3://redshift-downloads/TPC-H/2.18/100GB/part/' FILE_FORMAT =(TYPE = CSV, FIELD_DELIMITER = '|');
+COPY INTO region FROM 's3://redshift-downloads/TPC-H/2.18/100GB/region/' FILE_FORMAT =(TYPE = CSV, FIELD_DELIMITER = '|');
+COPY INTO supplier FROM 's3://redshift-downloads/TPC-H/2.18/100GB/supplier/' FILE_FORMAT =(TYPE = CSV, FIELD_DELIMITER = '|');
