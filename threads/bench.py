@@ -187,6 +187,7 @@ def print_status():
                 f"Concurrency: {ongoing_operations.value}"
             )
 
+
 def main():
     args = parse_arguments()
     sql_tool = "snowsql" if args.runsnow else "bendsql"

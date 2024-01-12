@@ -102,7 +102,7 @@ async def main():
     parser.add_argument("--database", type=str, help="Specify the database name to use")
     args = parser.parse_args()
 
-    # Use provided database name or create a default one
+    # Use the provided database name or create a default one
     if args.database:
         database_name = args.database
     else:

@@ -13,13 +13,21 @@ Before run, you should read the README.md in each folder([bend](./bend/README.md
 
 ## Databend
 
+Setup:
 ```
-cd bend
-python3 ./bend.py
+python3 ./benchsb.py --database tpch_sf100 --setup --runbend
+```
+Run:
+```sql
+python3 ./benchsb.py --database tpch_sf100 --runbend
 ```
 
 ## Snowflake
+Setup:
 ```
-cd snow
-python3 ./snow.py
+python3 ./benchsb.py --database tpch_sf100 --setup --runsnow
+```
+Run:
+```sql
+python3 ./benchsb.py --database tpch_sf100 --runsnow
 ```
