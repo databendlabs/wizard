@@ -63,12 +63,12 @@ def execute_sql(query, sql_tool, database, warehouse=None):
         return execute_snowsql(query, database, warehouse)
 
 
-def setup_database(database_name, sql_tool):
+def setup_database(database_name, sql_tool, warehouse):
     """Set up the database by dropping and creating it."""
     drop_query = f"DROP DATABASE IF EXISTS {database_name};"
     create_query = f"CREATE DATABASE {database_name};"
-    execute_sql(drop_query, sql_tool, database_name)
-    execute_sql(create_query, sql_tool, database_name)
+    execute_sql(drop_query, sql_tool, database_name, warehouse)
+    execute_sql(create_query, sql_tool, database_name, warehouse)
     print(f"Database '{database_name}' has been set up.")
 
 
@@ -143,7 +143,7 @@ def main():
         sys.exit(1)
 
     if args.setup:
-        setup_database(args.database, sql_tool)
+        setup_database(args.database, sql_tool, args.warehouse)
         setup_file = os.path.join(sql_dir, "setup.sql")
         execute_sql_file(setup_file, sql_tool, args.database, args.warehouse)
 
