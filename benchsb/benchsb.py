@@ -92,13 +92,20 @@ def setup_database(database_name, sql_tool, warehouse):
 
 def restart_warehouse(sql_tool, warehouse, database):
     """Restart a specific warehouse by suspending and then resuming it."""
-    alter_suspend = f"ALTER WAREHOUSE '{warehouse}' SUSPEND;"
+    if sql_tool == "bendsql":
+        alter_suspend = f"ALTER WAREHOUSE '{warehouse}' SUSPEND;"
+    else:
+        alter_suspend = f"ALTER WAREHOUSE {warehouse} SUSPEND;"
 
     print(f"Suspending warehouse {warehouse}...")
     execute_sql(alter_suspend, sql_tool, database, warehouse)
 
-    time.sleep(5)
-    alter_resume = f"ALTER WAREHOUSE '{warehouse}' RESUME;"
+    time.sleep(2)
+    if sql_tool == "bendsql":
+        alter_resume = f"ALTER WAREHOUSE '{warehouse}' RESUME;"
+    else:
+        alter_resume = f"ALTER WAREHOUSE {warehouse} RESUME;"
+
     execute_sql(alter_resume, sql_tool, database, warehouse)
     print(f"Resuming warehouse {warehouse}...")
 
