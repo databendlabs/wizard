@@ -73,16 +73,16 @@ def setup_database(database_name, sql_tool, warehouse):
     print(f"Database '{database_name}' has been set up.")
 
 
-def restart_warehouse(warehouse):
+def restart_warehouse(warehouse, database):
     """Restart a specific warehouse by suspending and then resuming it."""
     alter_suspend = f"ALTER WAREHOUSE {warehouse} SUSPEND;"
 
     print(f"Suspending warehouse {warehouse}...")
-    execute_sql(alter_suspend, "snowsql", warehouse)
+    execute_sql(alter_suspend, "snowsql", database, warehouse)
 
     time.sleep(5)
     alter_resume = f"ALTER WAREHOUSE {warehouse} RESUME;"
-    execute_sql(alter_resume, "snowsql", warehouse)
+    execute_sql(alter_resume, "snowsql", database, warehouse)
     print(f"Resuming warehouse {warehouse}...")
 
 
@@ -98,7 +98,7 @@ def execute_sql_file(sql_file, sql_tool, database, warehouse, nosuspend):
         for index, query in enumerate(queries):
             try:
                 if nosuspend == False:
-                    restart_warehouse(warehouse)
+                    restart_warehouse(warehouse, database)
 
                 output = execute_sql(query, sql_tool, database, warehouse)
                 time_elapsed = (
@@ -163,7 +163,10 @@ def main():
         sql_dir = os.path.join(base_sql_dir, "snow")
         # Disable caching of results
         execute_sql(
-            "ALTER ACCOUNT SET USE_CACHED_RESULT=FALSE;", sql_tool, None, args.warehouse
+            "ALTER ACCOUNT SET USE_CACHED_RESULT=FALSE;",
+            sql_tool,
+            args.database,
+            args.warehouse,
         )
     else:
         print("Please specify --runbend or --runsnow.")
