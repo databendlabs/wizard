@@ -3,6 +3,7 @@ import subprocess
 import sys
 import os
 import re
+import time
 
 
 def execute_snowsql(query, database, warehouse):
@@ -72,7 +73,20 @@ def setup_database(database_name, sql_tool, warehouse):
     print(f"Database '{database_name}' has been set up.")
 
 
-def execute_sql_file(sql_file, sql_tool, database, warehouse=None):
+def restart_warehouse(warehouse):
+    """Restart a specific warehouse by suspending and then resuming it."""
+    alter_suspend = f"ALTER WAREHOUSE {warehouse} SUSPEND;"
+
+    print(f"Suspending warehouse {warehouse}...")
+    execute_sql(alter_suspend, "snowsql", warehouse)
+
+    time.sleep(5)
+    alter_resume = f"ALTER WAREHOUSE {warehouse} RESUME;"
+    execute_sql(alter_resume, "snowsql", warehouse)
+    print(f"Resuming warehouse {warehouse}...")
+
+
+def execute_sql_file(sql_file, sql_tool, database, warehouse, nosuspend):
     """Execute SQL queries from a file using the specified tool and write results to a file."""
     with open(sql_file, "r") as file:
         queries = [query.strip() for query in file.read().split(";") if query.strip()]
@@ -83,12 +97,15 @@ def execute_sql_file(sql_file, sql_tool, database, warehouse=None):
     with open(result_file_path, "w") as result_file:
         for index, query in enumerate(queries):
             try:
-                output = execute_sql(query, sql_tool, database, warehouse)
-                if sql_tool == "bendsql":
-                    time_elapsed = extract_bendsql_time(output)
-                elif sql_tool == "snowsql":
-                    time_elapsed = extract_snowsql_time(output)
+                if nosuspend == False:
+                    restart_warehouse(warehouse)
 
+                output = execute_sql(query, sql_tool, database, warehouse)
+                time_elapsed = (
+                    extract_snowsql_time(output)
+                    if sql_tool == "snowsql"
+                    else extract_bendsql_time(output)
+                )
                 print(f"Executing SQL: {query}\nTime Elapsed: {time_elapsed}s")
                 result_file.write(f"SQL: {query}\nTime Elapsed: {time_elapsed}s\n\n")
                 results.append(time_elapsed)
@@ -124,6 +141,12 @@ def parse_arguments():
     parser.add_argument(
         "--runsnow", action="store_true", help="Run only snowsql setup and action"
     )
+    parser.add_argument(
+        "--nosuspend",
+        default=False,
+        action="store_true",
+        help="Restart the warehouse before each query",
+    )
     return parser.parse_args()
 
 
@@ -138,6 +161,10 @@ def main():
     elif args.runsnow:
         sql_tool = "snowsql"
         sql_dir = os.path.join(base_sql_dir, "snow")
+        # Disable caching of results
+        execute_sql(
+            "ALTER ACCOUNT SET USE_CACHED_RESULT=FALSE;", sql_tool, None, args.warehouse
+        )
     else:
         print("Please specify --runbend or --runsnow.")
         sys.exit(1)
@@ -145,10 +172,12 @@ def main():
     if args.setup:
         setup_database(args.database, sql_tool, args.warehouse)
         setup_file = os.path.join(sql_dir, "setup.sql")
-        execute_sql_file(setup_file, sql_tool, args.database, args.warehouse)
+        execute_sql_file(setup_file, sql_tool, args.database, args.warehouse, True)
 
     queries_file = os.path.join(sql_dir, "queries.sql")
-    execute_sql_file(queries_file, sql_tool, args.database, args.warehouse)
+    execute_sql_file(
+        queries_file, sql_tool, args.database, args.warehouse, args.nosuspend
+    )
 
 
 if __name__ == "__main__":
