@@ -73,16 +73,16 @@ def setup_database(database_name, sql_tool, warehouse):
     print(f"Database '{database_name}' has been set up.")
 
 
-def restart_warehouse(warehouse, database):
+def restart_warehouse(sql_tool, warehouse, database):
     """Restart a specific warehouse by suspending and then resuming it."""
     alter_suspend = f"ALTER WAREHOUSE {warehouse} SUSPEND;"
 
     print(f"Suspending warehouse {warehouse}...")
-    execute_sql(alter_suspend, "snowsql", database, warehouse)
+    execute_sql(alter_suspend, sql_tool, database, warehouse)
 
     time.sleep(5)
     alter_resume = f"ALTER WAREHOUSE {warehouse} RESUME;"
-    execute_sql(alter_resume, "snowsql", database, warehouse)
+    execute_sql(alter_resume, sql_tool, database, warehouse)
     print(f"Resuming warehouse {warehouse}...")
 
 
@@ -98,14 +98,15 @@ def execute_sql_file(sql_file, sql_tool, database, warehouse, nosuspend):
         for index, query in enumerate(queries):
             try:
                 if nosuspend == False:
-                    restart_warehouse(warehouse, database)
+                    restart_warehouse(sql_tool, warehouse, database)
 
                 output = execute_sql(query, sql_tool, database, warehouse)
-                time_elapsed = (
-                    extract_snowsql_time(output)
-                    if sql_tool == "snowsql"
-                    else extract_bendsql_time(output)
-                )
+
+                if sql_tool == "snowsql":
+                    time_elapsed = extract_snowsql_time(output)
+                else:
+                    time_elapsed = extract_bendsql_time(output)
+
                 print(f"Executing SQL: {query}\nTime Elapsed: {time_elapsed}s")
                 result_file.write(f"SQL: {query}\nTime Elapsed: {time_elapsed}s\n\n")
                 results.append(time_elapsed)

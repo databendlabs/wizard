@@ -14,7 +14,7 @@ install-formatter:
 	$(PYTHON) -m pip install $(FORMATTER)
 
 # Target for formatting all Python files
-format:
+lint:
 	$(FORMATTER) $(SRC_DIR)
 
 # Other targets can go here
