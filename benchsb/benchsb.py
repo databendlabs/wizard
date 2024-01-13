@@ -6,6 +6,23 @@ import re
 import time
 
 
+def get_bendsql_warehouse_from_env():
+    """Retrieve warehouse name from the environment variable."""
+    dsn = os.environ.get("BENDSQL_DSN", "")
+
+    # Try to match the first format
+    match = re.search(r"--([\w-]+)\.gw", dsn)
+    if match:
+        return match.group(1)
+
+    # Try to match the second format
+    match = re.search(r"warehouse=([\w-]+)", dsn)
+    if match:
+        return match.group(1)
+
+    raise ValueError("Could not extract warehouse name from BENDSQL_DSN.")
+
+
 def execute_snowsql(query, database, warehouse):
     """Execute an SQL query using snowsql."""
     command = [
@@ -155,33 +172,31 @@ def main():
     args = parse_arguments()
 
     base_sql_dir = "sql"  # Base directory for SQL files
+    database = args.database
 
     if args.runbend:
         sql_tool = "bendsql"
         sql_dir = os.path.join(base_sql_dir, "bend")
+        warehouse = get_bendsql_warehouse_from_env()
     elif args.runsnow:
         sql_tool = "snowsql"
         sql_dir = os.path.join(base_sql_dir, "snow")
+        warehouse = args.warehouse
         # Disable caching of results
         execute_sql(
-            "ALTER ACCOUNT SET USE_CACHED_RESULT=FALSE;",
-            sql_tool,
-            args.database,
-            args.warehouse,
+            "ALTER ACCOUNT SET USE_CACHED_RESULT=FALSE;", sql_tool, database, warehouse
         )
     else:
         print("Please specify --runbend or --runsnow.")
         sys.exit(1)
 
     if args.setup:
-        setup_database(args.database, sql_tool, args.warehouse)
+        setup_database(database, sql_tool, warehouse)
         setup_file = os.path.join(sql_dir, "setup.sql")
-        execute_sql_file(setup_file, sql_tool, args.database, args.warehouse, True)
+        execute_sql_file(setup_file, sql_tool, database, warehouse, True)
 
     queries_file = os.path.join(sql_dir, "queries.sql")
-    execute_sql_file(
-        queries_file, sql_tool, args.database, args.warehouse, args.nosuspend
-    )
+    execute_sql_file(queries_file, sql_tool, database, warehouse, args.nosuspend)
 
 
 if __name__ == "__main__":
