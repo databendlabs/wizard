@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS customer (
     c_acctbal    DECIMAL(15, 2) NOT NULL,
     c_mktsegment VARCHAR NOT NULL,
     c_comment    VARCHAR NOT NULL
-) STORAGE_FORMAT = 'native';
+);
 
 DROP TABLE IF EXISTS lineitem;
 CREATE TABLE IF NOT EXISTS lineitem (
@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS lineitem (
     l_shipinstruct   VARCHAR NOT NULL,
     l_shipmode       VARCHAR NOT NULL,
     l_comment        VARCHAR NOT NULL
-) STORAGE_FORMAT = 'native';
+);
 
 DROP TABLE IF EXISTS nation;
 CREATE TABLE IF NOT EXISTS nation (
@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS nation (
     n_name      VARCHAR NOT NULL,
     n_regionkey INT NOT NULL,
     n_comment   VARCHAR
-) STORAGE_FORMAT = 'native';
+);
 
 DROP TABLE IF EXISTS orders;
 CREATE TABLE IF NOT EXISTS orders (
@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS orders (
     o_clerk         VARCHAR NOT NULL,
     o_shippriority  INT NOT NULL,
     o_comment       VARCHAR NOT NULL
-) STORAGE_FORMAT = 'native';
+);
 
 DROP TABLE IF EXISTS partsupp;
 CREATE TABLE IF NOT EXISTS partsupp (
@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS part (
     p_container    VARCHAR NOT NULL,
     p_retailprice  DECIMAL(15, 2) NOT NULL,
     p_comment      VARCHAR NOT NULL
-) STORAGE_FORMAT = 'native';
+);
 
 DROP TABLE IF EXISTS region;
 CREATE TABLE IF NOT EXISTS region (
@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS supplier (
     s_phone     VARCHAR NOT NULL,
     s_acctbal   DECIMAL(15, 2) NOT NULL,
     s_comment   VARCHAR NOT NULL
-) STORAGE_FORMAT = 'native';
+);
 
 -- ETL
 COPY INTO customer
