@@ -95,7 +95,7 @@ COPY INTO customer FROM 's3://redshift-downloads/TPC-H/2.18/100GB/customer/' FIL
 COPY INTO lineitem FROM 's3://redshift-downloads/TPC-H/2.18/100GB/lineitem/' FILE_FORMAT =(TYPE = CSV, FIELD_DELIMITER = '|');
 COPY INTO nation FROM 's3://redshift-downloads/TPC-H/2.18/100GB/nation/' FILE_FORMAT =(TYPE = CSV, FIELD_DELIMITER = '|');
 COPY INTO orders FROM 's3://redshift-downloads/TPC-H/2.18/100GB/orders/' FILE_FORMAT =(TYPE = CSV, FIELD_DELIMITER = '|');
-COPY INTO partsupp FROM 's3://redshift-downloads/TPC-H/2.18/100GB/partsupp/' FILE_FORMAT =(TYPE = CSV, FIELD_DELIMITER = '|');
 COPY INTO part FROM 's3://redshift-downloads/TPC-H/2.18/100GB/part/' FILE_FORMAT =(TYPE = CSV, FIELD_DELIMITER = '|');
+COPY INTO partsupp FROM 's3://redshift-downloads/TPC-H/2.18/100GB/partsupp/' FILE_FORMAT =(TYPE = CSV, FIELD_DELIMITER = '|');
 COPY INTO region FROM 's3://redshift-downloads/TPC-H/2.18/100GB/region/' FILE_FORMAT =(TYPE = CSV, FIELD_DELIMITER = '|');
 COPY INTO supplier FROM 's3://redshift-downloads/TPC-H/2.18/100GB/supplier/' FILE_FORMAT =(TYPE = CSV, FIELD_DELIMITER = '|');
