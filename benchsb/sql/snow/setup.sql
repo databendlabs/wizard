@@ -91,6 +91,7 @@ CREATE TABLE IF NOT EXISTS supplier (
     s_comment   VARCHAR NOT NULL
 );
 
+-- ETL
 COPY INTO customer FROM 's3://redshift-downloads/TPC-H/2.18/100GB/customer/' FILE_FORMAT =(TYPE = CSV, FIELD_DELIMITER = '|');
 COPY INTO lineitem FROM 's3://redshift-downloads/TPC-H/2.18/100GB/lineitem/' FILE_FORMAT =(TYPE = CSV, FIELD_DELIMITER = '|');
 COPY INTO nation FROM 's3://redshift-downloads/TPC-H/2.18/100GB/nation/' FILE_FORMAT =(TYPE = CSV, FIELD_DELIMITER = '|');
