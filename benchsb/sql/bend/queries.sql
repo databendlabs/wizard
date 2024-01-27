@@ -11,7 +11,7 @@ select l_orderkey, sum(l_extendedprice * (1 - l_discount)) as revenue, o_orderda
 select o_orderpriority, count(*) as order_count from orders where o_orderdate >= to_date('1993-07-01') and o_orderdate < add_months(to_date('1993-07-01'), 3) and exists ( select * from lineitem where l_orderkey = o_orderkey and l_commitdate < l_receiptdate ) group by o_orderpriority order by o_orderpriority;
 
 -- TPC-H 5
-select n_name, sum(l_extendedprice * (1 - l_discount)) / 10 as revenue from customer, orders, lineitem, supplier, nation, region where c_custkey = o_custkey and l_orderkey = o_orderkey and l_suppkey = s_suppkey and c_nationkey = s_nationkey and s_nationkey = n_nationkey and c_nationkey = n_nationkey and n_regionkey = r_regionkey and r_name = 'ASIA' and o_orderdate >= to_date('1994-01-01') and o_orderdate < add_years(to_date('1994-01-01'), 1) group by n_name order by revenue desc;
+select n_name, sum(l_extendedprice * (1 - l_discount)) / 10 as revenue from customer, orders, lineitem, supplier, nation, region where c_custkey = o_custkey and l_orderkey = o_orderkey and l_suppkey = s_suppkey and c_nationkey = s_nationkey and s_nationkey = n_nationkey and n_regionkey = r_regionkey and r_name = 'ASIA' and o_orderdate >= to_date('1994-01-01') and o_orderdate < add_years(to_date('1994-01-01'), 1) group by n_name order by revenue desc;
 
 -- TPC-H 6
 select sum(l_extendedprice * l_discount) as revenue from lineitem where l_shipdate >= '1994-01-01' and l_shipdate < date_add(year, 1, to_date('1994-01-01')) and l_discount between 0.05 and 0.07 and l_quantity < 24;
