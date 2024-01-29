@@ -99,27 +99,22 @@ COPY INTO customer
 
 COPY INTO lineitem
     FROM 's3://redshift-downloads/TPC-H/2.18/100GB/lineitem/'
-    CONNECTION = (allow_anonymous = 'true')
     FILE_FORMAT = (TYPE = CSV, FIELD_DELIMITER = '|');
 
 COPY INTO nation
     FROM 's3://redshift-downloads/TPC-H/2.18/100GB/nation/'
-    CONNECTION = (allow_anonymous = 'true')
     FILE_FORMAT = (TYPE = CSV, FIELD_DELIMITER = '|');
 
 COPY INTO orders
     FROM 's3://redshift-downloads/TPC-H/2.18/100GB/orders/'
-    CONNECTION = (allow_anonymous = 'true')
     FILE_FORMAT = (TYPE = CSV, FIELD_DELIMITER = '|');
 
 COPY INTO part
     FROM 's3://redshift-downloads/TPC-H/2.18/100GB/part/'
-    CONNECTION = (allow_anonymous = 'true')
     FILE_FORMAT = (TYPE = CSV, FIELD_DELIMITER = '|');
 
 COPY INTO partsupp
     FROM 's3://redshift-downloads/TPC-H/2.18/100GB/partsupp/'
-    CONNECTION = (allow_anonymous = 'true')
     FILE_FORMAT = (TYPE = CSV, FIELD_DELIMITER = '|');
 
 COPY INTO region
@@ -129,5 +124,4 @@ COPY INTO region
 
 COPY INTO supplier
     FROM 's3://redshift-downloads/TPC-H/2.18/100GB/supplier/'
-    CONNECTION = (allow_anonymous = 'true')
     FILE_FORMAT = (TYPE = CSV, FIELD_DELIMITER = '|');
