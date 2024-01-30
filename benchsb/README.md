@@ -9,7 +9,7 @@
 
 # How to run
 
-Before run, you should read the README.md in each folder([bend](./bend/README.md), [snow](./snow/README.md)), and prepare the data and config.
+Before run, you should prepare the data and config.
 
 ## Databend
 
