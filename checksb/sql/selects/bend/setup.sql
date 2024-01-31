@@ -36,8 +36,7 @@ CREATE TABLE sales (
 ) row_per_block=51113;
 
 CREATE STAGE IF NOT EXISTS wizardbend
-    URL = 's3://wizardbend/'
-    CONNECTION = (ALLOW_ANONYMOUS = 'true');
+    URL = 's3://wizardbend/';
 
 COPY INTO customers
     FROM @wizardbend/selects/customers.parquet

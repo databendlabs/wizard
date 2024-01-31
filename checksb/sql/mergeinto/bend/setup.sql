@@ -96,8 +96,7 @@ CREATE TABLE transactions_50 (
 ) row_per_block=51113;
 
 CREATE STAGE IF NOT EXISTS wizardbend
-    URL = 's3://wizardbend/'
-    CONNECTION = (ALLOW_ANONYMOUS = 'true');
+    URL = 's3://wizardbend/';
 
 COPY INTO assets
     FROM @wizardbend/mergeinto/assets.parquet
