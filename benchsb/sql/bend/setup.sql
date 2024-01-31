@@ -94,7 +94,6 @@ CREATE TABLE IF NOT EXISTS supplier (
 -- ETL
 COPY INTO customer
     FROM 's3://redshift-downloads/TPC-H/2.18/100GB/customer/'
-    CONNECTION = (allow_anonymous = 'true')
     FILE_FORMAT = (TYPE = CSV, FIELD_DELIMITER = '|');
 
 COPY INTO lineitem
@@ -119,7 +118,6 @@ COPY INTO partsupp
 
 COPY INTO region
     FROM 's3://redshift-downloads/TPC-H/2.18/100GB/region/'
-    CONNECTION = (allow_anonymous = 'true')
     FILE_FORMAT = (TYPE = CSV, FIELD_DELIMITER = '|');
 
 COPY INTO supplier
