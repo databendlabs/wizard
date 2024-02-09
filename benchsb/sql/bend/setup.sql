@@ -1,5 +1,4 @@
-DROP TABLE IF EXISTS customer;
-CREATE TABLE IF NOT EXISTS customer (
+CREATE OR REPLACE TABLE customer (
     c_custkey    BIGINT NOT NULL,
     c_name       VARCHAR NOT NULL,
     c_address    VARCHAR NOT NULL,
@@ -10,8 +9,7 @@ CREATE TABLE IF NOT EXISTS customer (
     c_comment    VARCHAR NOT NULL
 );
 
-DROP TABLE IF EXISTS lineitem;
-CREATE TABLE IF NOT EXISTS lineitem (
+CREATE OR REPLACE TABLE lineitem (
     l_orderkey       BIGINT NOT NULL,
     l_partkey        BIGINT NOT NULL,
     l_suppkey        BIGINT NOT NULL,
@@ -30,16 +28,14 @@ CREATE TABLE IF NOT EXISTS lineitem (
     l_comment        VARCHAR NOT NULL
 );
 
-DROP TABLE IF EXISTS nation;
-CREATE TABLE IF NOT EXISTS nation (
+CREATE OR REPLACE TABLE nation (
     n_nationkey INT NOT NULL,
     n_name      VARCHAR NOT NULL,
     n_regionkey INT NOT NULL,
     n_comment   VARCHAR
 );
 
-DROP TABLE IF EXISTS orders;
-CREATE TABLE IF NOT EXISTS orders (
+CREATE OR REPLACE TABLE orders (
     o_orderkey      BIGINT NOT NULL,
     o_custkey       BIGINT NOT NULL,
     o_orderstatus   VARCHAR NOT NULL,
@@ -51,8 +47,7 @@ CREATE TABLE IF NOT EXISTS orders (
     o_comment       VARCHAR NOT NULL
 );
 
-DROP TABLE IF EXISTS partsupp;
-CREATE TABLE IF NOT EXISTS partsupp (
+CREATE OR REPLACE TABLE partsupp (
     ps_partkey     BIGINT NOT NULL,
     ps_suppkey     BIGINT NOT NULL,
     ps_availqty    BIGINT NOT NULL,
@@ -60,8 +55,7 @@ CREATE TABLE IF NOT EXISTS partsupp (
     ps_comment     VARCHAR NOT NULL
 );
 
-DROP TABLE IF EXISTS part;
-CREATE TABLE IF NOT EXISTS part (
+CREATE OR REPLACE TABLE part (
     p_partkey      BIGINT NOT NULL,
     p_name         VARCHAR NOT NULL,
     p_mfgr         VARCHAR NOT NULL,
@@ -73,15 +67,13 @@ CREATE TABLE IF NOT EXISTS part (
     p_comment      VARCHAR NOT NULL
 );
 
-DROP TABLE IF EXISTS region;
-CREATE TABLE IF NOT EXISTS region (
+CREATE OR REPLACE TABLE region (
     r_regionkey INT NOT NULL,
     r_name      VARCHAR NOT NULL,
     r_comment   VARCHAR
 );
 
-DROP TABLE IF EXISTS supplier;
-CREATE TABLE IF NOT EXISTS supplier (
+CREATE OR REPLACE TABLE supplier (
     s_suppkey   BIGINT NOT NULL,
     s_name      VARCHAR NOT NULL,
     s_address   VARCHAR NOT NULL,

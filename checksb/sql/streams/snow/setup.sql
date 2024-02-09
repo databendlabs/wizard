@@ -1,5 +1,4 @@
-DROP TABLE IF EXISTS customers;
-CREATE TABLE customers (
+CREATE OR REPLACE TABLE customers (
                            customer_id INT  NOT NULL,
                            customer_name VARCHAR NOT NULL,
                            segment VARCHAR NOT NULL,
@@ -7,16 +6,14 @@ CREATE TABLE customers (
                            active BOOLEAN NOT NULL
 );
 
-DROP TABLE IF EXISTS date_dim;
-CREATE TABLE date_dim (
+CREATE OR REPLACE TABLE date_dim (
                           date_key DATE NOT NULL,
                           day_of_week TINYINT  NOT NULL,
                           month TINYINT  NOT NULL,
                           year SMALLINT  NOT NULL
 );
 
-DROP TABLE IF EXISTS products;
-CREATE TABLE products
+CREATE OR REPLACE TABLE products
 (
     product_id   INT  NOT NULL,
     product_name VARCHAR        NOT NULL,
@@ -24,8 +21,7 @@ CREATE TABLE products
     category     VARCHAR        NOT NULL
 );
 
-DROP TABLE IF EXISTS sales;
-CREATE TABLE sales (
+CREATE OR REPLACE TABLE sales (
                        sale_id INT  NOT NULL,
                        product_id INT  NOT NULL,
                        customer_id INT  NOT NULL,
