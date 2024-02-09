@@ -1,5 +1,4 @@
-DROP TABLE IF EXISTS assets;
-CREATE TABLE assets (
+CREATE OR REPLACE TABLE assets (
                         user_id INT NOT NULL,
                         asset_type VARCHAR NOT NULL,
                         quantity DECIMAL(18, 8) NOT NULL,
@@ -8,8 +7,7 @@ CREATE TABLE assets (
 );
 
 
-DROP TABLE IF EXISTS assets_10w;
-CREATE TABLE assets_10w (
+CREATE OR REPLACE TABLE assets_10w (
                         user_id       INT          NOT NULL,
                         asset_type    VARCHAR      NOT NULL,
                         quantity      DECIMAL(18,8) NOT NULL,
@@ -17,8 +15,7 @@ CREATE TABLE assets_10w (
                         last_updated  DATE         NOT NULL
 );
 
-DROP TABLE IF EXISTS assets_10;
-CREATE TABLE assets_10 (
+CREATE OR REPLACE TABLE assets_10 (
                         user_id       INT          NOT NULL,
                         asset_type    VARCHAR      NOT NULL,
                         quantity      DECIMAL(18,8) NOT NULL,
@@ -26,8 +23,7 @@ CREATE TABLE assets_10 (
                         last_updated  DATE         NOT NULL
 );
 
-DROP TABLE IF EXISTS orders;
-CREATE TABLE orders (
+CREATE OR REPLACE TABLE orders (
                         order_id INT NOT NULL,
                         user_id INT NOT NULL,
                         order_type VARCHAR NOT NULL,
@@ -39,8 +35,7 @@ CREATE TABLE orders (
                         updated_at DATE NOT NULL
 );
 
-DROP TABLE IF EXISTS orders_25w;
-CREATE TABLE orders_25w (
+CREATE OR REPLACE TABLE orders_25w (
                         order_id      INT          NOT NULL,
                         user_id       INT          NOT NULL,
                         order_type    VARCHAR      NOT NULL,
@@ -52,8 +47,7 @@ CREATE TABLE orders_25w (
                         updated_at    DATE         NOT NULL
 );
 
-DROP TABLE IF EXISTS orders_25;
-CREATE TABLE orders_25 (
+CREATE OR REPLACE TABLE orders_25 (
                         order_id      INT          NOT NULL,
                         user_id       INT          NOT NULL,
                         order_type    VARCHAR      NOT NULL,
@@ -65,8 +59,7 @@ CREATE TABLE orders_25 (
                         updated_at    DATE         NOT NULL
 );
 
-DROP TABLE IF EXISTS transactions;
-CREATE TABLE transactions (
+CREATE OR REPLACE TABLE transactions (
                               transaction_id INT NOT NULL,
                               user_id INT NOT NULL,
                               transaction_type VARCHAR NOT NULL,
@@ -75,8 +68,7 @@ CREATE TABLE transactions (
                               transaction_time DATE NOT NULL
 );
 
-DROP TABLE IF EXISTS transactions_50w;
-CREATE TABLE transactions_50w (
+CREATE OR REPLACE TABLE transactions_50w (
                               transaction_id    INT          NOT NULL,
                               user_id           INT          NOT NULL,
                               transaction_type  VARCHAR      NOT NULL,
@@ -84,8 +76,8 @@ CREATE TABLE transactions_50w (
                               quantity          DECIMAL(18,8) NOT NULL,
                               transaction_time  DATE         NOT NULL
 );
-DROP TABLE IF EXISTS transactions_50;
-CREATE TABLE transactions_50 (
+
+CREATE OR REPLACE TABLE transactions_50 (
                               transaction_id    INT          NOT NULL,
                               user_id           INT          NOT NULL,
                               transaction_type  VARCHAR      NOT NULL,

@@ -1,5 +1,4 @@
-DROP TABLE IF EXISTS assets;
-CREATE TABLE assets (
+CREATE OR REPLACE TABLE assets (
                         user_id INT NOT NULL,
                         asset_type VARCHAR NOT NULL,
                         quantity DECIMAL(18, 8) NOT NULL,
@@ -7,8 +6,7 @@ CREATE TABLE assets (
                         last_updated DATE NOT NULL
 );
 
-DROP TABLE IF EXISTS orders;
-CREATE TABLE orders (
+CREATE OR REPLACE TABLE orders (
                         order_id INT NOT NULL,
                         user_id INT NOT NULL,
                         order_type VARCHAR NOT NULL,
@@ -20,8 +18,7 @@ CREATE TABLE orders (
                         updated_at DATE NOT NULL
 );
 
-DROP TABLE IF EXISTS transactions;
-CREATE TABLE transactions (
+CREATE OR REPLACE TABLE transactions (
                               transaction_id INT NOT NULL,
                               user_id INT NOT NULL,
                               transaction_type VARCHAR NOT NULL,
