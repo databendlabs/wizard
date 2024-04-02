@@ -1,3 +1,121 @@
+-- SELECT-GROUPBY1: Calculate total sales amount per customer segment, ordered by segment.
+SELECT
+    customer_id,
+    SUM(net_paid) AS total_sales_amount
+FROM
+    sales
+GROUP BY
+    customer_id
+ORDER BY
+    customer_id
+LIMIT 10;
+
+-- SELECT-GROUPBY2: Count the number of sales per product category, ordered by category.
+SELECT
+    product_id,
+    COUNT(*) AS sales_count
+FROM
+    sales
+GROUP BY
+    product_id
+ORDER BY
+    product_id
+LIMIT 10;
+
+-- SELECT-GROUPBY3: Calculate the average quantity sold per product category, ordered by category.
+SELECT
+    product_id,
+    TRUNCATE(AVG(quantity), 1) AS avg_quantity_sold
+FROM
+    sales
+GROUP BY
+    product_id
+ORDER BY
+    product_id
+LIMIT 3;
+-- SELECT-GROUPBY4: Find the total net paid amount per customer, ordered by customer_id.
+SELECT
+    customer_id,
+    SUM(net_paid) AS total_net_paid
+FROM
+    sales
+GROUP BY
+    customer_id
+ORDER BY
+    customer_id
+LIMIT 10;
+
+-- SELECT-GROUPBY5: Calculate the total sales amount per month, ordered by month.
+SELECT
+    sale_date,
+    SUM(net_paid) AS total_sales_amount
+FROM
+    sales
+GROUP BY
+    sale_date
+ORDER BY
+    sale_date
+LIMIT 10;
+
+-- SELECT-GROUPBY6: Calculate the average net paid amount per year, ordered by year.
+SELECT
+    sale_date,
+    TRUNCATE(AVG(net_paid), 1) AS avg_net_paid
+FROM
+    sales
+GROUP BY
+    sale_date
+ORDER BY
+    sale_date
+LIMIT 10;
+
+-- SELECT-GROUPBY7: Count the number of sales per day, ordered by sale_date.
+SELECT
+    sale_date,
+    COUNT(*) AS sales_count
+FROM
+    sales
+GROUP BY
+    sale_date
+ORDER BY
+    sale_date
+LIMIT 10;
+-- SELECT-GROUPBY8: Calculate the total net paid amount per product, ordered by product_id.
+SELECT
+    product_id,
+    SUM(net_paid) AS total_net_paid
+FROM
+    sales
+GROUP BY
+    product_id
+ORDER BY
+    product_id
+LIMIT 10;
+
+-- SELECT-GROUPBY9: Calculate the average quantity sold per customer, ordered by customer_id.
+SELECT
+    customer_id,
+    TRUNCATE(AVG(quantity), 1) AS avg_quantity_sold
+FROM
+    sales
+GROUP BY
+    customer_id
+ORDER BY
+    customer_id
+LIMIT 5;
+
+-- SELECT-GROUPBY10: Calculate the total net paid amount per product category, ordered by category.
+SELECT
+    product_id,
+    SUM(net_paid) AS total_net_paid
+FROM
+    sales
+GROUP BY
+    product_id
+ORDER BY
+    product_id
+LIMIT 10;
+
 -- SELECT-BASE-1: Top 5 customers by total spending, including only active customers
 SELECT c.customer_id, c.customer_name, SUM(s.net_paid) AS total_spent
 FROM sales s
