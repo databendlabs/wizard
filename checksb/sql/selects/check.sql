@@ -492,12 +492,17 @@ ORDER BY growth DESC, product_id ASC
 
 
 -- SELECT-W5: Show the first 10 sales with a running total and running average of net_paid per customer
-SELECT customer_id, sale_id, net_paid,
-       SUM(net_paid) OVER (PARTITION BY customer_id ORDER BY sale_date) AS running_total,
-        AVG(net_paid) OVER (PARTITION BY customer_id ORDER BY sale_date) AS running_avg
-FROM sales
-ORDER BY customer_id, sale_date
-    LIMIT 10;
+SELECT
+    customer_id,
+    sale_id,
+    net_paid,
+    ROUND(SUM(net_paid) OVER (PARTITION BY customer_id ORDER BY sale_date), 5) AS running_total,
+    ROUND(AVG(net_paid) OVER (PARTITION BY customer_id ORDER BY sale_date), 5) AS running_avg
+FROM
+    sales
+ORDER BY
+    customer_id, sale_date
+LIMIT 10;
 
 -- SELECT-W6: Find the top 10 sales with the highest net_paid, including their percentage contribution to total sales, with secondary sorting for unique order
 SELECT sale_id, product_id, customer_id, net_paid,
@@ -509,20 +514,20 @@ ORDER BY net_paid DESC, sale_id ASC
 -- SELECT-W8: Calculate the average sale value for each customer, compared to the overall average, top 10 customers
 SELECT
     customer_id,
-    AVG(net_paid) OVER (PARTITION BY customer_id) AS customer_avg,
-        AVG(net_paid) OVER () - AVG(net_paid) OVER (PARTITION BY customer_id) AS diff_from_overall_avg
+    ROUND(AVG(net_paid) OVER (PARTITION BY customer_id), 4) AS customer_avg,
+    ROUND(AVG(net_paid) OVER () - AVG(net_paid) OVER (PARTITION BY customer_id), 4) AS diff_from_overall_avg
 FROM
     sales
 ORDER BY
     diff_from_overall_avg DESC, customer_id ASC
-    LIMIT 10;
-
+LIMIT 10;
 
 -- SELECT-W9: Top 10 sales with the most recent previous sale date for each product
-SELECT sale_id, product_id, sale_date, LAG(sale_date, 1) OVER (PARTITION BY product_id ORDER BY sale_date) AS previous_sale_date
+SELECT sale_id, product_id, sale_date,
+       COALESCE(CAST(LAG(sale_date, 1) OVER (PARTITION BY product_id ORDER BY sale_date) AS VARCHAR), 'None') AS previous_sale_date
 FROM sales
 ORDER BY product_id, sale_date
-    LIMIT 10;
+LIMIT 10;
 
 -- SELECT-W10: Display the top 10 customers by the number of distinct products they have purchased
 SELECT customer_id, COUNT(DISTINCT product_id) OVER (PARTITION BY customer_id) AS distinct_product_count
@@ -572,14 +577,13 @@ WITH ProductAverage AS (
 SELECT
     product_id,
     product_name,
-    TRUNCATE(avg_quantity, 2),
-    RANK() OVER (ORDER BY avg_quantity DESC) AS overall_rank
+    TRUNCATE(avg_quantity, 2) AS avg_quantity,
+    RANK() OVER (ORDER BY avg_quantity DESC, product_id) AS overall_rank
 FROM
     ProductAverage
 ORDER BY
     overall_rank
-    LIMIT 5;
-
+LIMIT 5;
 -- SELECT-W13: Calculate a cumulative total of sales and a running three-month average, then rank these by customer
 WITH SalesData AS (
     SELECT
@@ -627,9 +631,9 @@ SELECT
     customer_id,
     sale_id,
     net_paid,
-    AVG(net_paid) OVER (PARTITION BY customer_id ORDER BY sale_date ROWS BETWEEN 5 PRECEDING AND 1 PRECEDING) AS prev_5_avg
+    ROUND(COALESCE(AVG(net_paid) OVER (PARTITION BY customer_id ORDER BY sale_date ROWS BETWEEN 5 PRECEDING AND 1 PRECEDING), 0), 4) AS prev_5_avg
 FROM
     sales
 ORDER BY
     customer_id, sale_id
-    LIMIT 10;
+LIMIT 10;
