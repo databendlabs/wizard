@@ -637,3 +637,121 @@ FROM
 ORDER BY
     customer_id, sale_id
 LIMIT 10;
+
+-- SELECT-W17: Calculate the cumulative sum of net_paid for each customer, partitioned by customer and ordered by sale_date.
+SELECT
+    customer_id,
+    sale_id,
+    net_paid,
+    SUM(net_paid) OVER (PARTITION BY customer_id ORDER BY sale_date ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS cumulative_sum
+FROM
+    sales
+ORDER BY
+    customer_id, sale_date
+LIMIT 10;
+
+
+-- SELECT-W18: For each customer, calculate the rank of their sales based on net_paid within their own sales.
+WITH CustomerSales AS (
+    SELECT
+        customer_id,
+        sale_id,
+        net_paid,
+        RANK() OVER (PARTITION BY customer_id ORDER BY net_paid DESC) AS sale_rank
+    FROM
+        sales
+)
+SELECT
+    customer_id,
+    sale_id,
+    net_paid,
+    sale_rank
+FROM
+    CustomerSales
+ORDER BY
+    customer_id, sale_rank
+LIMIT 10;
+
+-- SELECT-W19: Calculate the total and average net_paid for each product category, joined with product details.
+SELECT
+    p.product_id,
+    p.product_name,
+    SUM(s.net_paid) AS total_net_paid,
+    AVG(s.net_paid) AS average_net_paid
+FROM
+    products p
+    JOIN sales s ON p.product_id = s.product_id
+GROUP BY
+    p.product_id, p.product_name
+ORDER BY
+    p.product_id
+LIMIT 10;
+
+-- SELECT-W20: Find the top 5 customers by their total net_paid, along with their cumulative sales and running average.
+WITH CustomerTotals AS (
+    SELECT
+        customer_id,
+        SUM(net_paid) AS total_net_paid,
+        AVG(net_paid) AS average_net_paid
+    FROM
+        sales
+    GROUP BY
+        customer_id
+)
+SELECT
+    customer_id,
+    total_net_paid,
+    average_net_paid,
+    RANK() OVER (ORDER BY total_net_paid DESC) AS customer_rank
+FROM
+    CustomerTotals
+ORDER BY
+    customer_rank
+LIMIT 5;
+
+-- SELECT-W21: Calculate the month-over-month growth rate of total sales.
+WITH MonthlySales AS (
+    SELECT
+        DATE_TRUNC('month', sale_date) AS sale_month,
+        SUM(net_paid) AS monthly_total
+    FROM
+        sales
+    GROUP BY
+        sale_month
+)
+SELECT
+    sale_month,
+    monthly_total,
+    COALESCE(LAG(monthly_total, 1) OVER (ORDER BY sale_month), 0) AS previous_month_total,
+    ROUND(
+        (monthly_total - COALESCE(LAG(monthly_total, 1) OVER (ORDER BY sale_month), 0)) /
+        NULLIF(COALESCE(LAG(monthly_total, 1) OVER (ORDER BY sale_month), 0), 0) * 100,
+        8
+    ) AS month_over_month_growth
+FROM
+    MonthlySales
+ORDER BY
+    sale_month
+LIMIT 10;
+-- SELECT-W22: Calculate the top 5 products by sales quantity, along with their rank within their product category.
+WITH ProductQuantities AS (
+    SELECT
+        p.product_id,
+        p.category AS product_category,  -- replace 'category' with the actual column name if different
+        SUM(s.quantity) AS total_quantity
+    FROM
+        sales s
+    JOIN products p ON s.product_id = p.product_id
+    GROUP BY
+        p.product_id, p.category
+)
+SELECT
+    product_id,
+    product_category,
+    total_quantity,
+    RANK() OVER (PARTITION BY product_category ORDER BY total_quantity DESC) AS category_rank
+FROM
+    ProductQuantities
+ORDER BY
+    category_rank
+LIMIT 5;
