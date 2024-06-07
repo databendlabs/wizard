@@ -755,3 +755,55 @@ FROM
 ORDER BY
     category_rank
 LIMIT 5;
+
+
+-- SELECT-ADVANCED-1: Use window functions to rank customers by total spending, limited to the top 5 in each segment.
+WITH CustomerSpending AS (
+    SELECT
+        c.customer_id AS customer_id_alias,
+        segment,
+        SUM(net_paid) AS total_spent,
+        RANK() OVER (PARTITION BY segment ORDER BY SUM(net_paid) DESC) AS spending_rank
+    FROM
+        sales s
+    JOIN customers c ON s.customer_id = c.customer_id
+    GROUP BY
+        c.customer_id, c.segment 
+)
+SELECT
+    customer_id_alias,
+    segment,
+    total_spent
+FROM
+    CustomerSpending
+WHERE
+    spending_rank <= 5
+ORDER BY
+    segment, spending_rank;
+
+-- SELECT-ADVANCED-2: Find the top 3 products with the highest average price in each category, using a strict order.
+WITH CategoryAverage AS (
+    SELECT
+        p.category,
+        p.product_id,
+        AVG(p.price) AS avg_price,
+        COUNT(*) OVER (PARTITION BY p.category) AS category_product_count, 
+        RANK() OVER (
+            PARTITION BY p.category
+            ORDER BY AVG(p.price) DESC, p.product_id ASC 
+        ) AS price_rank
+    FROM
+        products p
+    GROUP BY
+        p.category, p.product_id
+)
+SELECT
+    product_id,
+    category,
+    avg_price
+FROM
+    CategoryAverage
+WHERE
+    price_rank <= 3
+ORDER BY
+    category, price_rank;
