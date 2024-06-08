@@ -70,9 +70,9 @@ def execute_sql(query, sql_tool, database, warehouse=None):
 
         # Custom check for known error patterns
         if (
-            "error" in output.lower()
-            or "error" in error.lower()
-            or "unknown function" in output.lower()
+                "error" in output.lower()
+                or "error" in error.lower()
+                or "unknown function" in output.lower()
         ):
             error_message = f"Error detected in command output: {output or error}"
             print(colored(error_message, "red"))  # Print the error in red
@@ -103,6 +103,8 @@ def fetch_query_results(query, sql_tool, database, warehouse=None):
 
 
 def run_check_sql(database_name, warehouse, script_path):
+    failed_tests = []
+
     with open(script_path, "r") as file:
         check_queries = file.read().split(";")
 
@@ -126,9 +128,15 @@ def run_check_sql(database_name, warehouse, script_path):
                 print("Differences:\n")
                 print(colored("bendsql:\n" + bend_result, "red"))
                 print(colored("snowsql:\n" + snow_result, "red"))
+                failed_tests.append(query_identifier)
             else:
                 print(colored(f"OK - {query_identifier}", "green"))
                 print(colored(bend_result, "green"))
+
+    if failed_tests:
+        print(colored("\nFailed Tests:", "red"))
+        for test in failed_tests:
+            print(colored(test, "red"))
 
 
 def setup_database(database_name, sql_tool):
