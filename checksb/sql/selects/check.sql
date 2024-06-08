@@ -511,7 +511,8 @@ FROM sales
 ORDER BY net_paid DESC, sale_id ASC
     LIMIT 10;
 
--- SELECT-W8: Calculate the average sale value for each customer, compared to the overall average, top 10 customers SELECT customer_id,
+-- SELECT-W8: Calculate the average sale value for each customer, compared to the overall average, top 10 customers 
+SELECT customer_id,
     ROUND(AVG(net_paid) OVER (PARTITION BY customer_id), 3) AS customer_avg,
     ROUND(AVG(net_paid) OVER () - AVG(net_paid) OVER (PARTITION BY customer_id), 3) AS diff_from_overall_avg
 FROM
