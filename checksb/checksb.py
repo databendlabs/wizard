@@ -2,6 +2,7 @@ import argparse
 import re
 import sys
 import subprocess
+import time
 from termcolor import colored
 
 
@@ -70,9 +71,9 @@ def execute_sql(query, sql_tool, database, warehouse=None):
 
         # Custom check for known error patterns
         if (
-            "error" in output.lower()
-            or "error" in error.lower()
-            or "unknown function" in output.lower()
+                "error" in output.lower()
+                or "error" in error.lower()
+                or "unknown function" in output.lower()
         ):
             error_message = f"Error detected in command output: {output or error}"
             print(colored(error_message, "red"))  # Print the error in red
@@ -103,6 +104,10 @@ def fetch_query_results(query, sql_tool, database, warehouse=None):
 
 
 def run_check_sql(database_name, warehouse, script_path):
+    failed_tests = []
+    passed_tests = []
+    total_start_time = time.time()
+
     with open(script_path, "r") as file:
         check_queries = file.read().split(";")
 
@@ -115,10 +120,13 @@ def run_check_sql(database_name, warehouse, script_path):
             # Print the preparing message in yellow
             print(colored(f"Preparing to run {query_identifier}...", "yellow"))
 
+            start_time = time.time()
             bend_result = fetch_query_results(query, "bendsql", database_name)
             snow_result = fetch_query_results(
                 query, "snowsql", database_name, warehouse
             )
+            end_time = time.time()
+            elapsed_time = end_time - start_time
 
             if bend_result != snow_result:
                 print(colored("DIFFERENCE FOUND\n", "red"))
@@ -126,9 +134,28 @@ def run_check_sql(database_name, warehouse, script_path):
                 print("Differences:\n")
                 print(colored("bendsql:\n" + bend_result, "red"))
                 print(colored("snowsql:\n" + snow_result, "red"))
+                failed_tests.append((query_identifier, bend_result, snow_result))
             else:
                 print(colored(f"OK - {query_identifier}", "green"))
                 print(colored(bend_result, "green"))
+                passed_tests.append((query_identifier, elapsed_time))
+
+    total_end_time = time.time()
+    total_elapsed_time = total_end_time - total_start_time
+
+    if passed_tests:
+        print(colored("\nPassed Tests:", "green"))
+        for test, elapsed_time in passed_tests:
+            print(colored(f"OK - {test} ({elapsed_time:.2f}s)", "green"))
+
+    if failed_tests:
+        print(colored("\nFailed Tests and their differences:", "red"))
+        for test, bend_result, snow_result in failed_tests:
+            print(colored(f"Test: {test}", "red"))
+            print(colored("bendsql result:\n" + bend_result, "red"))
+            print(colored("snowsql result:\n" + snow_result, "red"))
+
+    print(colored(f"\nTotal Time: {total_elapsed_time:.2f}s", "blue"))
 
 
 def setup_database(database_name, sql_tool):

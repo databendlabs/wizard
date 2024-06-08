@@ -496,8 +496,8 @@ SELECT
     customer_id,
     sale_id,
     net_paid,
-    ROUND(SUM(net_paid) OVER (PARTITION BY customer_id ORDER BY sale_date), 5) AS running_total,
-    ROUND(AVG(net_paid) OVER (PARTITION BY customer_id ORDER BY sale_date), 5) AS running_avg
+    ROUND(SUM(net_paid) OVER (PARTITION BY customer_id ORDER BY sale_date), 4) AS running_total,
+    ROUND(AVG(net_paid) OVER (PARTITION BY customer_id ORDER BY sale_date), 4) AS running_avg
 FROM
     sales
 ORDER BY
@@ -511,11 +511,9 @@ FROM sales
 ORDER BY net_paid DESC, sale_id ASC
     LIMIT 10;
 
--- SELECT-W8: Calculate the average sale value for each customer, compared to the overall average, top 10 customers
-SELECT
-    customer_id,
-    ROUND(AVG(net_paid) OVER (PARTITION BY customer_id), 4) AS customer_avg,
-    ROUND(AVG(net_paid) OVER () - AVG(net_paid) OVER (PARTITION BY customer_id), 4) AS diff_from_overall_avg
+-- SELECT-W8: Calculate the average sale value for each customer, compared to the overall average, top 10 customers SELECT customer_id,
+    ROUND(AVG(net_paid) OVER (PARTITION BY customer_id), 3) AS customer_avg,
+    ROUND(AVG(net_paid) OVER () - AVG(net_paid) OVER (PARTITION BY customer_id), 3) AS diff_from_overall_avg
 FROM
     sales
 ORDER BY
@@ -753,6 +751,7 @@ SELECT
 FROM
     ProductQuantities
 ORDER BY
+    product_id,
     category_rank
 LIMIT 5;
 
