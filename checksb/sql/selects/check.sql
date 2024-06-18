@@ -721,17 +721,24 @@ WITH MonthlySales AS (
 SELECT
     sale_month,
     monthly_total,
-    COALESCE(LAG(monthly_total, 1) OVER (ORDER BY sale_month), 0) AS previous_month_total,
-    ROUND(
-        (monthly_total - COALESCE(LAG(monthly_total, 1) OVER (ORDER BY sale_month), 0)) /
-        NULLIF(COALESCE(LAG(monthly_total, 1) OVER (ORDER BY sale_month), 0), 0) * 100,
-        8
-    ) AS month_over_month_growth
+    CASE 
+        WHEN COALESCE(LAG(monthly_total, 1) OVER (ORDER BY sale_month), 0) = 0 THEN 'None'
+        ELSE CAST(COALESCE(LAG(monthly_total, 1) OVER (ORDER BY sale_month), 0) AS VARCHAR)
+    END AS previous_month_total,
+    CASE 
+        WHEN COALESCE(LAG(monthly_total, 1) OVER (ORDER BY sale_month), 0) = 0 THEN 'None'
+        ELSE CAST(ROUND(
+            (monthly_total - COALESCE(LAG(monthly_total, 1) OVER (ORDER BY sale_month), 0)) /
+            NULLIF(COALESCE(LAG(monthly_total, 1) OVER (ORDER BY sale_month), 0), 0) * 100,
+            8
+        ) AS VARCHAR)
+    END AS month_over_month_growth
 FROM
     MonthlySales
 ORDER BY
     sale_month
 LIMIT 10;
+
 -- SELECT-W22: Calculate the top 5 products by sales quantity, along with their rank within their product category.
 WITH ProductQuantities AS (
     SELECT
