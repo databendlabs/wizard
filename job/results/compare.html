@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>SQL 执行时间对比</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        canvas {
+            max-width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <h1>SQL 执行时间对比</h1>
+    <canvas id="barChart"></canvas>
+    <script>
+        const sqlFiles = [
+            "13b.sql", "3c.sql", "29c.sql", "29b.sql", "25a.sql", "33a.sql", "3b.sql", "13c.sql",
+            "13a.sql", "2d.sql", "33c.sql", "25c.sql", "29a.sql", "25b.sql", "33b.sql", "3a.sql",
+            "13d.sql", "2a.sql", "32b.sql", "24b.sql", "28a.sql", "12a.sql", "12c.sql", "2b.sql",
+            "32a.sql", "24a.sql", "28b.sql", "28c.sql", "2c.sql", "12b.sql", "15a.sql", "9c.sql",
+            "19b.sql", "23c.sql", "23b.sql", "5a.sql", "19c.sql", "9b.sql", "15b.sql", "8d.sql",
+            "19a.sql", "5c.sql", "22d.sql", "23a.sql", "5b.sql", "9a.sql", "15c.sql", "8a.sql",
+            "14c.sql", "4b.sql", "19d.sql", "22a.sql", "18a.sql", "4c.sql", "14b.sql", "9d.sql",
+            "8b.sql", "15d.sql", "4a.sql", "18c.sql", "22b.sql", "22c.sql", "18b.sql", "14a.sql",
+            "8c.sql", "16d.sql", "6e.sql", "7a.sql", "21b.sql", "21c.sql"
+        ];
+
+        const output1Times = [
+            0.507, 0.622, 2.366, 3.352, 1.460, 0.566, 0.618, 0.436, 0.712, 0.213, 0.580, 5.095, 1.625, 2.275, 0.570, 0.635,
+            0.494, 0.200, 0.250, 3.237, 0.774, 0.585, 0.622, 0.205, 0.089, 4.354, 0.960, 1.003, 0.169, 0.545, 1.554, 1.306,
+            2.372, 0.881, 0.964, 0.109, 1.078, 1.474, 1.231, 0.392, 0.960, 0.687, 0.822, 0.936, 0.566, 2.305, 1.153, 0.555,
+            0.758, 0.207, 1.601, 0.903, 1.149, 0.234, 0.805, 1.497, 0.524, 0.559, 0.216, 3.428, 0.964, 0.826, 4.003, 0.742,
+            0.644, 0.595, 0.335, 0.566, 0.753, 0.709
+        ];
+
+        const output2Times = [
+            0.471, 0.487, 1.188, 2.339, 2.124, 0.526, 0.554, 0.440, 0.758, 0.216, 0.563, 1.482, 1.828, 1.624, 0.565, 0.549,
+            0.485, 0.217, 0.245, 4.719, 1.017, 0.615, 0.929, 0.206, 0.088, 1.153, 0.837, 0.711, 0.125, 0.531, 0.786, 5.087,
+            2.125, 0.823, 0.720, 0.116, 1.023, 3.874, 10.163, 0.374, 1.904, 0.729, 0.895, 0.917, 0.647, 9.415, 0.916, 0.907,
+            1.049, 0.209, 14.673, 0.946, 1.110, 0.237, 1.547, 1.503, 6.142, 0.535, 0.225, 5.263, 2.384, 0.885, 9.891, 1.094,
+            0.642, 0.491, 0.356, 0.612, 0.726, 0.800
+        ];
+
+        const ctx = document.getElementById('barChart').getContext('2d');
+
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: sqlFiles,
+                datasets: [
+                    {
+                        label: 'output1.txt 执行时间 (秒)',
+                        data: output1Times,
+                        backgroundColor: 'rgba(75, 192, 192, 0.6)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1
+                    },
+                    {
+                        label: 'output.txt 执行时间 (秒)',
+                        data: output2Times,
+                        backgroundColor: 'rgba(255, 99, 132, 0.6)',
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        borderWidth: 1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'SQL 文件'
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: '执行时间 (秒)'
+                        }
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>
