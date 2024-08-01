@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>SQL 执行时间对比</title>
+    <title>Comparison of execution time</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
@@ -15,7 +15,7 @@
     </style>
 </head>
 <body>
-    <h1>SQL 执行时间对比</h1>
+    <h1>Comparison of execution time</h1>
     <canvas id="barChart"></canvas>
     <script>
         const sqlFiles = [
@@ -54,14 +54,14 @@
                 labels: sqlFiles,
                 datasets: [
                     {
-                        label: 'output1.txt 执行时间 (秒)',
+                        label: 'output_with_accurate_histogram.txt execution time(s)',
                         data: output1Times,
                         backgroundColor: 'rgba(75, 192, 192, 0.6)',
                         borderColor: 'rgba(75, 192, 192, 1)',
                         borderWidth: 1
                     },
                     {
-                        label: 'output.txt 执行时间 (秒)',
+                        label: 'output.txt execution time(s)',
                         data: output2Times,
                         backgroundColor: 'rgba(255, 99, 132, 0.6)',
                         borderColor: 'rgba(255, 99, 132, 1)',
@@ -76,14 +76,14 @@
                         beginAtZero: true,
                         title: {
                             display: true,
-                            text: 'SQL 文件'
+                            text: 'SQL file'
                         }
                     },
                     y: {
                         beginAtZero: true,
                         title: {
                             display: true,
-                            text: '执行时间 (秒)'
+                            text: 'Execution time (s)'
                         }
                     }
                 }
