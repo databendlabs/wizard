@@ -75,3 +75,5 @@ benchmark/clickbench/results
 
 # z3
 **/.z3-trace
+
+job/data
