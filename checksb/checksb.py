@@ -104,18 +104,28 @@ def run_check_sql(database_name, warehouse, script_path):
     failed_tests = []
     passed_tests = []
     total_start_time = time.time()
+    total_queries = 0
+    current_query = 0
 
     with open(script_path, "r") as file:
         check_queries = file.read().split(";")
+        # Count non-empty queries
+        total_queries = sum(1 for q in check_queries if q.strip())
+
+    print(colored(f"\n{'='*80}", "blue"))
+    print(colored(f"Starting comparison of {total_queries} queries between bendsql and snowsql", "blue"))
+    print(colored(f"{'='*80}\n", "blue"))
 
     for query in check_queries:
         if query.strip():
+            current_query += 1
             # Extract the query identifier (like MERGE-INTO-C13) from the comment
             match = re.search(r"--\s*([\w-]+):", query)
-            query_identifier = match.group(1).strip() if match else "Unknown Query"
+            query_identifier = match.group(1).strip() if match else f"Query-{current_query}"
 
-            # Print the preparing message in yellow
-            print(colored(f"Preparing to run {query_identifier}...", "yellow"))
+            # Print the preparing message with progress indicator
+            print(colored(f"\n[{current_query}/{total_queries}] Testing {query_identifier}...", "yellow"))
+            print(colored(f"Query: {query.strip()[:100]}{'...' if len(query.strip()) > 100 else ''}", "yellow"))
 
             start_time = time.time()
             bend_result = fetch_query_results(query, "bendsql", database_name)
@@ -126,36 +136,61 @@ def run_check_sql(database_name, warehouse, script_path):
             elapsed_time = end_time - start_time
 
             if bend_result != snow_result:
-                print(colored("DIFFERENCE FOUND\n", "red"))
-                print(colored(f"{query_identifier}:\n" + query, "red"))
-                print("Differences:\n")
-                print(colored("bendsql:\n" + bend_result, "red"))
-                print(colored("snowsql:\n" + snow_result, "red"))
+                print(colored("❌ DIFFERENCE FOUND", "red"))
+                print(colored("Differences:", "red"))
+                print(colored("bendsql result:", "red"))
+                print(colored(bend_result, "red"))
+                print(colored("snowsql result:", "red"))
+                print(colored(snow_result, "red"))
                 failed_tests.append((query_identifier, bend_result, snow_result))
             else:
-                print(colored(f"OK - {query_identifier}", "green"))
-                print(colored(bend_result, "green"))
+                print(colored(f"✅ MATCH - Results are identical ({elapsed_time:.2f}s)", "green"))
                 passed_tests.append((query_identifier, elapsed_time))
+            
+            # Print current progress summary
+            print(colored(f"\nCurrent Progress: [passed: {len(passed_tests)}, failed: {len(failed_tests)}, total: {current_query}/{total_queries}]", "blue"))
 
     total_end_time = time.time()
     total_elapsed_time = total_end_time - total_start_time
 
+    # Print final summary with clear separation
+    print(colored(f"\n{'='*80}", "blue"))
+    print(colored("FINAL SUMMARY", "blue"))
+    print(colored(f"{'='*80}", "blue"))
+    
+    print(colored(f"\nTotal Queries: {total_queries}", "white"))
+    print(colored(f"Passed: {len(passed_tests)} ({len(passed_tests)/total_queries*100:.1f}%)", "green"))
+    print(colored(f"Failed: {len(failed_tests)} ({len(failed_tests)/total_queries*100:.1f}%)", "red" if failed_tests else "green"))
+    print(colored(f"Total Time: {total_elapsed_time:.2f}s", "blue"))
+
     if passed_tests:
         print(colored("\nPassed Tests:", "green"))
-        for test, elapsed_time in passed_tests:
-            print(colored(f"OK - {test} ({elapsed_time:.2f}s)", "green"))
+        for i, (test, elapsed_time) in enumerate(passed_tests, 1):
+            print(colored(f"  {i}. {test} ({elapsed_time:.2f}s)", "green"))
 
     if failed_tests:
-        print(colored("\nFailed Tests and their differences:", "red"))
-        for test, bend_result, snow_result in failed_tests:
-            print(colored(f"Test: {test}", "red"))
-            print(colored("bendsql result:\n" + bend_result, "red"))
-            print(colored("snowsql result:\n" + snow_result, "red"))
-
-    print(colored(f"\nTotal Time: {total_elapsed_time:.2f}s", "blue"))
+        print(colored("\nFailed Tests:", "red"))
+        for i, (test, _, _) in enumerate(failed_tests, 1):
+            print(colored(f"  {i}. {test}", "red"))
+        
+        print(colored("\nDetailed Differences:", "red"))
+        for i, (test, bend_result, snow_result) in enumerate(failed_tests, 1):
+            print(colored(f"\n{i}. Test: {test}", "red"))
+            print(colored("   bendsql result:", "yellow"))
+            print(f"   {bend_result.replace(chr(10), chr(10)+'   ')}")
+            print(colored("   snowsql result:", "yellow"))
+            print(f"   {snow_result.replace(chr(10), chr(10)+'   ')}")
+    
+    # Final result indicator
+    if failed_tests:
+        print(colored(f"\n❌ COMPARISON FAILED: {len(failed_tests)} differences found", "red"))
+    else:
+        print(colored(f"\n✅ COMPARISON SUCCESSFUL: All {total_queries} queries match!", "green"))
 
 
 def setup_database(database_name, sql_tool):
+    print(colored(f"\nSetting up database '{database_name}' using {sql_tool}...", "blue"))
+    
     # For bendsql, we need to handle the case where the database doesn't exist yet
     if sql_tool == "bendsql":
         # Try to drop the database, but ignore errors if it doesn't exist
@@ -175,21 +210,30 @@ def setup_database(database_name, sql_tool):
         execute_sql(drop_query, sql_tool, database_name)
         execute_sql(create_query, sql_tool, database_name)
     
-    print(f"Database '{database_name}' has been set up.")
+    print(colored(f"✅ Database '{database_name}' has been set up successfully.", "green"))
 
 
 def setup_and_execute(sql_tool, base_sql_dir, database_name, warehouse=None):
     # Determine the correct setup directory based on the SQL tool
     setup_dir = "bend" if sql_tool == "bendsql" else "snow"
 
+    print(colored(f"\n{'='*80}", "blue"))
+    print(colored(f"Setting up and executing {sql_tool} scripts", "blue"))
+    print(colored(f"{'='*80}", "blue"))
+    
     setup_database(database_name, sql_tool)
 
+    print(colored(f"\nExecuting setup scripts for {sql_tool}...", "blue"))
     execute_sql_scripts(
         sql_tool, f"{base_sql_dir}/{setup_dir}/setup.sql", database_name, warehouse
     )
+    
+    print(colored(f"\nExecuting action scripts for {sql_tool}...", "blue"))
     execute_sql_scripts(
         sql_tool, f"{base_sql_dir}/action.sql", database_name, warehouse
     )
+    
+    print(colored(f"✅ All {sql_tool} scripts executed successfully.", "green"))
 
 
 def main():
@@ -198,20 +242,27 @@ def main():
     base_sql_dir = f"sql/{args.case}"
     database_name, warehouse = args.database, args.warehouse
 
+    # Print a nice header
+    print(colored(f"\n{'='*80}", "blue"))
+    print(colored(f"SQL Compatibility Test: {args.case.upper()}", "blue"))
+    print(colored(f"Database: {database_name}", "blue"))
+    print(colored(f"{'='*80}\n", "blue"))
+
     if args.run_check_only:
         # Run only the check script
+        print(colored("Running check queries only (skipping setup and action scripts)", "yellow"))
         check_sql_path = f"{base_sql_dir}/check.sql"
         run_check_sql(database_name, warehouse, check_sql_path)
     else:
         # Setup database based on the specified arguments
         if args.runbend:
-            print("Setting up and executing scripts for bendsql...")
+            print(colored("Running bendsql setup and action only", "yellow"))
             setup_and_execute("bendsql", base_sql_dir, database_name)
         elif args.runsnow:
-            print("Setting up and executing scripts for snowsql...")
+            print(colored("Running snowsql setup and action only", "yellow"))
             setup_and_execute("snowsql", base_sql_dir, database_name, warehouse)
         else:
-            print("Setting up and executing scripts for both bendsql and snowsql...")
+            print(colored("Running complete test (bendsql and snowsql)", "yellow"))
             setup_and_execute("bendsql", base_sql_dir, database_name)
             setup_and_execute("snowsql", base_sql_dir, database_name, warehouse)
 
