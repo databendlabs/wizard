@@ -30,7 +30,7 @@ class BendSQLRunner:
     """Class to handle BendSQL operations."""
 
     def __init__(self):
-        self.database = "imdb"
+        self.database = "default"
 
     def execute_bendsql(self, query, print_query=True):
         """
