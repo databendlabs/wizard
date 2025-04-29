@@ -1,33 +1,35 @@
-# Join Order Benchmark for Databend
+# Join Order Benchmark (JOB) for BendSQL
 
-## Load
+## Overview
 
-**Download dataset**
-```sh
-mkdir data && cd data
-curl -O https://bonsai.cedardb.com/job/imdb.tgz
-tar -zxvf imdb.tgz
-```
-Note: The compressed tarball to download is about 1.2 GB, which decompresses to about 3.7 GB.
+The `job_runner.py` script runs the Join Order Benchmark using the IMDB dataset (21 tables, ~3.7GB) to evaluate query performance.
 
-**Create table**
+## Usage
 
-The DDL queries can be found in `schema.sql` file which contains 21 tables.
-
-**Import data**
-The arg means if need accurate histogram. If need, during analyzing table, accurate histogram will be generated.
-```sh
-sh load.sh [0 | 1]
+```bash
+python job_runner.py [--setup] [--run] [--analyze] [--accurate-histograms]
 ```
 
-## Run
-```python
-python3 run.py
+### Options
+
+- `--setup`: Create schema and load data
+- `--run`: Execute benchmark queries
+- `--analyze`: Generate table statistics
+- `--accurate-histograms`: Use detailed histograms (with `--analyze`)
+
+### Examples
+
+```bash
+# Complete workflow
+python job_runner.py --setup --analyze --accurate-histograms --run
+
+# Only setup database
+python job_runner.py --setup
+
+# Only run queries
+python job_runner.py --run
 ```
 
-## Comparison
-The `results` dir contains basic benchmark results(without/with accurate histogram), you can open the html file to check the difference.
+## Results
 
-
-
-
+Benchmark results are stored in the `results` directory.
