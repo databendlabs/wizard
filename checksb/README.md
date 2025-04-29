@@ -10,7 +10,7 @@ Check the operation behaves as expected, by comparing the result of the operatio
 
 ## bendsql
 
-Install [bendsql](https://github.com/datafuselabs/bendsql)
+Install [bendsql](https://docs.databend.com/guides/sql-clients/bendsql/#installing-bendsql)
  
 Config:
 ```bash
@@ -20,7 +20,7 @@ export BENDSQL_DSN='databend://<user>:<pwd>@<tenant>--<warehouse>.gw.aws-us-east
 
 ## snowsql
 
-Install [snowsql](https://docs.snowflake.com/en/user-guide/snowsql.html) 
+Install [snowsql](https://docs.snowflake.com/en/user-guide/snowsql-install-config) 
 
 Config `~/.snowsql/config` as:
 
