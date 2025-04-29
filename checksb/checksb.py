@@ -39,24 +39,15 @@ def parse_arguments():
 def execute_sql(query, sql_tool, database, warehouse=None):
     command = [sql_tool]
     if sql_tool == "snowsql":
-        command.extend(
-            [
-                "--query",
-                query,
-                "--dbname",
-                database,
-                "--schemaname",
-                "PUBLIC",
-                "-o",
-                "output_format=tsv",
-                "-o",
-                "header=false",
-                "-o",
-                "timing=false",
-                "-o",
-                "friendly=false",
-            ]
-        )
+        command.extend([
+            "--query", query,
+            "--dbname", database,
+            "--schemaname", "PUBLIC",
+            "-o", "output_format=tsv",
+            "-o", "header=false",
+            "-o", "timing=false",
+            "-o", "friendly=false",
+        ])
         if warehouse:
             command.extend(["--warehouse", warehouse])
     elif sql_tool == "bendsql":
@@ -69,14 +60,19 @@ def execute_sql(query, sql_tool, database, warehouse=None):
         output = result.stdout
         error = result.stderr
 
+        # For database setup operations, we want to continue even if there are errors
+        if "DROP DATABASE" in query and "Unknown database" in (output + error):
+            print("Database doesn't exist, continuing with creation...")
+            return output
+
         # Custom check for known error patterns
-        if (
-                "error" in output.lower()
-                or "error" in error.lower()
-                or "unknown function" in output.lower()
-        ):
+        if ("error" in output.lower() or "error" in error.lower() or 
+            "unknown function" in output.lower()):
             error_message = f"Error detected in command output: {output or error}"
             print(colored(error_message, "red"))  # Print the error in red
+            if "DROP DATABASE" in query:
+                # Don't exit for database drop errors
+                return output
             sys.exit(1)
 
         print("Command executed successfully. Output:")
@@ -85,7 +81,8 @@ def execute_sql(query, sql_tool, database, warehouse=None):
     except subprocess.CalledProcessError as e:
         error_message = f"{sql_tool} command failed: {e.stderr}"
         print(colored(error_message, "red"))  # Print the error in red
-        sys.exit(1)
+        # Re-raise the exception to be handled by the caller
+        raise
 
 
 def execute_sql_scripts(sql_tool, script_path, database, warehouse=None):
@@ -159,10 +156,25 @@ def run_check_sql(database_name, warehouse, script_path):
 
 
 def setup_database(database_name, sql_tool):
-    drop_query = f"DROP DATABASE IF EXISTS {database_name};"
-    create_query = f"CREATE DATABASE {database_name};"
-    execute_sql(drop_query, sql_tool, database_name)
-    execute_sql(create_query, sql_tool, database_name)
+    # For bendsql, we need to handle the case where the database doesn't exist yet
+    if sql_tool == "bendsql":
+        # Try to drop the database, but ignore errors if it doesn't exist
+        try:
+            drop_query = f"DROP DATABASE IF EXISTS {database_name};"
+            execute_sql(drop_query, sql_tool, "default")  # Use default database for initial connection
+        except Exception as e:
+            print(f"Warning: Could not drop database (it may not exist): {e}")
+        
+        # Create the database
+        create_query = f"CREATE DATABASE {database_name};"
+        execute_sql(create_query, sql_tool, "default")  # Use default database for initial connection
+    else:
+        # For snowsql, the IF EXISTS clause works as expected
+        drop_query = f"DROP DATABASE IF EXISTS {database_name};"
+        create_query = f"CREATE DATABASE {database_name};"
+        execute_sql(drop_query, sql_tool, database_name)
+        execute_sql(create_query, sql_tool, database_name)
+    
     print(f"Database '{database_name}' has been set up.")
 
 
