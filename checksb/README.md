@@ -14,13 +14,9 @@ Install [bendsql](https://github.com/datafuselabs/bendsql)
  
 Config:
 ```bash
-export BENDSQL_DSN="databend://<user>:<pwd>@<host>:443/?tenant=<tenant>&warehouse=<warehouse>"
+export BENDSQL_DSN='databend://<user>:<pwd>@<tenant>--<warehouse>.gw.aws-us-east-2.default.databend.com:443'
 ```
 
-For example:
-```bash
-export BENDSQL_DSN="databend://user:pwd@gw.aws-us-east-2.default.databend.com/?tenant=tenant_t1&warehouse=bh-v224"
-```
 
 ## snowsql
 
@@ -38,7 +34,7 @@ password = <pwd>
 # Run
 
 ```bash
-python3 checksb.py --database mergeinto --warehouse COMPUTE_WH --case <mergeinto|selects>
+python3 checksb.py --database mergeinto --case <mergeinto|selects>
 
 options:
   --run-check-only      Run only check.sql if set
