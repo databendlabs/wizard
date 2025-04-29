@@ -1,35 +1,84 @@
-# Join Order Benchmark (JOB) for BendSQL
+# Job Runner for BendSQL
 
-## Overview
+This tool consolidates the functionality of env.sh, load.sh, and run.py into a single Python file. It provides capabilities to:
 
-The `job_runner.py` script runs the Join Order Benchmark using the IMDB dataset (21 tables, ~3.7GB) to evaluate query performance.
+1. Set up the BendSQL environment
+2. Execute setup.sql to create schema and load data from public AWS bucket
+3. Run SQL queries from the queries directory
+4. Compare query performance with three different analyze methods
+
+# Requirements
+
+## bendsql
+
+Install [bendsql](https://docs.databend.com/guides/sql-clients/bendsql/#installing-bendsql)
+ 
+Config:
+```bash
+export BENDSQL_DSN='databend://<user>:<pwd>@<tenant>--<warehouse>.gw.aws-us-east-2.default.databend.com:443'
+```
+
 
 ## Usage
 
-```bash
-python job_runner.py [--setup] [--run] [--analyze] [--accurate-histograms]
-```
-
-### Options
-
-- `--setup`: Create schema and load data
-- `--run`: Execute benchmark queries
-- `--analyze`: Generate table statistics
-- `--accurate-histograms`: Use detailed histograms (with `--analyze`)
-
-### Examples
 
 ```bash
-# Complete workflow
-python job_runner.py --setup --analyze --accurate-histograms --run
-
-# Only setup database
-python job_runner.py --setup
-
-# Only run queries
-python job_runner.py --run
+python job_runner.py --compare
 ```
 
-## Results
+## Comparing Analyze Methods
 
-Benchmark results are stored in the `results` directory.
+The `--compare` option provides a comprehensive way to compare query performance with three different analyze methods:
+
+1. **Raw** - No analyze (tables as they are after loading)
+2. **Standard Analyze** - Regular analyze without histograms
+3. **Histogram Analyze** - Analyze with accurate histograms enabled
+
+When you run:
+
+```bash
+python job_runner.py --compare
+```
+
+The tool will:
+
+1. Set up the database using setup.sql
+2. Run queries with no analyze (raw tables)
+3. Analyze tables with standard analyze
+4. Run queries with standard analyze
+5. Analyze tables with accurate histograms
+6. Run queries with histogram analyze
+7. Generate comparison reports in multiple formats
+
+### Comparison Reports
+
+The comparison results are saved in the `results` directory with the following formats:
+
+1. **HTML Report** (`analyze_comparison_TIMESTAMP.html`): A formatted HTML table showing:
+   - Query ID
+   - Execution time with raw tables (no analyze)
+   - Execution time with standard analyze
+   - Execution time with histogram analyze
+   - Time differences (as percentages)
+   - Which method was fastest
+   - Summary statistics
+   - Detailed histogram data for each table
+
+2. **Text Report** (`analyze_comparison_TIMESTAMP.txt`): A plain text version of the same information.
+
+3. **JSON Data** (`analyze_comparison_TIMESTAMP.json`): Raw data for further analysis.
+
+### Interpreting Results
+
+- **Blue values** in the HTML report indicate queries where raw (no analyze) was fastest
+- **Green values** indicate queries where standard analyze was fastest
+- **Purple values** indicate queries where histogram analyze was fastest
+- The summary section shows the percentage of queries that performed better with each method
+
+The HTML report also includes a tab to view and compare the actual histogram data between standard analyze and analyze with accurate histograms.
+
+### Logs
+
+Detailed logs of the comparison process are saved in the `logs` directory, showing the exact commands executed and their results.
+
+This comparison helps you understand the impact of different analyze methods on query performance for your specific workload.
