@@ -199,7 +199,7 @@ class BendSQLRunner:
         ]
         total = len(tables)
         start_time = time.time()
-        histogram_data = {}  # 创建一个字典来存储分析结果
+        histogram_data = {}
         
         for idx, table in enumerate(tables, 1):
             self.log(f"[ANALYZE][{idx}/{total}] Analyzing table {table} ({analyze_method}) ...")
@@ -218,12 +218,11 @@ class BendSQLRunner:
                 self.log(f"[ANALYZE][{idx}/{total}] Analysis of table {table} failed, stopping early")
                 return False
                 
-            # 将结果存储在字典中
             histogram_data[table] = result
             
         elapsed = time.time() - start_time
         self.log(f"[ANALYZE] Table analysis completed in {elapsed:.2f} seconds")
-        return histogram_data  # 返回包含所有表分析结果的字典
+        return histogram_data
 
     def run_queries(self, analyze_method="none", collect_times=False):
         """
