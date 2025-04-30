@@ -1,28 +1,4 @@
 #!/usr/bin/env python3
-"""
-Job Runner for BendSQL
-
-This script consolidates the functionality of env.sh, load.sh, and run.py into a single Python file.
-It provides capabilities to:
-1. Set up the BendSQL environment
-2. Execute setup.sql to create schema and load data from public AWS bucket
-3. Run SQL queries from the queries directory
-4. Compare query performance with three different analyze methods:
-   - Raw (no analyze)
-   - Standard analyze
-   - Analyze with accurate histograms
-
-Usage:
-    python job_runner.py [--setup] [--run] [--analyze] [--accurate-histograms] [--compare]
-
-Options:
-    --setup                 Execute setup.sql to create schema and load data
-    --run                   Run SQL queries from the queries directory
-    --analyze               Analyze tables after setup
-    --accurate-histograms   Use accurate histograms when analyzing tables (requires --analyze)
-    --compare               Compare query performance with different analyze methods
-"""
-
 import argparse
 import os
 import re
@@ -32,6 +8,7 @@ import time
 import json
 from pathlib import Path
 from datetime import datetime
+from termcolor import colored
 
 
 class BendSQLRunner:
@@ -40,6 +17,7 @@ class BendSQLRunner:
     def __init__(self):
         self.database = "imdb"
         self.log_file = None
+        self.last_error = None
 
     def setup_logging(self, log_dir="logs"):
         """
@@ -63,7 +41,31 @@ class BendSQLRunner:
         Args:
             message (str): Message to log
         """
-        print(message)
+        # Colorize only for console output
+        msg_lower = message.lower()
+        color = None
+        attrs = []
+        # Success
+        if any(w in msg_lower for w in ["completed", "success", "executed in", "all queries executed", "all tables analyzed"]):
+            color = "green"
+        # Failure
+        elif any(w in msg_lower for w in ["fail", "error", "aborting", "stopping early"]):
+            color = "red"
+        # Progress/info
+        elif any(w in msg_lower for w in ["analyzing table", "executing query", "starting", "step", "mode:", "skipping", "starting batch"]):
+            color = "cyan"
+        elif any(w in msg_lower for w in ["raw", "standard", "histogram"]):
+            color = "yellow"
+        # Percentages (positive/negative)
+        elif "%" in message:
+            if any(s in msg_lower for s in ["+", "positive"]):
+                color = "green"
+            elif any(s in msg_lower for s in ["-", "negative"]):
+                color = "red"
+        if color:
+            print(colored(message, color, attrs=attrs))
+        else:
+            print(message)
         if self.log_file:
             self.log_file.write(f"{message}\n")
             self.log_file.flush()
@@ -157,70 +159,71 @@ class BendSQLRunner:
         Returns:
             bool: True if successful, False otherwise
         """
-        self.log("Setting up database...")
-        
+        import time
+        self.log("[SETUP] Starting database initialization ...")
         setup_file = "setup.sql"
         if not os.path.exists(setup_file):
-            self.log(f"Error: {setup_file} not found")
+            self.log(f"[SETUP] Error: {setup_file} not found")
             return False
-        
+        start_time = time.time()
         success = self.execute_sql_file(setup_file)
+        elapsed = time.time() - start_time
         if success:
-            self.log("Database setup completed successfully")
+            self.log(f"[SETUP] Database initialization completed in {elapsed:.2f} seconds")
         else:
-            self.log("Database setup failed")
-        
+            self.log(f"[SETUP] Database initialization failed in {elapsed:.2f} seconds")
         return success
 
     def analyze_tables(self, analyze_method="none"):
         """
-        Analyze tables to generate statistics.
+        Analyze tables using the specified method.
         
         Args:
-            analyze_method (str): Method to use for analyzing tables:
-                - "none": No analyze (raw)
-                - "standard": Standard analyze
-                - "histogram": Analyze with accurate histograms
+            analyze_method (str): Method to use for analyzing tables (none, standard, histogram)
             
         Returns:
-            dict: Dictionary containing histogram data for each table, or False if failed
+            dict: Dictionary containing histogram data for each table, or False if analysis failed
         """
+        import time
+        mode = analyze_method.upper()
         if analyze_method == "none":
-            self.log("Skipping table analysis (using raw tables)...")
+            self.log("[ANALYZE] Skipping table analysis (using raw tables)...")
             return {}
         
-        self.log(f"Analyzing tables using method: {analyze_method}")
-        
-        # List of tables to analyze
+        self.log(f"[ANALYZE] Starting table analysis, mode: {analyze_method}")
         tables = [
             "aka_name", "aka_title", "cast_info", "char_name", "comp_cast_type",
             "company_name", "company_type", "complete_cast", "info_type", "keyword",
             "kind_type", "link_type", "movie_companies", "movie_info", "movie_info_idx",
             "movie_keyword", "movie_link", "name", "person_info", "role_type", "title"
         ]
+        total = len(tables)
+        start_time = time.time()
+        histogram_data = {}  # 创建一个字典来存储分析结果
         
-        
-        # Analyze each table
-        for table in tables:
-            self.log(f"Analyzing table {table} using method: {analyze_method}")
-            
-            # Analyze table based on the specified method
+        for idx, table in enumerate(tables, 1):
+            self.log(f"[ANALYZE][{idx}/{total}] Analyzing table {table} ({analyze_method}) ...")
             if analyze_method == "histogram":
                 analyze_query = f"set enable_analyze_histogram = 1; analyze table imdb.{table}"
-                self.log(f"Using accurate histograms for table {table}")
             elif analyze_method == "standard":
                 analyze_query = f"analyze table imdb.{table}"
-                self.log(f"Using standard analyze for table {table}")
             else:
-                self.log(f"Invalid analyze method: {analyze_method}")
+                self.last_error = f"Invalid analyze method: {analyze_method}"
+                self.log(f"[ANALYZE] Invalid analyze method: {analyze_method}")
                 return False
-            
+                
             result = self.execute_bendsql(analyze_query)
             if result is None:
+                self.last_error = f"Failed to analyze table '{table}' with method '{analyze_method}'"
+                self.log(f"[ANALYZE][{idx}/{total}] Analysis of table {table} failed, stopping early")
                 return False
-        
-        self.log(f"Table analysis completed using method: {analyze_method}")
-        return True
+                
+            # 将结果存储在字典中
+            histogram_data[table] = result
+            
+        elapsed = time.time() - start_time
+        self.log(f"[ANALYZE] Table analysis completed in {elapsed:.2f} seconds")
+        return histogram_data  # 返回包含所有表分析结果的字典
 
     def run_queries(self, analyze_method="none", collect_times=False):
         """
@@ -233,41 +236,43 @@ class BendSQLRunner:
         Returns:
             dict: Dictionary of query execution times if collect_times is True, otherwise True/False for success
         """
-        self.log(f"Starting query execution with analyze method: {analyze_method}")
-        
+        import time
+        self.log(f"[RUN][{analyze_method.upper()}] Starting batch execution of SQL queries ...")
         dir_path = "queries/"
         if not os.path.exists(dir_path):
-            self.log(f"Error: {dir_path} directory not found")
-            return False if not collect_times else {}
-        
-        query_times = {}
-        
-        # Read the SQL files in `queries` directory
-        for file in sorted(os.listdir(dir_path)):
-            if file.endswith(".sql"):
-                self.log(f"\nExecuting queries from file: {file}")
-                with open(Path(dir_path + file), "r") as f:
-                    content = f.read()
-                    queries = [
-                        query.strip() for query in content.split(";") if query.strip()
-                    ]
-                    # Execute the SQL
-                    for i, query in enumerate(queries):
-                        query_id = f"{file}_{i+1}"
-                        self.log(f"Executing query {query_id} with analyze method {analyze_method}: {query[:100]}...")
-                        output = self.execute_bendsql(query)
-                        if output:
-                            time_elapsed = self.extract_time(output)
-                            if time_elapsed is not None:
-                                self.log(f"Time elapsed for query {query_id} with analyze method {analyze_method}: {time_elapsed} seconds\n")
-                                if collect_times:
-                                    query_times[query_id] = {
-                                        "query": query,
-                                        "time": time_elapsed,
-                                        "analyze_method": analyze_method
-                                    }
-        
-        self.log(f"Query execution completed with analyze method: {analyze_method}")
+            self.log(f"[RUN][{analyze_method.upper()}] Queries directory not found: {dir_path}")
+            return False
+        query_files = sorted([f for f in os.listdir(dir_path) if f.endswith('.sql')])
+        if not query_files:
+            self.log(f"[RUN][{analyze_method.upper()}] No SQL files found in {dir_path}")
+            return False
+        query_times = {} if collect_times else None
+        total = len(query_files)
+        start_time = time.time()
+        for idx, query_file in enumerate(query_files, 1):
+            file_path = os.path.join(dir_path, query_file)
+            self.log(f"[RUN][{analyze_method.upper()}][{idx}/{total}] Executing query {query_file} ...")
+            with open(file_path, 'r') as f:
+                query = f.read()
+            # Show the full SQL being run (single line)
+            preview = query.replace('\n', ' ').replace('\r', ' ')
+            self.log(f"[RUN][{analyze_method.upper()}][{idx}/{total}] SQL: {preview}")
+            q_start = time.time()
+            output = self.execute_bendsql(query)
+            q_end = time.time()
+            time_elapsed = q_end - q_start
+            if output is None:
+                self.log(f"[RUN][{analyze_method.upper()}][{idx}/{total}] Execution of {query_file} failed, stopping early")
+                return False
+            self.log(f"[RUN][{analyze_method.upper()}][{idx}/{total}] Query {query_file} executed in {time_elapsed:.3f} seconds\n")
+            if collect_times:
+                query_times[query_file] = {
+                    "query": query,
+                    "time": time_elapsed,
+                    "analyze_method": analyze_method
+                }
+        total_elapsed = time.time() - start_time
+        self.log(f"[RUN][{analyze_method.upper()}] All queries executed in {total_elapsed:.2f} seconds")
         return query_times if collect_times else True
 
     def compare_analyze_methods(self):
@@ -286,60 +291,52 @@ class BendSQLRunner:
         Returns:
             bool: True if successful, False otherwise
         """
-        # Set up logging
+        import time
         log_file = self.setup_logging()
-        self.log("Starting comparison of analyze methods...")
-        self.log("This will compare query performance with three different analyze methods:")
-        self.log("1. Raw (no analyze)")
-        self.log("2. Standard analyze")
-        self.log("3. Analyze with accurate histograms")
-        
-        # Step 1: Set up the database
-        self.log("\n=== STEP 1: Setting up the database ===")
+        self.log("[COMPARE] Starting comparison of analyze methods...")
+        overall_start = time.time()
+        # Step 1: Set up database
+        self.log("\n[COMPARE] === STEP 1: Setting up database ===")
         if not self.setup_database():
-            self.log("Database setup failed. Aborting comparison.")
+            self.log("[COMPARE] Database setup failed. Aborting comparison.")
             return False
-        
         # Step 2: Run queries with no analyze (raw)
-        self.log("\n=== STEP 2: Running queries with no analyze (raw) ===")
+        self.log("\n[COMPARE] === STEP 2: Running queries with no analyze (raw) ===")
         raw_times = self.run_queries(analyze_method="none", collect_times=True)
-        
         # Step 3: Analyze tables with standard analyze
-        self.log("\n=== STEP 3: Analyzing tables with standard analyze ===")
+        self.log("\n[COMPARE] === STEP 3: Analyzing tables with standard analyze ===")
         standard_histogram_data = self.analyze_tables(analyze_method="standard")
-        if standard_histogram_data is False:
-            self.log("Standard analyze failed. Aborting comparison.")
+        if not isinstance(standard_histogram_data, dict):
+            self.log("[COMPARE] Standard analyze failed. Aborting comparison.")
+            if self.last_error:
+                self.log(f"[COMPARE] Reason: {self.last_error}")
             return False
-        
         # Step 4: Run queries with standard analyze
-        self.log("\n=== STEP 4: Running queries with standard analyze ===")
+        self.log("\n[COMPARE] === STEP 4: Running queries with standard analyze ===")
         standard_times = self.run_queries(analyze_method="standard", collect_times=True)
-        
         # Step 5: Analyze tables with histograms
-        self.log("\n=== STEP 5: Analyzing tables with accurate histograms ===")
+        self.log("\n[COMPARE] === STEP 5: Analyzing tables with accurate histograms ===")
         histogram_data = self.analyze_tables(analyze_method="histogram")
-        if histogram_data is False:
-            self.log("Histogram analyze failed. Aborting comparison.")
+        if not isinstance(histogram_data, dict):
+            self.log("[COMPARE] Histogram analyze failed. Aborting comparison.")
+            if self.last_error:
+                self.log(f"[COMPARE] Reason: {self.last_error}")
             return False
-        
         # Step 6: Run queries with histogram analyze
-        self.log("\n=== STEP 6: Running queries with histogram analyze ===")
+        self.log("\n[COMPARE] === STEP 6: Running queries with histogram analyze ===")
         histogram_times = self.run_queries(analyze_method="histogram", collect_times=True)
-        
         # Step 7: Generate comparison report
-        self.log("\n=== STEP 7: Generating comparison report ===")
+        self.log("\n[COMPARE] === STEP 7: Generating comparison report ===")
         success = self.generate_comparison_report(raw_times, standard_times, histogram_times, 
                                                 standard_histogram_data, histogram_data)
-        
+        overall_elapsed = time.time() - overall_start
         if success:
-            self.log("Comparison completed successfully.")
+            self.log(f"[COMPARE] Comparison completed successfully. Total time: {overall_elapsed:.2f} seconds")
         else:
-            self.log("Comparison report generation failed.")
-        
+            self.log(f"[COMPARE] Comparison report generation failed. Total time: {overall_elapsed:.2f} seconds")
         if self.log_file:
             self.log_file.close()
             self.log(f"Log file saved to: {log_file}")
-        
         return success
 
     def generate_comparison_report(self, raw_times, standard_times, histogram_times, 
