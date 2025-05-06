@@ -1,0 +1,339 @@
+Executing query: 13b.sql
+Time elapsed: 0.471 seconds
+
+Executing query: 3c.sql
+Time elapsed: 0.487 seconds
+
+Executing query: 29c.sql
+Time elapsed: 1.188 seconds
+
+Executing query: 29b.sql
+Time elapsed: 2.339 seconds
+
+Executing query: 25a.sql
+Time elapsed: 2.124 seconds
+
+Executing query: 33a.sql
+Time elapsed: 0.526 seconds
+
+Executing query: 3b.sql
+Time elapsed: 0.554 seconds
+
+Executing query: 13c.sql
+Time elapsed: 0.440 seconds
+
+Executing query: 13a.sql
+Time elapsed: 0.758 seconds
+
+Executing query: 2d.sql
+Time elapsed: 0.216 seconds
+
+Executing query: 33c.sql
+Time elapsed: 0.563 seconds
+
+Executing query: 25c.sql
+Time elapsed: 1.482 seconds
+
+Executing query: 29a.sql
+Time elapsed: 1.828 seconds
+
+Executing query: 25b.sql
+Time elapsed: 1.624 seconds
+
+Executing query: 33b.sql
+Time elapsed: 0.565 seconds
+
+Executing query: 3a.sql
+Time elapsed: 0.549 seconds
+
+Executing query: 13d.sql
+Time elapsed: 0.485 seconds
+
+Executing query: 2a.sql
+Time elapsed: 0.217 seconds
+
+Executing query: 32b.sql
+Time elapsed: 0.245 seconds
+
+Executing query: 24b.sql
+Time elapsed: 4.719 seconds
+
+Executing query: 28a.sql
+Time elapsed: 1.017 seconds
+
+Executing query: 12a.sql
+Time elapsed: 0.615 seconds
+
+Executing query: 12c.sql
+Time elapsed: 0.929 seconds
+
+Executing query: 2b.sql
+Time elapsed: 0.206 seconds
+
+Executing query: 32a.sql
+Time elapsed: 0.088 seconds
+
+Executing query: 24a.sql
+Time elapsed: 1.153 seconds
+
+Executing query: 28b.sql
+Time elapsed: 0.837 seconds
+
+Executing query: 28c.sql
+Time elapsed: 0.711 seconds
+
+Executing query: 2c.sql
+Time elapsed: 0.125 seconds
+
+Executing query: 12b.sql
+Time elapsed: 0.531 seconds
+
+Executing query: 15a.sql
+Time elapsed: 0.786 seconds
+
+Executing query: 9c.sql
+Time elapsed: 5.087 seconds
+
+Executing query: 19b.sql
+Time elapsed: 2.125 seconds
+
+Executing query: 23c.sql
+Time elapsed: 0.823 seconds
+
+Executing query: 23b.sql
+Time elapsed: 0.720 seconds
+
+Executing query: 5a.sql
+Time elapsed: 0.116 seconds
+
+Executing query: 19c.sql
+Time elapsed: 1.023 seconds
+
+Executing query: 9b.sql
+Time elapsed: 3.874 seconds
+
+Executing query: 15b.sql
+Time elapsed: 10.163 seconds
+
+Executing query: 8d.sql
+Time elapsed: 0.374 seconds
+
+Executing query: 19a.sql
+Time elapsed: 1.904 seconds
+
+Executing query: 5c.sql
+Time elapsed: 0.729 seconds
+
+Executing query: 22d.sql
+Time elapsed: 0.895 seconds
+
+Executing query: 23a.sql
+Time elapsed: 0.917 seconds
+
+Executing query: 5b.sql
+Time elapsed: 0.647 seconds
+
+Executing query: 9a.sql
+Time elapsed: 9.415 seconds
+
+Executing query: 15c.sql
+Time elapsed: 0.916 seconds
+
+Executing query: 8a.sql
+Time elapsed: 0.907 seconds
+
+Executing query: 14c.sql
+Time elapsed: 1.049 seconds
+
+Executing query: 4b.sql
+Time elapsed: 0.209 seconds
+
+Executing query: 19d.sql
+Time elapsed: 14.673 seconds
+
+Executing query: 22a.sql
+Time elapsed: 0.946 seconds
+
+Executing query: 18a.sql
+Time elapsed: 1.110 seconds
+
+Executing query: 4c.sql
+Time elapsed: 0.237 seconds
+
+Executing query: 14b.sql
+Time elapsed: 1.547 seconds
+
+Executing query: 9d.sql
+Time elapsed: 1.503 seconds
+
+Executing query: 8b.sql
+Time elapsed: 6.142 seconds
+
+Executing query: 15d.sql
+Time elapsed: 0.535 seconds
+
+Executing query: 4a.sql
+Time elapsed: 0.225 seconds
+
+Executing query: 18c.sql
+Time elapsed: 5.263 seconds
+
+Executing query: 22b.sql
+Time elapsed: 2.384 seconds
+
+Executing query: 22c.sql
+Time elapsed: 0.885 seconds
+
+Executing query: 18b.sql
+Time elapsed: 9.891 seconds
+
+Executing query: 14a.sql
+Time elapsed: 1.094 seconds
+
+Executing query: 8c.sql
+Time elapsed: 0.642 seconds
+
+Executing query: 16d.sql
+Time elapsed: 0.491 seconds
+
+Executing query: 6e.sql
+Time elapsed: 0.356 seconds
+
+Executing query: 7a.sql
+Time elapsed: 0.612 seconds
+
+Executing query: 21b.sql
+Time elapsed: 0.726 seconds
+
+Executing query: 21c.sql
+Time elapsed: 0.800 seconds
+
+Executing query: 6d.sql
+Time elapsed: 0.356 seconds
+
+Executing query: 17a.sql
+Time elapsed: 0.494 seconds
+
+Executing query: 17c.sql
+Time elapsed: 0.425 seconds
+
+Executing query: 7b.sql
+Time elapsed: 0.525 seconds
+
+Executing query: 6f.sql
+Time elapsed: 0.333 seconds
+
+Executing query: 21a.sql
+Time elapsed: 1.059 seconds
+
+Executing query: 7c.sql
+Time elapsed: 1.110 seconds
+
+Executing query: 17b.sql
+Time elapsed: 0.408 seconds
+
+Executing query: 17f.sql
+Time elapsed: 0.958 seconds
+
+Executing query: 16b.sql
+Time elapsed: 0.858 seconds
+
+Executing query: 6c.sql
+Time elapsed: 0.330 seconds
+
+Executing query: 20a.sql
+Time elapsed: 0.523 seconds
+
+Executing query: 6b.sql
+Time elapsed: 0.325 seconds
+
+Executing query: 16c.sql
+Time elapsed: 0.464 seconds
+
+Executing query: 16a.sql
+Time elapsed: 0.439 seconds
+
+Executing query: 17e.sql
+Time elapsed: 0.468 seconds
+
+Executing query: 20c.sql
+Time elapsed: 0.564 seconds
+
+Executing query: 20b.sql
+Time elapsed: 0.538 seconds
+
+Executing query: 6a.sql
+Time elapsed: 0.329 seconds
+
+Executing query: 17d.sql
+Time elapsed: 0.400 seconds
+
+Executing query: 11c.sql
+Time elapsed: 0.320 seconds
+
+Executing query: 1b.sql
+Time elapsed: 0.231 seconds
+
+Executing query: 31a.sql
+Time elapsed: 5.474 seconds
+
+Executing query: 27a.sql
+Time elapsed: 0.745 seconds
+
+Executing query: 1c.sql
+Time elapsed: 0.200 seconds
+
+Executing query: 11b.sql
+Time elapsed: 0.329 seconds
+
+Executing query: 1a.sql
+Time elapsed: 0.230 seconds
+
+Executing query: 31b.sql
+Time elapsed: 2.664 seconds
+
+Executing query: 27b.sql
+Time elapsed: 0.704 seconds
+
+Executing query: 27c.sql
+Time elapsed: 0.757 seconds
+
+Executing query: 31c.sql
+Time elapsed: 0.961 seconds
+
+Executing query: 11a.sql
+Time elapsed: 0.316 seconds
+
+Executing query: 10a.sql
+Time elapsed: 0.389 seconds
+
+Executing query: 1d.sql
+Time elapsed: 0.217 seconds
+
+Executing query: 30c.sql
+Time elapsed: 2.684 seconds
+
+Executing query: 26c.sql
+Time elapsed: 0.644 seconds
+
+Executing query: 26b.sql
+Time elapsed: 0.682 seconds
+
+Executing query: 30b.sql
+Time elapsed: 4.407 seconds
+
+Executing query: 11d.sql
+Time elapsed: 0.318 seconds
+
+Executing query: 10b.sql
+Time elapsed: 0.350 seconds
+
+Executing query: 26a.sql
+Time elapsed: 0.750 seconds
+
+Executing query: 30a.sql
+Time elapsed: 3.074 seconds
+
+Executing query: 10c.sql
+Time elapsed: 0.876 seconds
+

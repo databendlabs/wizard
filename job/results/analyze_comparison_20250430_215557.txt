@@ -1,0 +1,903 @@
+=== Analyze Method Comparison ===
+
+Comparison of query execution times between raw (no analyze), standard analyze, and analyze with accurate histograms.
+
+=== Summary ===
+Total Queries: 113
+Raw Faster: 22 (19.5%)
+Standard Analyze Faster: 61 (54.0%)
+Histogram Analyze Faster: 30 (26.5%)
+N/A: 0 (0.0%)
+
+=== Query Execution Time Comparison ===
+
+Query ID        Raw (s)      Standard (s) Histogram (s) Std vs Raw   Hist vs Raw  Hist vs Std  Fastest   
+-----------------------------------------------------------------------------------------------
+10a.sql         3.021        1.980        2.445        -34.4%       -19.1%       23.4%        Standard  
+  Query: SELECT MIN(chn.name) AS uncredited_voiced_character,
+       MIN(t.title) AS russian_movie
+FROM char_...
+
+10b.sql         1.999        1.716        2.014        -14.1%       0.8%         17.4%        Standard  
+  Query: SELECT MIN(chn.name) AS character,
+       MIN(t.title) AS russian_mov_with_actor_producer
+FROM char_...
+
+10c.sql         2.805        2.629        3.009        -6.3%        7.3%         14.4%        Standard  
+  Query: SELECT MIN(chn.name) AS character,
+       MIN(t.title) AS movie_with_american_producer
+FROM char_nam...
+
+11a.sql         2.573        1.918        2.548        -25.5%       -1.0%        32.8%        Standard  
+  Query: SELECT MIN(cn.name) AS from_company,
+       MIN(lt.link) AS movie_link_type,
+       MIN(t.title) AS ...
+
+11b.sql         2.106        1.863        2.518        -11.6%       19.5%        35.2%        Standard  
+  Query: SELECT MIN(cn.name) AS from_company,
+       MIN(lt.link) AS movie_link_type,
+       MIN(t.title) AS ...
+
+11c.sql         1.935        1.868        2.394        -3.5%        23.7%        28.2%        Standard  
+  Query: SELECT MIN(cn.name) AS from_company,
+       MIN(mc.note) AS production_note,
+       MIN(t.title) AS ...
+
+11d.sql         1.905        1.918        2.352        0.7%         23.4%        22.6%        Raw       
+  Query: SELECT MIN(cn.name) AS from_company,
+       MIN(mc.note) AS production_note,
+       MIN(t.title) AS ...
+
+12a.sql         2.778        2.401        2.485        -13.6%       -10.6%       3.5%         Standard  
+  Query: SELECT MIN(cn.name) AS movie_company,
+       MIN(mi_idx.info) AS rating,
+       MIN(t.title) AS dram...
+
+12b.sql         2.470        2.204        5.229        -10.8%       111.7%       137.3%       Standard  
+  Query: SELECT MIN(mi.info) AS budget,
+       MIN(t.title) AS unsuccsessful_movie
+FROM company_name AS cn,
+ ...
+
+12c.sql         2.430        2.288        2.564        -5.8%        5.5%         12.1%        Standard  
+  Query: SELECT MIN(cn.name) AS movie_company,
+       MIN(mi_idx.info) AS rating,
+       MIN(t.title) AS main...
+
+13a.sql         2.534        2.257        5.015        -11.0%       97.9%        122.2%       Standard  
+  Query: SELECT MIN(mi.info) AS release_date,
+       MIN(miidx.info) AS rating,
+       MIN(t.title) AS german...
+
+13b.sql         2.286        2.099        3.718        -8.1%        62.7%        77.1%        Standard  
+  Query: SELECT MIN(cn.name) AS producing_company,
+       MIN(miidx.info) AS rating,
+       MIN(t.title) AS m...
+
+13c.sql         2.291        1.982        3.679        -13.5%       60.6%        85.6%        Standard  
+  Query: SELECT MIN(cn.name) AS producing_company,
+       MIN(miidx.info) AS rating,
+       MIN(t.title) AS m...
+
+13d.sql         2.522        2.079        4.261        -17.5%       69.0%        104.9%       Standard  
+  Query: SELECT MIN(cn.name) AS producing_company,
+       MIN(miidx.info) AS rating,
+       MIN(t.title) AS m...
+
+14a.sql         2.248        2.203        2.270        -2.0%        1.0%         3.0%         Standard  
+  Query: SELECT MIN(mi_idx.info) AS rating,
+       MIN(t.title) AS northern_dark_movie
+FROM info_type AS it1,...
+
+14b.sql         2.225        2.194        2.161        -1.4%        -2.9%        -1.5%        Histogram 
+  Query: SELECT MIN(mi_idx.info) AS rating,
+       MIN(t.title) AS western_dark_production
+FROM info_type AS ...
+
+14c.sql         2.222        2.171        2.683        -2.3%        20.7%        23.6%        Standard  
+  Query: SELECT MIN(mi_idx.info) AS rating,
+       MIN(t.title) AS north_european_dark_production
+FROM info_t...
+
+15a.sql         2.753        2.621        2.710        -4.8%        -1.6%        3.4%         Standard  
+  Query: SELECT MIN(mi.info) AS release_date,
+       MIN(t.title) AS internet_movie
+FROM aka_title AS at,
+   ...
+
+15b.sql         2.623        2.614        2.516        -0.3%        -4.1%        -3.8%        Histogram 
+  Query: SELECT MIN(mi.info) AS release_date,
+       MIN(t.title) AS youtube_movie
+FROM aka_title AS at,
+    ...
+
+15c.sql         2.795        2.679        2.731        -4.2%        -2.3%        1.9%         Standard  
+  Query: SELECT MIN(mi.info) AS release_date,
+       MIN(t.title) AS modern_american_internet_movie
+FROM aka_...
+
+15d.sql         2.571        2.383        2.558        -7.3%        -0.5%        7.4%         Standard  
+  Query: SELECT MIN(at.title) AS aka_title,
+       MIN(t.title) AS internet_movie_title
+FROM aka_title AS at,...
+
+16a.sql         2.787        2.465        2.877        -11.6%       3.2%         16.7%        Standard  
+  Query: SELECT MIN(an.name) AS cool_actor_pseudonym,
+       MIN(t.title) AS series_named_after_char
+FROM aka...
+
+16b.sql         2.462        3.372        3.381        36.9%        37.3%        0.3%         Raw       
+  Query: SELECT MIN(an.name) AS cool_actor_pseudonym,
+       MIN(t.title) AS series_named_after_char
+FROM aka...
+
+16c.sql         2.682        2.392        2.862        -10.8%       6.7%         19.7%        Standard  
+  Query: SELECT MIN(an.name) AS cool_actor_pseudonym,
+       MIN(t.title) AS series_named_after_char
+FROM aka...
+
+16d.sql         2.678        2.339        2.833        -12.7%       5.8%         21.1%        Standard  
+  Query: SELECT MIN(an.name) AS cool_actor_pseudonym,
+       MIN(t.title) AS series_named_after_char
+FROM aka...
+
+17a.sql         2.210        2.234        2.180        1.1%         -1.4%        -2.4%        Histogram 
+  Query: SELECT MIN(n.name) AS member_in_charnamed_american_movie,
+       MIN(n.name) AS a1
+FROM cast_info AS...
+
+17b.sql         2.496        2.457        2.139        -1.6%        -14.3%       -13.0%       Histogram 
+  Query: SELECT MIN(n.name) AS member_in_charnamed_movie,
+       MIN(n.name) AS a1
+FROM cast_info AS ci,
+    ...
+
+17c.sql         2.449        2.428        2.136        -0.9%        -12.8%       -12.0%       Histogram 
+  Query: SELECT MIN(n.name) AS member_in_charnamed_movie,
+       MIN(n.name) AS a1
+FROM cast_info AS ci,
+    ...
+
+17d.sql         2.462        2.113        2.093        -14.2%       -15.0%       -1.0%        Histogram 
+  Query: SELECT MIN(n.name) AS member_in_charnamed_movie
+FROM cast_info AS ci,
+     company_name AS cn,
+     ...
+
+17e.sql         2.272        2.448        2.443        7.7%         7.5%         -0.2%        Raw       
+  Query: SELECT MIN(n.name) AS member_in_charnamed_movie
+FROM cast_info AS ci,
+     company_name AS cn,
+     ...
+
+17f.sql         2.450        2.463        2.449        0.5%         -0.0%        -0.6%        Histogram 
+  Query: SELECT MIN(n.name) AS member_in_charnamed_movie
+FROM cast_info AS ci,
+     company_name AS cn,
+     ...
+
+18a.sql         3.904        2.755        2.743        -29.4%       -29.7%       -0.4%        Histogram 
+  Query: SELECT MIN(mi.info) AS movie_budget,
+       MIN(mi_idx.info) AS movie_votes,
+       MIN(t.title) AS ...
+
+18b.sql         2.424        2.461        2.458        1.5%         1.4%         -0.1%        Raw       
+  Query: SELECT MIN(mi.info) AS movie_budget,
+       MIN(mi_idx.info) AS movie_votes,
+       MIN(t.title) AS ...
+
+18c.sql         2.677        2.458        2.440        -8.2%        -8.9%        -0.8%        Histogram 
+  Query: SELECT MIN(mi.info) AS movie_budget,
+       MIN(mi_idx.info) AS movie_votes,
+       MIN(t.title) AS ...
+
+19a.sql         2.838        2.784        2.792        -1.9%        -1.6%        0.3%         Standard  
+  Query: SELECT MIN(n.name) AS voicing_actress,
+       MIN(t.title) AS voiced_movie
+FROM aka_name AS an,
+    ...
+
+19b.sql         2.813        2.822        2.778        0.3%         -1.2%        -1.6%        Histogram 
+  Query: SELECT MIN(n.name) AS voicing_actress,
+       MIN(t.title) AS kung_fu_panda
+FROM aka_name AS an,
+   ...
+
+19c.sql         3.017        2.828        2.761        -6.3%        -8.5%        -2.4%        Histogram 
+  Query: SELECT MIN(n.name) AS voicing_actress,
+       MIN(t.title) AS jap_engl_voiced_movie
+FROM aka_name AS...
+
+19d.sql         2.811        2.542        2.301        -9.5%        -18.1%       -9.5%        Histogram 
+  Query: SELECT MIN(n.name) AS voicing_actress,
+       MIN(t.title) AS jap_engl_voiced_movie
+FROM aka_name AS...
+
+1a.sql          1.545        1.579        1.576        2.2%         2.0%         -0.1%        Raw       
+  Query: SELECT MIN(mc.note) AS production_note,
+       MIN(t.title) AS movie_title,
+       MIN(t.production_...
+
+1b.sql          1.557        1.638        1.647        5.2%         5.8%         0.5%         Raw       
+  Query: SELECT MIN(mc.note) AS production_note,
+       MIN(t.title) AS movie_title,
+       MIN(t.production_...
+
+1c.sql          1.567        1.577        1.582        0.6%         1.0%         0.3%         Raw       
+  Query: SELECT MIN(mc.note) AS production_note,
+       MIN(t.title) AS movie_title,
+       MIN(t.production_...
+
+1d.sql          1.600        1.612        1.638        0.8%         2.4%         1.6%         Raw       
+  Query: SELECT MIN(mc.note) AS production_note,
+       MIN(t.title) AS movie_title,
+       MIN(t.production_...
+
+20a.sql         2.790        2.504        2.552        -10.3%       -8.5%        1.9%         Standard  
+  Query: SELECT MIN(t.title) AS complete_downey_ironman_movie
+FROM complete_cast AS cc,
+     comp_cast_type A...
+
+20b.sql         2.290        2.412        2.471        5.3%         7.9%         2.4%         Raw       
+  Query: SELECT MIN(t.title) AS complete_downey_ironman_movie
+FROM complete_cast AS cc,
+     comp_cast_type A...
+
+20c.sql         2.470        2.504        2.804        1.4%         13.5%        12.0%        Raw       
+  Query: SELECT MIN(n.name) AS cast_member,
+       MIN(t.title) AS complete_dynamic_hero_movie
+FROM complete_...
+
+21a.sql         2.881        2.861        2.967        -0.7%        3.0%         3.7%         Standard  
+  Query: SELECT MIN(cn.name) AS company_name,
+       MIN(lt.link) AS link_type,
+       MIN(t.title) AS wester...
+
+21b.sql         2.466        2.420        2.715        -1.9%        10.1%        12.2%        Standard  
+  Query: SELECT MIN(cn.name) AS company_name,
+       MIN(lt.link) AS link_type,
+       MIN(t.title) AS german...
+
+21c.sql         2.811        2.731        3.326        -2.9%        18.3%        21.8%        Standard  
+  Query: SELECT MIN(cn.name) AS company_name,
+       MIN(lt.link) AS link_type,
+       MIN(t.title) AS wester...
+
+22a.sql         2.624        2.534        2.832        -3.4%        7.9%         11.8%        Standard  
+  Query: SELECT MIN(cn.name) AS movie_company,
+       MIN(mi_idx.info) AS rating,
+       MIN(t.title) AS west...
+
+22b.sql         2.594        2.533        2.710        -2.4%        4.5%         7.0%         Standard  
+  Query: SELECT MIN(cn.name) AS movie_company,
+       MIN(mi_idx.info) AS rating,
+       MIN(t.title) AS west...
+
+22c.sql         2.588        2.564        3.316        -0.9%        28.1%        29.3%        Standard  
+  Query: SELECT MIN(cn.name) AS movie_company,
+       MIN(mi_idx.info) AS rating,
+       MIN(t.title) AS west...
+
+22d.sql         2.593        2.499        4.373        -3.6%        68.6%        75.0%        Standard  
+  Query: SELECT MIN(cn.name) AS movie_company,
+       MIN(mi_idx.info) AS rating,
+       MIN(t.title) AS west...
+
+23a.sql         2.670        2.434        2.702        -8.8%        1.2%         11.0%        Standard  
+  Query: SELECT MIN(kt.kind) AS movie_kind,
+       MIN(t.title) AS complete_us_internet_movie
+FROM complete_c...
+
+23b.sql         2.702        2.526        2.657        -6.5%        -1.7%        5.2%         Standard  
+  Query: SELECT MIN(kt.kind) AS movie_kind,
+       MIN(t.title) AS complete_nerdy_internet_movie
+FROM complet...
+
+23c.sql         2.616        2.398        2.529        -8.3%        -3.3%        5.4%         Standard  
+  Query: SELECT MIN(kt.kind) AS movie_kind,
+       MIN(t.title) AS complete_us_internet_movie
+FROM complete_c...
+
+24a.sql         3.741        3.095        3.050        -17.3%       -18.5%       -1.5%        Histogram 
+  Query: SELECT MIN(chn.name) AS voiced_char_name,
+       MIN(n.name) AS voicing_actress_name,
+       MIN(t.t...
+
+24b.sql         3.159        3.008        3.012        -4.8%        -4.7%        0.1%         Standard  
+  Query: SELECT MIN(chn.name) AS voiced_char_name,
+       MIN(n.name) AS voicing_actress_name,
+       MIN(t.t...
+
+25a.sql         2.917        2.854        2.966        -2.2%        1.7%         3.9%         Standard  
+  Query: SELECT MIN(mi.info) AS movie_budget,
+       MIN(mi_idx.info) AS movie_votes,
+       MIN(n.name) AS m...
+
+25b.sql         2.936        2.842        2.842        -3.2%        -3.2%        0.0%         Standard  
+  Query: SELECT MIN(mi.info) AS movie_budget,
+       MIN(mi_idx.info) AS movie_votes,
+       MIN(n.name) AS m...
+
+25c.sql         3.062        2.864        2.902        -6.5%        -5.2%        1.3%         Standard  
+  Query: SELECT MIN(mi.info) AS movie_budget,
+       MIN(mi_idx.info) AS movie_votes,
+       MIN(n.name) AS m...
+
+26a.sql         2.775        2.698        2.842        -2.8%        2.4%         5.3%         Standard  
+  Query: SELECT MIN(chn.name) AS character_name,
+       MIN(mi_idx.info) AS rating,
+       MIN(n.name) AS pla...
+
+26b.sql         2.601        2.583        2.679        -0.7%        3.0%         3.7%         Standard  
+  Query: SELECT MIN(chn.name) AS character_name,
+       MIN(mi_idx.info) AS rating,
+       MIN(t.title) AS co...
+
+26c.sql         2.811        2.683        2.992        -4.6%        6.4%         11.5%        Standard  
+  Query: SELECT MIN(chn.name) AS character_name,
+       MIN(mi_idx.info) AS rating,
+       MIN(t.title) AS co...
+
+27a.sql         2.823        2.791        2.940        -1.1%        4.1%         5.3%         Standard  
+  Query: SELECT MIN(cn.name) AS producing_company,
+       MIN(lt.link) AS link_type,
+       MIN(t.title) AS c...
+
+27b.sql         2.624        2.650        2.683        1.0%         2.3%         1.2%         Raw       
+  Query: SELECT MIN(cn.name) AS producing_company,
+       MIN(lt.link) AS link_type,
+       MIN(t.title) AS c...
+
+27c.sql         2.794        2.724        3.143        -2.5%        12.5%        15.4%        Standard  
+  Query: SELECT MIN(cn.name) AS producing_company,
+       MIN(lt.link) AS link_type,
+       MIN(t.title) AS c...
+
+28a.sql         2.741        2.460        2.880        -10.3%       5.0%         17.0%        Standard  
+  Query: SELECT MIN(cn.name) AS movie_company,
+       MIN(mi_idx.info) AS rating,
+       MIN(t.title) AS comp...
+
+28b.sql         2.734        2.474        2.642        -9.5%        -3.3%        6.8%         Standard  
+  Query: SELECT MIN(cn.name) AS movie_company,
+       MIN(mi_idx.info) AS rating,
+       MIN(t.title) AS comp...
+
+28c.sql         2.718        2.459        2.658        -9.5%        -2.2%        8.1%         Standard  
+  Query: SELECT MIN(cn.name) AS movie_company,
+       MIN(mi_idx.info) AS rating,
+       MIN(t.title) AS comp...
+
+29a.sql         3.756        3.304        3.470        -12.0%       -7.6%        5.0%         Standard  
+  Query: SELECT MIN(chn.name) AS voiced_char,
+       MIN(n.name) AS voicing_actress,
+       MIN(t.title) AS v...
+
+29b.sql         3.377        3.281        3.353        -2.9%        -0.7%        2.2%         Standard  
+  Query: SELECT MIN(chn.name) AS voiced_char,
+       MIN(n.name) AS voicing_actress,
+       MIN(t.title) AS v...
+
+29c.sql         3.493        3.193        4.807        -8.6%        37.6%        50.6%        Standard  
+  Query: SELECT MIN(chn.name) AS voiced_char,
+       MIN(n.name) AS voicing_actress,
+       MIN(t.title) AS v...
+
+2a.sql          1.632        1.661        1.817        1.8%         11.3%        9.4%         Raw       
+  Query: SELECT MIN(t.title) AS movie_title
+FROM company_name AS cn,
+     keyword AS k,
+     movie_companies ...
+
+2b.sql          1.627        1.672        1.604        2.7%         -1.4%        -4.0%        Histogram 
+  Query: SELECT MIN(t.title) AS movie_title
+FROM company_name AS cn,
+     keyword AS k,
+     movie_companies ...
+
+2c.sql          1.428        1.490        1.455        4.3%         1.9%         -2.3%        Raw       
+  Query: SELECT MIN(t.title) AS movie_title
+FROM company_name AS cn,
+     keyword AS k,
+     movie_companies ...
+
+2d.sql          1.812        1.636        1.630        -9.7%        -10.0%       -0.4%        Histogram 
+  Query: SELECT MIN(t.title) AS movie_title
+FROM company_name AS cn,
+     keyword AS k,
+     movie_companies ...
+
+30a.sql         2.939        2.879        2.949        -2.1%        0.3%         2.4%         Standard  
+  Query: SELECT MIN(mi.info) AS movie_budget,
+       MIN(mi_idx.info) AS movie_votes,
+       MIN(n.name) AS w...
+
+30b.sql         2.981        2.873        2.930        -3.6%        -1.7%        2.0%         Standard  
+  Query: SELECT MIN(mi.info) AS movie_budget,
+       MIN(mi_idx.info) AS movie_votes,
+       MIN(n.name) AS w...
+
+30c.sql         3.126        3.047        2.981        -2.5%        -4.6%        -2.2%        Histogram 
+  Query: SELECT MIN(mi.info) AS movie_budget,
+       MIN(mi_idx.info) AS movie_votes,
+       MIN(n.name) AS w...
+
+31a.sql         2.959        2.881        2.873        -2.7%        -2.9%        -0.3%        Histogram 
+  Query: SELECT MIN(mi.info) AS movie_budget,
+       MIN(mi_idx.info) AS movie_votes,
+       MIN(n.name) AS w...
+
+31b.sql         3.024        2.926        2.903        -3.2%        -4.0%        -0.8%        Histogram 
+  Query: SELECT MIN(mi.info) AS movie_budget,
+       MIN(mi_idx.info) AS movie_votes,
+       MIN(n.name) AS w...
+
+31c.sql         3.061        2.863        2.901        -6.5%        -5.2%        1.3%         Standard  
+  Query: SELECT MIN(mi.info) AS movie_budget,
+       MIN(mi_idx.info) AS movie_votes,
+       MIN(n.name) AS w...
+
+32a.sql         1.349        1.366        1.917        1.3%         42.1%        40.3%        Raw       
+  Query: SELECT MIN(lt.link) AS link_type,
+       MIN(t1.title) AS first_movie,
+       MIN(t2.title) AS secon...
+
+32b.sql         1.739        1.831        1.838        5.3%         5.7%         0.4%         Raw       
+  Query: SELECT MIN(lt.link) AS link_type,
+       MIN(t1.title) AS first_movie,
+       MIN(t2.title) AS secon...
+
+33a.sql         2.754        2.359        2.333        -14.3%       -15.3%       -1.1%        Histogram 
+  Query: SELECT MIN(cn1.name) AS first_company,
+       MIN(cn2.name) AS second_company,
+       MIN(mi_idx1.in...
+
+33b.sql         2.461        2.360        2.330        -4.1%        -5.3%        -1.2%        Histogram 
+  Query: SELECT MIN(cn1.name) AS first_company,
+       MIN(cn2.name) AS second_company,
+       MIN(mi_idx1.in...
+
+33c.sql         2.407        2.410        2.549        0.1%         5.9%         5.8%         Raw       
+  Query: SELECT MIN(cn1.name) AS first_company,
+       MIN(cn2.name) AS second_company,
+       MIN(mi_idx1.in...
+
+3a.sql          2.024        2.023        2.047        -0.0%        1.1%         1.2%         Standard  
+  Query: SELECT MIN(t.title) AS movie_title
+FROM keyword AS k,
+     movie_info AS mi,
+     movie_keyword AS m...
+
+3b.sql          2.007        1.927        1.936        -4.0%        -3.5%        0.5%         Standard  
+  Query: SELECT MIN(t.title) AS movie_title
+FROM keyword AS k,
+     movie_info AS mi,
+     movie_keyword AS m...
+
+3c.sql          2.050        1.988        2.000        -3.0%        -2.4%        0.6%         Standard  
+  Query: SELECT MIN(t.title) AS movie_title
+FROM keyword AS k,
+     movie_info AS mi,
+     movie_keyword AS m...
+
+4a.sql          1.604        1.626        1.587        1.4%         -1.0%        -2.4%        Histogram 
+  Query: SELECT MIN(mi_idx.info) AS rating,
+       MIN(t.title) AS movie_title
+FROM info_type AS it,
+     key...
+
+4b.sql          1.610        1.618        1.666        0.5%         3.4%         2.9%         Raw       
+  Query: SELECT MIN(mi_idx.info) AS rating,
+       MIN(t.title) AS movie_title
+FROM info_type AS it,
+     key...
+
+4c.sql          1.649        1.634        1.645        -1.0%        -0.2%        0.7%         Standard  
+  Query: SELECT MIN(mi_idx.info) AS rating,
+       MIN(t.title) AS movie_title
+FROM info_type AS it,
+     key...
+
+5a.sql          1.358        1.369        1.368        0.8%         0.8%         -0.0%        Raw       
+  Query: SELECT MIN(t.title) AS typical_european_movie
+FROM company_type AS ct,
+     info_type AS it,
+     mo...
+
+5b.sql          2.110        2.096        2.133        -0.7%        1.1%         1.8%         Standard  
+  Query: SELECT MIN(t.title) AS american_vhs_movie
+FROM company_type AS ct,
+     info_type AS it,
+     movie_...
+
+5c.sql          2.046        1.981        2.078        -3.2%        1.6%         4.9%         Standard  
+  Query: SELECT MIN(t.title) AS american_movie
+FROM company_type AS ct,
+     info_type AS it,
+     movie_comp...
+
+6a.sql          1.941        1.891        1.863        -2.6%        -4.0%        -1.5%        Histogram 
+  Query: SELECT MIN(k.keyword) AS movie_keyword,
+       MIN(n.name) AS actor_name,
+       MIN(t.title) AS mar...
+
+6b.sql          1.939        1.886        1.717        -2.7%        -11.4%       -9.0%        Histogram 
+  Query: SELECT MIN(k.keyword) AS movie_keyword,
+       MIN(n.name) AS actor_name,
+       MIN(t.title) AS her...
+
+6c.sql          1.890        1.903        1.915        0.7%         1.3%         0.6%         Raw       
+  Query: SELECT MIN(k.keyword) AS movie_keyword,
+       MIN(n.name) AS actor_name,
+       MIN(t.title) AS mar...
+
+6d.sql          1.878        1.947        1.830        3.7%         -2.6%        -6.0%        Histogram 
+  Query: SELECT MIN(k.keyword) AS movie_keyword,
+       MIN(n.name) AS actor_name,
+       MIN(t.title) AS her...
+
+6e.sql          1.890        1.861        1.895        -1.5%        0.3%         1.8%         Standard  
+  Query: SELECT MIN(k.keyword) AS movie_keyword,
+       MIN(n.name) AS actor_name,
+       MIN(t.title) AS mar...
+
+6f.sql          2.000        2.252        1.790        12.6%        -10.5%       -20.5%       Histogram 
+  Query: SELECT MIN(k.keyword) AS movie_keyword,
+       MIN(n.name) AS actor_name,
+       MIN(t.title) AS her...
+
+7a.sql          2.876        2.446        2.556        -15.0%       -11.1%       4.5%         Standard  
+  Query: SELECT MIN(n.name) AS of_person,
+       MIN(t.title) AS biography_movie
+FROM aka_name AS an,
+     ca...
+
+7b.sql          2.482        2.378        2.392        -4.2%        -3.7%        0.6%         Standard  
+  Query: SELECT MIN(n.name) AS of_person,
+       MIN(t.title) AS biography_movie
+FROM aka_name AS an,
+     ca...
+
+7c.sql          2.974        3.140        3.018        5.6%         1.5%         -3.9%        Raw       
+  Query: SELECT MIN(n.name) AS cast_member_name,
+       MIN(pi.info) AS cast_member_info
+FROM aka_name AS an,...
+
+8a.sql          2.053        2.063        2.074        0.5%         1.0%         0.6%         Raw       
+  Query: SELECT MIN(an1.name) AS actress_pseudonym,
+       MIN(t.title) AS japanese_movie_dubbed
+FROM aka_nam...
+
+8b.sql          2.060        2.062        2.063        0.1%         0.1%         0.0%         Raw       
+  Query: SELECT MIN(an.name) AS acress_pseudonym,
+       MIN(t.title) AS japanese_anime_movie
+FROM aka_name A...
+
+8c.sql          2.822        2.462        2.430        -12.8%       -13.9%       -1.3%        Histogram 
+  Query: SELECT MIN(a1.name) AS writer_pseudo_name,
+       MIN(t.title) AS movie_title
+FROM aka_name AS a1,
+ ...
+
+8d.sql          2.203        1.997        2.020        -9.3%        -8.3%        1.2%         Standard  
+  Query: SELECT MIN(an1.name) AS costume_designer_pseudo,
+       MIN(t.title) AS movie_with_costumes
+FROM aka...
+
+9a.sql          2.784        2.710        2.672        -2.7%        -4.0%        -1.4%        Histogram 
+  Query: SELECT MIN(an.name) AS alternative_name,
+       MIN(chn.name) AS character_name,
+       MIN(t.title)...
+
+9b.sql          2.732        2.719        2.657        -0.5%        -2.7%        -2.3%        Histogram 
+  Query: SELECT MIN(an.name) AS alternative_name,
+       MIN(chn.name) AS voiced_character,
+       MIN(n.name...
+
+9c.sql          2.803        2.413        2.224        -13.9%       -20.6%       -7.8%        Histogram 
+  Query: SELECT MIN(an.name) AS alternative_name,
+       MIN(chn.name) AS voiced_character_name,
+       MIN(n...
+
+9d.sql          2.827        2.444        2.308        -13.6%       -18.4%       -5.6%        Histogram 
+  Query: SELECT MIN(an.name) AS alternative_name,
+       MIN(chn.name) AS voiced_char_name,
+       MIN(n.name...
+
+
+=== Histogram Data Comparison ===
+
+Table: aka_name
+================================================================================
+
+Standard Analyze Histogram:
+--------------------------------------------------------------------------------
+0.710
+
+
+Accurate Histogram:
+--------------------------------------------------------------------------------
+0.793
+
+
+
+Table: aka_title
+================================================================================
+
+Standard Analyze Histogram:
+--------------------------------------------------------------------------------
+0.476
+
+
+Accurate Histogram:
+--------------------------------------------------------------------------------
+0.638
+
+
+
+Table: cast_info
+================================================================================
+
+Standard Analyze Histogram:
+--------------------------------------------------------------------------------
+0.924
+
+
+Accurate Histogram:
+--------------------------------------------------------------------------------
+28.459
+
+
+
+Table: char_name
+================================================================================
+
+Standard Analyze Histogram:
+--------------------------------------------------------------------------------
+0.768
+
+
+Accurate Histogram:
+--------------------------------------------------------------------------------
+2.260
+
+
+
+Table: comp_cast_type
+================================================================================
+
+Standard Analyze Histogram:
+--------------------------------------------------------------------------------
+0.179
+
+
+Accurate Histogram:
+--------------------------------------------------------------------------------
+0.154
+
+
+
+Table: company_name
+================================================================================
+
+Standard Analyze Histogram:
+--------------------------------------------------------------------------------
+0.319
+
+
+Accurate Histogram:
+--------------------------------------------------------------------------------
+0.553
+
+
+
+Table: company_type
+================================================================================
+
+Standard Analyze Histogram:
+--------------------------------------------------------------------------------
+0.131
+
+
+Accurate Histogram:
+--------------------------------------------------------------------------------
+0.149
+
+
+
+Table: complete_cast
+================================================================================
+
+Standard Analyze Histogram:
+--------------------------------------------------------------------------------
+0.196
+
+
+Accurate Histogram:
+--------------------------------------------------------------------------------
+0.242
+
+
+
+Table: info_type
+================================================================================
+
+Standard Analyze Histogram:
+--------------------------------------------------------------------------------
+0.125
+
+
+Accurate Histogram:
+--------------------------------------------------------------------------------
+0.173
+
+
+
+Table: keyword
+================================================================================
+
+Standard Analyze Histogram:
+--------------------------------------------------------------------------------
+0.160
+
+
+Accurate Histogram:
+--------------------------------------------------------------------------------
+0.277
+
+
+
+Table: kind_type
+================================================================================
+
+Standard Analyze Histogram:
+--------------------------------------------------------------------------------
+0.133
+
+
+Accurate Histogram:
+--------------------------------------------------------------------------------
+0.137
+
+
+
+Table: link_type
+================================================================================
+
+Standard Analyze Histogram:
+--------------------------------------------------------------------------------
+0.125
+
+
+Accurate Histogram:
+--------------------------------------------------------------------------------
+0.137
+
+
+
+Table: movie_companies
+================================================================================
+
+Standard Analyze Histogram:
+--------------------------------------------------------------------------------
+0.258
+
+
+Accurate Histogram:
+--------------------------------------------------------------------------------
+0.759
+
+
+
+Table: movie_info
+================================================================================
+
+Standard Analyze Histogram:
+--------------------------------------------------------------------------------
+0.774
+
+
+Accurate Histogram:
+--------------------------------------------------------------------------------
+7.371
+
+
+
+Table: movie_info_idx
+================================================================================
+
+Standard Analyze Histogram:
+--------------------------------------------------------------------------------
+0.288
+
+
+Accurate Histogram:
+--------------------------------------------------------------------------------
+0.536
+
+
+
+Table: movie_keyword
+================================================================================
+
+Standard Analyze Histogram:
+--------------------------------------------------------------------------------
+0.225
+
+
+Accurate Histogram:
+--------------------------------------------------------------------------------
+1.107
+
+
+
+Table: movie_link
+================================================================================
+
+Standard Analyze Histogram:
+--------------------------------------------------------------------------------
+0.144
+
+
+Accurate Histogram:
+--------------------------------------------------------------------------------
+0.240
+
+
+
+Table: name
+================================================================================
+
+Standard Analyze Histogram:
+--------------------------------------------------------------------------------
+0.923
+
+
+Accurate Histogram:
+--------------------------------------------------------------------------------
+3.158
+
+
+
+Table: person_info
+================================================================================
+
+Standard Analyze Histogram:
+--------------------------------------------------------------------------------
+0.751
+
+
+Accurate Histogram:
+--------------------------------------------------------------------------------
+2.042
+
+
+
+Table: role_type
+================================================================================
+
+Standard Analyze Histogram:
+--------------------------------------------------------------------------------
+0.122
+
+
+Accurate Histogram:
+--------------------------------------------------------------------------------
+0.146
+
+
+
+Table: title
+================================================================================
+
+Standard Analyze Histogram:
+--------------------------------------------------------------------------------
+0.641
+
+
+Accurate Histogram:
+--------------------------------------------------------------------------------
+1.946
+
+
+
