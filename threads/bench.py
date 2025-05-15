@@ -5,6 +5,8 @@ import signal
 import threading
 import os
 import re
+import statistics  # For calculating statistics
+import random  # For generating random IDs
 
 # Global variables
 shutdown_flag = False
@@ -12,6 +14,7 @@ operations_lock = threading.Lock()
 ongoing_operations = 0
 total_operation_time = 0.0
 total_executed_operations = 0
+execution_times = []  # List to store individual execution times
 
 DEFAULT_DATABASE = "mytestdb"
 
@@ -47,9 +50,12 @@ def execute_snowsql(query, database, warehouse):
         query,
     ]
 
+    start_time = time.time()
     try:
         result = subprocess.run(command, text=True, capture_output=True, check=True)
-        return result.stdout
+        end_time = time.time()
+        execution_time = end_time - start_time
+        return result.stdout, execution_time
     except subprocess.CalledProcessError as e:
         raise RuntimeError(f"snowsql command failed: {e.stderr}")
 
@@ -57,7 +63,11 @@ def execute_snowsql(query, database, warehouse):
 def execute_bendsql(query, database):
     """Execute an SQL query using bendsql."""
     command = ["bendsql", "--query=" + query, "--database=" + database, "--time=server"]
+    
+    start_time = time.time()
     result = subprocess.run(command, text=True, capture_output=True)
+    end_time = time.time()
+    execution_time = end_time - start_time
 
     if "APIError: ResponseError" in result.stderr:
         raise RuntimeError(
@@ -68,7 +78,7 @@ def execute_bendsql(query, database):
             f"bendsql command failed with return code {result.returncode}: {result.stderr}"
         )
 
-    return result.stdout
+    return result.stdout, execution_time
 
 
 def execute_sql(query, sql_tool, database, warehouse=None):
@@ -81,10 +91,13 @@ def execute_sql(query, sql_tool, database, warehouse=None):
         raise ValueError(f"Invalid sql_tool: {sql_tool}")
 
 
-def execute_select_query(thread_number, database, sql_tool, warehouse):
-    query = f"SELECT * FROM test_table LIMIT 1"
-    execute_sql(query, sql_tool, database, warehouse)
-    return query
+def execute_point_query(thread_number, database, sql_tool, warehouse):
+    """Execute a point query (select by ID)."""
+    # Generate a random ID between 0 and 4 (since we inserted 5 rows)
+    point_id = random.randint(0, 4)
+    query = f"SELECT * FROM test_table WHERE id = {point_id}"
+    output, execution_time = execute_sql(query, sql_tool, database, warehouse)
+    return query, execution_time
 
 
 def execute_init(database, sql_tool, warehouse):
@@ -119,7 +132,7 @@ def execute_init(database, sql_tool, warehouse):
 
 
 def worker_thread(start_index, end_index, operation_function, sql_tool, database, warehouse):
-    global ongoing_operations, total_executed_operations
+    global ongoing_operations, total_executed_operations, total_operation_time
     
     for i in range(start_index, end_index):
         if shutdown_flag:
@@ -130,12 +143,14 @@ def worker_thread(start_index, end_index, operation_function, sql_tool, database
             
         try:
             thread_id = threading.get_ident()
-            query = operation_function(i, database, sql_tool, warehouse)
+            query, execution_time = operation_function(i, database, sql_tool, warehouse)
             
             with operations_lock:
                 total_executed_operations += 1
+                total_operation_time += execution_time
+                execution_times.append(execution_time)
                 
-            print(f"Thread ID: {thread_id}, Executed Query: {query}")
+            print(f"Thread ID: {thread_id}, Executed Query: {query}, Time: {execution_time:.4f}s")
             
         except Exception as e:
             print(f"Error executing operation {i}: {e}")
@@ -168,8 +183,45 @@ def status_monitor():
             )
 
 
+def print_summary():
+    """Print a summary of the benchmark results."""
+    global total_executed_operations, total_operation_time, execution_times
+    
+    if total_executed_operations == 0:
+        print("No operations were executed.")
+        return
+    
+    avg_time = total_operation_time / total_executed_operations
+    
+    if execution_times:
+        min_time = min(execution_times)
+        max_time = max(execution_times)
+        median_time = statistics.median(execution_times)
+        if len(execution_times) > 1:
+            stddev_time = statistics.stdev(execution_times)
+        else:
+            stddev_time = 0
+    else:
+        min_time = max_time = median_time = stddev_time = 0
+    
+    print("\n" + "="*80)
+    print("BENCHMARK SUMMARY")
+    print("="*80)
+    print(f"Total operations executed: {total_executed_operations}")
+    print(f"Total execution time: {total_operation_time:.2f} seconds")
+    print(f"Average execution time per operation: {avg_time:.4f} seconds")
+    print(f"Minimum execution time: {min_time:.4f} seconds")
+    print(f"Maximum execution time: {max_time:.4f} seconds")
+    print(f"Median execution time: {median_time:.4f} seconds")
+    print(f"Standard deviation: {stddev_time:.4f} seconds")
+    print("="*80)
+
+
 def benchmark(operation_function, total_operations, num_threads, sql_tool, database, warehouse):
     global shutdown_flag
+    
+    # Record start time
+    benchmark_start_time = time.time()
     
     # Create and start worker threads
     threads = []
@@ -194,11 +246,18 @@ def benchmark(operation_function, total_operations, num_threads, sql_tool, datab
     for thread in threads:
         thread.join()
     
+    # Record end time
+    benchmark_end_time = time.time()
+    total_benchmark_time = benchmark_end_time - benchmark_start_time
+    
     # Signal the monitor thread to stop
     shutdown_flag = True
     monitor.join()
     
-    print("Benchmarking completed.")
+    print(f"\nBenchmarking completed in {total_benchmark_time:.2f} seconds.")
+    
+    # Print summary statistics
+    print_summary()
 
 
 def parse_arguments():
@@ -256,7 +315,7 @@ def main():
     execute_init(args.database, sql_tool, warehouse)
     
     # Run the benchmark
-    benchmark(execute_select_query, args.total, args.threads, sql_tool, args.database, warehouse)
+    benchmark(execute_point_query, args.total, args.threads, sql_tool, args.database, warehouse)
 
 
 if __name__ == "__main__":
