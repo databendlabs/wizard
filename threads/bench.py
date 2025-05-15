@@ -2,17 +2,18 @@ import argparse
 import subprocess
 import time
 import signal
-from multiprocessing import Process, Value, Lock
+import threading
 import os
 import re
 
-shutdown_flag = Value("b", False)
-operations_lock = Lock()
-ongoing_operations = Value("i", 0)
-total_operation_time = Value("d", 0.0)
-total_executed_operations = Value("i", 0)
+# Global variables
+shutdown_flag = False
+operations_lock = threading.Lock()
+ongoing_operations = 0
+total_operation_time = 0.0
+total_executed_operations = 0
 
-DEFAULT_DATABASE = "mytestdb"  # Define the default database name
+DEFAULT_DATABASE = "mytestdb"
 
 
 def get_bendsql_warehouse_from_env():
@@ -53,12 +54,6 @@ def execute_snowsql(query, database, warehouse):
         raise RuntimeError(f"snowsql command failed: {e.stderr}")
 
 
-def extract_snowsql_time(output):
-    """Extract execution time from the snowsql output."""
-    match = re.search(r"Time Elapsed:\s*([0-9.]+)s", output)
-    return match.group(1) if match else None
-
-
 def execute_bendsql(query, database):
     """Execute an SQL query using bendsql."""
     command = ["bendsql", "--query=" + query, "--database=" + database, "--time=server"]
@@ -76,16 +71,8 @@ def execute_bendsql(query, database):
     return result.stdout
 
 
-def extract_bendsql_time(output):
-    """Extract execution time from the bendsql output."""
-    match = re.search(r"([0-9.]+)$", output)
-    return match.group(1) if match else None
-
-
 def execute_sql(query, sql_tool, database, warehouse=None):
     """General function to execute a SQL query using the specified tool."""
-    # print(f"Executing query with {sql_tool} on database {database}: {query}")  # Print the query and tool
-
     if sql_tool == "bendsql":
         return execute_bendsql(query, database)
     elif sql_tool == "snowsql":
@@ -97,6 +84,7 @@ def execute_sql(query, sql_tool, database, warehouse=None):
 def execute_select_query(thread_number, database, sql_tool, warehouse):
     query = f"SELECT * FROM test_table LIMIT 1"
     execute_sql(query, sql_tool, database, warehouse)
+    return query
 
 
 def execute_init(database, sql_tool, warehouse):
@@ -130,75 +118,87 @@ def execute_init(database, sql_tool, warehouse):
             print(f"Error inserting data: {e}")
 
 
-def execute_operations_batch(start_index, end_index, operation_function, sql_tool, database, warehouse):
-    global total_executed_operations, ongoing_operations
+def worker_thread(start_index, end_index, operation_function, sql_tool, database, warehouse):
+    global ongoing_operations, total_executed_operations
+    
     for i in range(start_index, end_index):
-        if shutdown_flag.value:
+        if shutdown_flag:
             break
-
+            
         with operations_lock:
-            ongoing_operations.value += 1
-
+            ongoing_operations += 1
+            
         try:
-            operation_function(i, database, sql_tool, warehouse)
+            thread_id = threading.get_ident()
+            query = operation_function(i, database, sql_tool, warehouse)
+            
             with operations_lock:
-                total_executed_operations.value += 1
+                total_executed_operations += 1
+                
+            print(f"Thread ID: {thread_id}, Executed Query: {query}")
+            
         except Exception as e:
             print(f"Error executing operation {i}: {e}")
         finally:
             with operations_lock:
-                ongoing_operations.value -= 1
+                ongoing_operations -= 1
 
 
-def run_benchmark(operation_function, total_operations, num_threads, sql_tool, database, warehouse):
-    processes = []
+def status_monitor():
+    global shutdown_flag
+    
+    start_time = time.time()
+    
+    while not shutdown_flag:
+        time.sleep(1)
+        current_time = time.time()
+        elapsed_time = current_time - start_time
+        
+        with operations_lock:
+            if elapsed_time > 0:
+                throughput = total_executed_operations / elapsed_time
+            else:
+                throughput = 0
+                
+            print(
+                f"Total elapsed time: {elapsed_time:.2f} seconds, "
+                f"Operations executed: {total_executed_operations}, "
+                f"Throughput: {throughput:.2f} operations/second, "
+                f"Concurrency: {ongoing_operations}"
+            )
+
+
+def benchmark(operation_function, total_operations, num_threads, sql_tool, database, warehouse):
+    global shutdown_flag
+    
+    # Create and start worker threads
+    threads = []
     for i in range(num_threads):
-        if shutdown_flag.value:
-            break
         start_index = i * (total_operations // num_threads) + 1
         end_index = start_index + (total_operations // num_threads)
         if i == num_threads - 1:
             end_index += total_operations % num_threads
-        process = Process(
-            target=execute_operations_batch,
-            args=(start_index, end_index, operation_function, sql_tool, database, warehouse),
+            
+        thread = threading.Thread(
+            target=worker_thread,
+            args=(start_index, end_index, operation_function, sql_tool, database, warehouse)
         )
-        process.start()
-        processes.append(process)
-
-    status_process = Process(target=print_status)
-    status_process.start()
-
-    for process in processes:
-        process.join()
-
-    status_process.join()
-
-    with shutdown_flag.get_lock():
-        shutdown_flag.value = True
+        thread.start()
+        threads.append(thread)
+    
+    # Start status monitor thread
+    monitor = threading.Thread(target=status_monitor)
+    monitor.start()
+    
+    # Wait for all worker threads to complete
+    for thread in threads:
+        thread.join()
+    
+    # Signal the monitor thread to stop
+    shutdown_flag = True
+    monitor.join()
+    
     print("Benchmarking completed.")
-
-
-def print_status():
-    start_time = time.time()  # Record the start time of the benchmark
-
-    while not shutdown_flag.value:
-        time.sleep(1)
-        current_time = time.time()
-        elapsed_time = current_time - start_time  # Calculate the total elapsed time
-
-        with operations_lock:
-            if elapsed_time > 0:
-                throughput = total_executed_operations.value / elapsed_time
-            else:
-                throughput = 0
-
-            print(
-                f"Total elapsed time: {elapsed_time:.2f} seconds, "
-                f"Operations executed: {total_executed_operations.value}, "
-                f"Throughput: {throughput:.2f} operations/second, "
-                f"Concurrency: {ongoing_operations.value}"
-            )
 
 
 def parse_arguments():
@@ -211,7 +211,7 @@ def parse_arguments():
         "--total", type=int, default=100, help="Total number of operations"
     )
     parser.add_argument(
-        "--threads", type=int, default=10, help="Number of processes to use"
+        "--threads", type=int, default=10, help="Number of threads to use"
     )
     parser.add_argument(
         "--database", default=DEFAULT_DATABASE, help="Database name to use", required=False
@@ -226,33 +226,38 @@ def parse_arguments():
 
 
 def signal_handler(signum, frame):
-    with shutdown_flag.get_lock():
-        shutdown_flag.value = True
+    global shutdown_flag
+    shutdown_flag = True
     print("Interrupt signal received, initiating graceful shutdown.")
 
 
 def main():
+    # Register signal handler
+    signal.signal(signal.SIGINT, signal_handler)
+    
+    # Parse command line arguments
     args = parse_arguments()
 
+    # Determine which SQL tool to use
     if args.runbend:
         sql_tool = "bendsql"
         try:
             warehouse = get_bendsql_warehouse_from_env()
         except ValueError as e:
             print(f"Error getting bendsql warehouse: {e}")
-            warehouse = None  # Or set a default if appropriate
+            warehouse = None
     elif args.runsnow:
         sql_tool = "snowsql"
         warehouse = args.warehouse
     else:
         raise ValueError("Must specify either --runbend or --runsnow")
 
+    # Initialize database and table
     execute_init(args.database, sql_tool, warehouse)
-    operation_function = execute_select_query
-
-    run_benchmark(operation_function, args.total, args.threads, sql_tool, args.database, warehouse)
+    
+    # Run the benchmark
+    benchmark(execute_select_query, args.total, args.threads, sql_tool, args.database, warehouse)
 
 
 if __name__ == "__main__":
-    signal.signal(signal.SIGINT, signal_handler)
     main()
