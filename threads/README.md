@@ -38,13 +38,8 @@ options:
   -h, --help            show this help message and exit
   --runbend             Run only bendsql queries
   --runsnow             Run only snowsql queries
-  --creates             Benchmark table creation
-  --selects             Benchmark select queries
   --total TOTAL         Total number of operations
   --threads THREADS     Number of processes to use
-  --database DATABASE   Database name to use
-  --warehouse WAREHOUSE
-                        Warehouse name for snowsql
 ```
 
 # Example
@@ -52,23 +47,12 @@ options:
 ## Databend
 
 ```bash
-python3 bench.py --selects --total 10000000 --threads 100 --runbend
+python bench.py --runbend --total 10000000 --threads 100
 ```
 
-or
-
-```bash
-python3 bench.py --creates --total 10000000 --threads 100 --runbend
-```
 
 ## Snowflake
 
 ```bash
-python3 bench.py --selects --total 10000000 --threads 100 --runsnow
-```
-
-or
-
-```bash
-python3 bench.py --creates --total 10000000 --threads 100 --runsnow
+python bench.py --runsnow --total 10000000 --threads 100
 ```
