@@ -47,12 +47,12 @@ options:
 ## Databend
 
 ```bash
-python bench.py --runbend --total 10000000 --threads 100
+python bench.py --runbend --total 1000 --threads 10
 ```
 
 
 ## Snowflake
 
 ```bash
-python bench.py --runsnow --total 10000000 --threads 100
+python bench.py --runsnow --total 1000 --threads 10
 ```
