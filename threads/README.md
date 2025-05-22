@@ -74,20 +74,37 @@ To create a new test case:
 ### Databend Select Query Benchmark
 
 ```bash
-python bench.py --runbend --total 100 --threads 20 --case select
+python bench.py --runbend --total 50 --threads 4 --case select
 ```
 
 ### Snowflake Select Query Benchmark
 
 ```bash
-python bench.py --runsnow --total 100 --threads 20 --case select
+python bench.py --runsnow --total 50 --threads 4 --case select
 ```
 
 ## Output
 
-The benchmark provides detailed concurrency metrics including:
 
-- Concurrency levels (average and peak)
-- Throughput (operations per second)
-- Operation execution times
-- Stability and consistency metrics
+```
+Benchmarking completed in 68.69 seconds.
+
+==================================================
+📊 BENCHMARK SUMMARY - CASE: SELECT - SNOWFLAKE
+==================================================
+• Operations: 50 completed in 68.69s
+• Concurrency: 4 threads (88.8% utilized)
+
+📈 PERFORMANCE METRICS:
+• Time per operation: 1.37s/op (total time / operations = 68.69s/50)
+• Throughput: 0.73 ops/s (avg), 3.00 ops/s (peak)
+• Efficiency: 90.0% of theoretical maximum
+
+📊 THROUGHPUT DISTRIBUTION:
+0-1 ops/s :  (0%)
+1-2 ops/s : ██████████ (53%)
+2-3 ops/s : ██████ (30%)
+3-4 ops/s : ██ (13%)
+4-5 ops/s :  (3%)
+==================================================
+```
