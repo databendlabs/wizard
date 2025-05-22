@@ -303,11 +303,20 @@ def status_monitor():
             else:
                 stability_str = ""
             
+            # Calculate real time per operation (elapsed time / operations)
+            real_time_per_op = elapsed_time / total_executed_operations if total_executed_operations > 0 else 0
+            
+            # Format elapsed time
+            hours, remainder = divmod(elapsed_time, 3600)
+            minutes, seconds = divmod(remainder, 60)
+            elapsed_time_str = f"{int(hours)}h {int(minutes)}m {int(seconds)}s"
+            
             print(
                 f"Progress: {completion_percentage:.1f}% [{total_executed_operations}/{target_operations}] | "
+                f"Elapsed: {elapsed_time_str} | "
                 f"Concurrency: {current_concurrency}/{peak_concurrency} | "
                 f"Throughput: {recent_throughput:.2f} ops/s (now), {peak_throughput:.2f} ops/s (peak) | "
-                f"Avg time: {avg_op_time:.4f}s/op | "
+                f"Time per op: {real_time_per_op:.4f}s/op | "
                 f"ETA: {time_remaining_str}"
             )
             
@@ -414,19 +423,74 @@ def print_summary(case_name=None, sql_tool=None):
     print(title)
     print("="*50)
     
-    print("📈 BASIC METRICS:")
-    print(f"• Total operations: {total_executed_operations}")
-    print(f"• Total time: {total_time:.2f}s")
-    print(f"• Avg operation time: {avg_time:.4f}s")
+    # Calculate concurrency utilization percentage
+    concurrency_utilization = (avg_concurrency / peak_concurrency * 100) if peak_concurrency > 0 else 0
     
-    print("\n🔄 CONCURRENCY PERFORMANCE:")
-    print(f"• Concurrency: {avg_concurrency:.1f} avg / {peak_concurrency} peak ({(avg_concurrency / peak_concurrency * 100):.1f}% efficiency)")
-    print(f"• Throughput: {overall_throughput:.2f} avg / {peak_throughput:.2f} peak ops/s")
-    print(f"• Theoretical max: {theoretical_max_throughput:.2f} ops/s ({throughput_efficiency:.1f}% achieved)")
+    # Calculate real time per operation (total time / operations)  
+    real_time_per_op = total_time / total_executed_operations if total_executed_operations > 0 else 0
     
-    print("\n📊 STABILITY METRICS:")
-    print(f"• Operation time: {min_time:.4f}s min / {median_time:.4f}s median / {max_time:.4f}s max")
-    print(f"• Consistency: {100 - cv_time:.1f}% time, {throughput_stability:.1f}% throughput")
+    # Basic summary
+    print(f"• Operations: {total_executed_operations} completed in {total_time:.2f}s")
+    print(f"• Concurrency: {peak_concurrency} threads ({concurrency_utilization:.1f}% utilized)")
+    
+    print("\n📈 PERFORMANCE METRICS:")
+    print(f"• Time per operation: {real_time_per_op:.2f}s/op (total time / operations = {total_time:.2f}s/{total_executed_operations})")
+    # Latency sections removed as requested
+    print(f"• Throughput: {overall_throughput:.2f} ops/s (avg), {peak_throughput:.2f} ops/s (peak)")
+    print(f"• Efficiency: {throughput_efficiency:.1f}% of theoretical maximum")
+    
+    # Create throughput distribution histogram
+    if len(end_times) >= 2:
+        # Group operations by second
+        ops_by_second = {}
+        for end_time in end_times:
+            second = int(end_time)
+            ops_by_second[second] = ops_by_second.get(second, 0) + 1
+        
+        throughput_values = list(ops_by_second.values())
+        
+        # Calculate dynamic buckets based on observed throughput
+        max_throughput = max(throughput_values) if throughput_values else 0
+        
+        # Create dynamic buckets based on max throughput
+        if max_throughput <= 1:
+            # For very low throughput
+            buckets = [(0, 0.2), (0.2, 0.4), (0.4, 0.6), (0.6, 0.8), (0.8, 1.0)]
+        elif max_throughput <= 5:
+            # For low throughput
+            buckets = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
+        elif max_throughput <= 20:
+            # For medium throughput
+            buckets = [(0, 2), (2, 5), (5, 10), (10, 15), (15, 20)]
+        elif max_throughput <= 100:
+            # For high throughput
+            buckets = [(0, 10), (10, 25), (25, 50), (50, 75), (75, 100)]
+        else:
+            # For very high throughput
+            bucket_size = max_throughput / 5
+            buckets = [(i * bucket_size, (i + 1) * bucket_size) for i in range(5)]
+        
+        bucket_counts = [0] * len(buckets)
+        
+        # Count values in each bucket
+        for value in throughput_values:
+            for i, (lower, upper) in enumerate(buckets):
+                if lower <= value < upper or (i == len(buckets) - 1 and value >= lower):
+                    bucket_counts[i] += 1
+                    break
+        
+        # Calculate percentages
+        total_seconds = len(throughput_values)
+        percentages = [count / total_seconds * 100 if total_seconds > 0 else 0 for count in bucket_counts]
+        
+        # Create ASCII histogram
+        print("\n📊 THROUGHPUT DISTRIBUTION:")
+        for i, (lower, upper) in enumerate(buckets):
+            bucket_label = f"{lower}-{upper} ops/s" if upper != float('inf') else f"{lower}+ ops/s"
+            bar_length = int(percentages[i] / 5)  # Scale to reasonable length
+            bar = "█" * bar_length
+            print(f"{bucket_label:10}: {bar} ({percentages[i]:.0f}%)")
+    
     print("="*50)
 
 
