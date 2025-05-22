@@ -124,7 +124,8 @@ def execute_sql_file(file_path, sql_tool, database, warehouse, replacements=None
 
 
 def execute_case_action(thread_number, database, sql_tool, warehouse, case_name):
-    """Execute an action query from the specified case's action.sql file."""
+    """Execute an action query from the specified case's action.sql file.
+    Uses the specified database for all operations."""
     # Read from case action file
     action_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"cases/{case_name}/action.sql")
     try:
@@ -141,54 +142,35 @@ def execute_case_action(thread_number, database, sql_tool, warehouse, case_name)
 
 def execute_init(database, sql_tool, warehouse, case_name=None):
     """Initialize the database and tables for benchmarking.
+    First creates or replaces the database specified by the --database parameter.
     If case_name is provided, use the setup.sql file from the case directory.
     Otherwise, use the default initialization."""
-    default_db = "default" if sql_tool == "bendsql" else database
+    # Use a system database for initial operations
+    default_db = "default" if sql_tool == "bendsql" else "default"
+    
+    # Create or replace the specified database
+    try:
+        query = f"CREATE OR REPLACE DATABASE {database}"
+        print(f"Creating database: {database}")
+        execute_sql(query, sql_tool, default_db, warehouse)
+    except Exception as e:
+        print(f"Error creating database {database}: {e}")
     
     if case_name:
         # Use the setup file from the case directory
         setup_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"cases/{case_name}/setup.sql")
         if os.path.exists(setup_file):
             print(f"Running setup from {setup_file}...")
-            success = execute_sql_file(setup_file, sql_tool, default_db, warehouse)
+            success = execute_sql_file(setup_file, sql_tool, database, warehouse)
             if not success:
-                print(f"Warning: Setup from {setup_file} failed. Falling back to default initialization.")
-                execute_default_init(database, sql_tool, default_db, warehouse)
+                print(f"Warning: Setup from {setup_file} failed.")
+                print(f"Database {database} is ready but no tables were created.")
         else:
-            print(f"Setup file not found at {setup_file}. Using default initialization.")
-            execute_default_init(database, sql_tool, default_db, warehouse)
+            print(f"Setup file not found at {setup_file}.")
+            print(f"Database {database} is ready but no tables were created.")
     else:
-        # Use default initialization
-        execute_default_init(database, sql_tool, default_db, warehouse)
-
-
-def execute_default_init(database, sql_tool, default_db, warehouse):
-    """Execute the default initialization for the benchmark."""
-    try:
-        query = f"DROP DATABASE IF EXISTS {database}"
-        execute_sql(query, sql_tool, default_db, warehouse)
-    except Exception as e:
-        print(f"Error dropping database: {e}")
-
-    try:
-        query = f"CREATE DATABASE {database}"
-        execute_sql(query, sql_tool, default_db, warehouse)
-    except Exception as e:
-        print(f"Error creating database: {e}")
-
-    try:
-        query = f"CREATE TABLE {database}.test_table (id INT, name VARCHAR(255))"
-        execute_sql(query, sql_tool, default_db, warehouse)
-    except Exception as e:
-        print(f"Error creating table: {e}")
-
-    # Insert some data
-    for i in range(5):
-        try:
-            query = f"INSERT INTO {database}.test_table (id, name) VALUES ({i}, 'Name {i}')"
-            execute_sql(query, sql_tool, default_db, warehouse)
-        except Exception as e:
-            print(f"Error inserting data: {e}")
+        # No default initialization, just print status
+        print(f"Database {database} is ready. No setup files were specified.")
 
 
 def worker_thread(start_index, end_index, operation_function, sql_tool, database, warehouse):

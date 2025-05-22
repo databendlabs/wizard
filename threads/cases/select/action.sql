@@ -1,1 +1,1 @@
-SELECT * FROM benchmark_db.test_table WHERE id = 1;
+SELECT * FROM test_table WHERE id = 1;
