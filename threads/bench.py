@@ -99,19 +99,71 @@ def execute_sql(query, sql_tool, database, warehouse=None):
         raise ValueError(f"Invalid sql_tool: {sql_tool}")
 
 
-def execute_point_query(thread_number, database, sql_tool, warehouse):
-    """Execute a point query (select by ID)."""
-    # Generate a random ID between 0 and 4 (since we inserted 5 rows)
-    point_id = random.randint(0, 4)
-    query = f"SELECT * FROM test_table WHERE id = {point_id}"
-    output, execution_time = execute_sql(query, sql_tool, database, warehouse)
-    return query, execution_time
+def execute_sql_file(file_path, sql_tool, database, warehouse, replacements=None):
+    """Execute SQL statements from a file."""
+    try:
+        with open(file_path, 'r') as f:
+            sql_content = f.read()
+        
+        # Apply any replacements to the SQL content
+        if replacements:
+            for key, value in replacements.items():
+                sql_content = sql_content.replace(key, str(value))
+        
+        # Split the SQL content into individual statements
+        statements = [stmt.strip() for stmt in sql_content.split(';') if stmt.strip()]
+        
+        for statement in statements:
+            if statement:
+                execute_sql(statement, sql_tool, database, warehouse)
+                
+        return True
+    except Exception as e:
+        print(f"Error executing SQL file {file_path}: {e}")
+        return False
 
 
-def execute_init(database, sql_tool, warehouse):
-    # Initialize the database and table
+def execute_case_action(thread_number, database, sql_tool, warehouse, case_name):
+    """Execute an action query from the specified case's action.sql file."""
+    # Read from case action file
+    action_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"cases/{case_name}/action.sql")
+    try:
+        with open(action_file, 'r') as f:
+            query = f.read().strip()
+        
+        # Execute the query directly without any parameter substitution
+        output, execution_time = execute_sql(query, sql_tool, database, warehouse)
+        return query, execution_time
+    except Exception as e:
+        print(f"Error executing action from {action_file}: {e}")
+        return f"Error: {e}", 0
+
+
+def execute_init(database, sql_tool, warehouse, case_name=None):
+    """Initialize the database and tables for benchmarking.
+    If case_name is provided, use the setup.sql file from the case directory.
+    Otherwise, use the default initialization."""
     default_db = "default" if sql_tool == "bendsql" else database
+    
+    if case_name:
+        # Use the setup file from the case directory
+        setup_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"cases/{case_name}/setup.sql")
+        if os.path.exists(setup_file):
+            print(f"Running setup from {setup_file}...")
+            success = execute_sql_file(setup_file, sql_tool, default_db, warehouse)
+            if not success:
+                print(f"Warning: Setup from {setup_file} failed. Falling back to default initialization.")
+                execute_default_init(database, sql_tool, default_db, warehouse)
+        else:
+            print(f"Setup file not found at {setup_file}. Using default initialization.")
+            execute_default_init(database, sql_tool, default_db, warehouse)
+    else:
+        # Use default initialization
+        execute_default_init(database, sql_tool, default_db, warehouse)
 
+
+def execute_default_init(database, sql_tool, default_db, warehouse):
+    """Execute the default initialization for the benchmark."""
     try:
         query = f"DROP DATABASE IF EXISTS {database}"
         execute_sql(query, sql_tool, default_db, warehouse)
@@ -181,6 +233,9 @@ def status_monitor():
     last_ops_count = 0
     last_time = start_time
     
+    # For tracking throughput stability
+    throughput_history = []
+    
     while not shutdown_flag:
         time.sleep(1)
         current_time = time.time()
@@ -200,6 +255,7 @@ def status_monitor():
             interval_ops = total_executed_operations - last_ops_count
             interval_throughput = interval_ops / interval_time if interval_time > 0 else 0
             throughput_window.append(interval_throughput)
+            throughput_history.append(interval_throughput)
             
             # Update peak throughput if needed
             if interval_throughput > peak_throughput:
@@ -211,14 +267,16 @@ def status_monitor():
             # Calculate recent throughput (last 10 seconds or less)
             recent_throughput = sum(throughput_window) / len(throughput_window) if throughput_window else 0
             
-            # Calculate concurrency efficiency
-            concurrency_efficiency = (current_concurrency / peak_concurrency * 100) if peak_concurrency > 0 else 0
-            
             # Calculate completion percentage
             completion_percentage = (total_executed_operations / target_operations * 100) if target_operations > 0 else 0
             
             # Calculate average operation execution time
             avg_op_time = total_operation_time / total_executed_operations if total_executed_operations > 0 else 0
+            
+            # Calculate concurrency metrics
+            concurrency_efficiency = (current_concurrency / peak_concurrency * 100) if peak_concurrency > 0 else 0
+            theoretical_max_throughput = current_concurrency / avg_op_time if avg_op_time > 0 else 0
+            throughput_efficiency = (recent_throughput / theoretical_max_throughput * 100) if theoretical_max_throughput > 0 else 0
             
             # Calculate estimated time remaining
             if recent_throughput > 0:
@@ -235,12 +293,22 @@ def status_monitor():
             else:
                 time_remaining_str = "N/A"
             
+            # Calculate throughput stability (coefficient of variation) if we have enough samples
+            if len(throughput_history) > 5:
+                recent_history = throughput_history[-5:]
+                throughput_stddev = statistics.stdev(recent_history) if len(recent_history) > 1 else 0
+                throughput_mean = statistics.mean(recent_history)
+                throughput_cv = (throughput_stddev / throughput_mean * 100) if throughput_mean > 0 else 0
+                stability_str = f"Stability: {100-throughput_cv:.1f}% | "
+            else:
+                stability_str = ""
+            
             print(
                 f"Progress: {completion_percentage:.1f}% [{total_executed_operations}/{target_operations}] | "
-                f"ETA: {time_remaining_str} | "
+                f"Concurrency: {current_concurrency}/{peak_concurrency} | "
+                f"Throughput: {recent_throughput:.2f} ops/s (now), {peak_throughput:.2f} ops/s (peak) | "
                 f"Avg time: {avg_op_time:.4f}s/op | "
-                f"Concurrency: {current_concurrency}/{peak_concurrency} ({concurrency_efficiency:.1f}%) | "
-                f"Throughput: {overall_throughput:.2f} ops/s (avg), {recent_throughput:.2f} ops/s (recent)"
+                f"ETA: {time_remaining_str}"
             )
             
             # Update for next interval
@@ -273,7 +341,7 @@ def calculate_overlap(start_times, end_times):
     return max_concurrent
 
 
-def print_summary():
+def print_summary(case_name=None, sql_tool=None):
     """Print a summary of the benchmark results with focus on concurrency."""
     global total_executed_operations, total_operation_time, execution_times, concurrency_samples, start_times, end_times, peak_concurrency, peak_throughput
     
@@ -289,46 +357,80 @@ def print_summary():
         median_time = statistics.median(execution_times)
         if len(execution_times) > 1:
             stddev_time = statistics.stdev(execution_times)
+            cv_time = (stddev_time / avg_time) * 100 if avg_time > 0 else 0  # Coefficient of variation as percentage
         else:
             stddev_time = 0
+            cv_time = 0
     else:
-        min_time = max_time = median_time = stddev_time = 0
+        min_time = max_time = median_time = stddev_time = cv_time = 0
     
     # Calculate concurrency metrics
     avg_concurrency = sum(concurrency_samples) / len(concurrency_samples) if concurrency_samples else 0
     max_concurrency = max(concurrency_samples) if concurrency_samples else 0
     max_overlap = calculate_overlap(start_times, end_times)
     
+    # Calculate concurrency stability (coefficient of variation)
+    if len(concurrency_samples) > 1:
+        concurrency_stddev = statistics.stdev(concurrency_samples)
+        concurrency_cv = (concurrency_stddev / avg_concurrency) * 100 if avg_concurrency > 0 else 0
+    else:
+        concurrency_cv = 0
+    
     # Calculate throughput metrics
     total_time = max(end_times) - min(start_times) if start_times and end_times else 0
     overall_throughput = total_executed_operations / total_time if total_time > 0 else 0
     
-    print("\n" + "="*80)
-    print("BENCHMARK SUMMARY")
-    print("="*80)
-    print("CONCURRENCY METRICS:")
-    print(f"Average concurrency level: {avg_concurrency:.2f} operations")
-    print(f"Maximum concurrency level observed: {max_concurrency} operations")
-    print(f"Peak concurrency (from monitor): {peak_concurrency} operations")
-    print(f"Maximum concurrent operations (based on timing overlap): {max_overlap} operations")
-    print(f"Concurrency efficiency: {(avg_concurrency / max_concurrency * 100):.2f}% of maximum" if max_concurrency > 0 else "N/A")
+    # Calculate theoretical maximum throughput based on average operation time
+    theoretical_max_throughput = max_concurrency / avg_time if avg_time > 0 else 0
+    throughput_efficiency = (overall_throughput / theoretical_max_throughput) * 100 if theoretical_max_throughput > 0 else 0
     
-    print("\nTHROUGHPUT METRICS:")
-    print(f"Overall throughput: {overall_throughput:.2f} operations/second")
-    print(f"Peak throughput: {peak_throughput:.2f} operations/second")
+    # Calculate throughput over time
+    if len(start_times) >= 2:
+        # Group operations by second
+        ops_by_second = {}
+        for end_time in end_times:
+            second = int(end_time)
+            ops_by_second[second] = ops_by_second.get(second, 0) + 1
+        
+        # Calculate throughput statistics
+        throughput_values = list(ops_by_second.values())
+        if len(throughput_values) > 1:
+            throughput_stddev = statistics.stdev(throughput_values)
+            throughput_mean = statistics.mean(throughput_values)
+            throughput_cv = (throughput_stddev / throughput_mean) * 100 if throughput_mean > 0 else 0
+            throughput_stability = 100 - throughput_cv  # Higher is more stable
+        else:
+            throughput_stability = 100
+    else:
+        throughput_stability = 0
     
-    print("\nPERFORMANCE METRICS:")
-    print(f"Total operations executed: {total_executed_operations}")
-    print(f"Total execution time: {total_operation_time:.2f} seconds")
-    print(f"Average execution time per operation: {avg_time:.4f} seconds")
-    print(f"Minimum execution time: {min_time:.4f} seconds")
-    print(f"Maximum execution time: {max_time:.4f} seconds")
-    print(f"Median execution time: {median_time:.4f} seconds")
-    print(f"Standard deviation: {stddev_time:.4f} seconds")
-    print("="*80)
+    print("\n" + "="*50)
+    title = "📊 BENCHMARK SUMMARY"
+    if case_name:
+        title += f" - CASE: {case_name.upper()}"
+    if sql_tool:
+        tool_name = "DATABEND" if sql_tool == "bendsql" else "SNOWFLAKE"
+        title += f" - {tool_name}"
+    print(title)
+    print("="*50)
+    
+    print("📈 BASIC METRICS:")
+    print(f"• Total operations: {total_executed_operations}")
+    print(f"• Total time: {total_time:.2f}s")
+    print(f"• Avg operation time: {avg_time:.4f}s")
+    
+    print("\n🔄 CONCURRENCY PERFORMANCE:")
+    print(f"• Concurrency: {avg_concurrency:.1f} avg / {peak_concurrency} peak ({(avg_concurrency / peak_concurrency * 100):.1f}% efficiency)")
+    print(f"• Throughput: {overall_throughput:.2f} avg / {peak_throughput:.2f} peak ops/s")
+    print(f"• Theoretical max: {theoretical_max_throughput:.2f} ops/s ({throughput_efficiency:.1f}% achieved)")
+    
+    print("\n📊 STABILITY METRICS:")
+    print(f"• Operation time: {min_time:.4f}s min / {median_time:.4f}s median / {max_time:.4f}s max")
+    print(f"• Consistency: {100 - cv_time:.1f}% time, {throughput_stability:.1f}% throughput")
+    print("="*50)
 
 
-def benchmark(operation_function, total_operations, num_threads, sql_tool, database, warehouse):
+def benchmark(operation_function, total_operations, num_threads, sql_tool, database, warehouse, case_name=None):
     global shutdown_flag, target_operations
     
     # Set the target operations count
@@ -375,30 +477,24 @@ def benchmark(operation_function, total_operations, num_threads, sql_tool, datab
     print(f"\nBenchmarking completed in {total_benchmark_time:.2f} seconds.")
     
     # Print summary statistics
-    print_summary()
+    print_summary(case_name, sql_tool)
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Benchmark queries in SQL databases.")
-    group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--runbend", action="store_true", help="Use bendsql tool")
-    group.add_argument("--runsnow", action="store_true", help="Use snowsql tool")
-
-    parser.add_argument(
-        "--total", type=int, default=100, help="Total number of operations"
-    )
-    parser.add_argument(
-        "--threads", type=int, default=10, help="Number of threads to use"
-    )
-    parser.add_argument(
-        "--database", default=DEFAULT_DATABASE, help="Database name to use", required=False
-    )
-    parser.add_argument(
-        "--warehouse",
-        default="COMPUTE_WH",
-        help="Warehouse name for snowsql",
-        required=False,
-    )
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description="Benchmark SQL queries with concurrency.")
+    
+    parser.add_argument("--total", type=int, default=1000, help="Total number of operations to execute")
+    parser.add_argument("--threads", type=int, default=10, help="Number of concurrent threads")
+    parser.add_argument("--database", type=str, default=DEFAULT_DATABASE, help="Database name to use")
+    parser.add_argument("--warehouse", type=str, default="COMPUTE_WH", help="Warehouse name for Snowflake (default: COMPUTE_WH)")
+    parser.add_argument("--case", type=str, help="Test case to run (e.g., 'select'). Uses files from cases/<case> directory")
+    
+    # Add mutually exclusive group for SQL tool selection
+    tool_group = parser.add_mutually_exclusive_group(required=True)
+    tool_group.add_argument("--runbend", action="store_true", help="Run benchmark using bendsql")
+    tool_group.add_argument("--runsnow", action="store_true", help="Run benchmark using snowsql")
+    
     return parser.parse_args()
 
 
@@ -426,16 +522,27 @@ def main():
     elif args.runsnow:
         sql_tool = "snowsql"
         warehouse = args.warehouse
+        print(f"Using Snowflake warehouse: {warehouse}")
     else:
         raise ValueError("Must specify either --runbend or --runsnow")
 
     # Initialize database and table
     print("Initializing database and table...")
-    execute_init(args.database, sql_tool, warehouse)
+    execute_init(args.database, sql_tool, warehouse, args.case)
     print("Initialization complete.")
     
+    # Ensure a case is specified
+    if not args.case:
+        print("Error: You must specify a test case using --case")
+        print("Available cases: select")
+        return
+        
+    print(f"Running benchmark with case: {args.case}")
+    # Create a function that executes the action from the specified case
+    action_func = lambda thread_num, db, tool, wh: execute_case_action(thread_num, db, tool, wh, args.case)
+    
     # Run the benchmark
-    benchmark(execute_point_query, args.total, args.threads, sql_tool, args.database, warehouse)
+    benchmark(action_func, args.total, args.threads, sql_tool, args.database, warehouse, args.case)
 
 
 if __name__ == "__main__":
