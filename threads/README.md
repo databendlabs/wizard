@@ -4,6 +4,16 @@ Benchmark tool for testing SQL query concurrency with customizable test cases.
 
 ## Requirements
 
+### Install CLI Tools
+
+For Ubuntu/Debian users, you can use our automated installer in the [cli directory](../cli) to install both BendSQL and SnowSQL:
+
+```bash
+python3 ../cli/install_bendsql_snowsql.py
+```
+
+Alternatively, you can install the tools manually:
+
 ### bendsql
 
 Install [bendsql](https://github.com/datafuselabs/bendsql)
