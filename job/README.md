@@ -7,13 +7,30 @@ This tool consolidates the functionality of env.sh, load.sh, and run.py into a s
 3. Run SQL queries from the queries directory
 4. Compare query performance with three different analyze methods
 
-# Requirements
+# Installation
 
-## bendsql
+## Prerequisites
 
-Install [bendsql](https://docs.databend.com/guides/sql-clients/bendsql/#installing-bendsql)
- 
-Config:
+This tool requires BendSQL CLI to be installed.
+
+### Automated Installation (Ubuntu/Debian)
+
+Use our CLI tools installer:
+
+```bash
+# From the wizard repository root
+cd cli
+python3 install_bendsql_snowsql.py
+```
+
+### Manual Installation
+
+Install [BendSQL](https://docs.databend.com/guides/sql-clients/bendsql/#installing-bendsql) following the official documentation.
+
+## Configuration
+
+Set up your Databend connection:
+
 ```bash
 export BENDSQL_DSN='databend://<user>:<pwd>@<tenant>--<warehouse>.gw.aws-us-east-2.default.databend.com:443'
 ```
