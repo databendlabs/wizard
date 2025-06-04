@@ -64,6 +64,14 @@ Run:
 python3 ./benchsb.py --database tpch_sf100 --runbend
 ```
 
+Add `--tpcds` flag to run TPC-DS benchmark instead of TPC-H:
+```
+python3 ./benchsb.py --tpcds --database tpcds_100 --runbend
+```
+
+
+
+
 ## Snowflake
 Setup:
 ```

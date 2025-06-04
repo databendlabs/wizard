@@ -5,6 +5,7 @@ import os
 import re
 import time
 from datetime import datetime
+import csv
 
 
 def get_bendsql_warehouse_from_env():
@@ -104,7 +105,7 @@ def restart_warehouse(sql_tool, warehouse, database):
     start_time = time.time()
     
     if sql_tool == "bendsql":
-        alter_suspend = f"ALTER WAREHOUSE '{warehouse}' SUSPEND;"
+        alter_suspend = f"ALTER WAREHOUSE \"{warehouse}\" SUSPEND;"
     else:
         alter_suspend = f"ALTER WAREHOUSE {warehouse} SUSPEND;"
 
@@ -132,6 +133,12 @@ def execute_sql_file(sql_file, sql_tool, database, warehouse, nosuspend, is_setu
     results = []
     result_file_path = "query_results.txt"
     mode = "a" if os.path.exists(result_file_path) else "w"
+    
+    # Create CSV file for results
+    csv_file_path = "result.csv"
+    with open(csv_file_path, "w", newline="") as csvfile:
+        csv_writer = csv.writer(csvfile)
+        csv_writer.writerow(["Query", "Time(s)"])  # Header
     
     total_start_time = time.time()
     successful_queries = 0
@@ -170,6 +177,11 @@ def execute_sql_file(sql_file, sql_tool, database, warehouse, nosuspend, is_setu
                     time_elapsed_float = float(time_elapsed)
                     total_execution_time += time_elapsed_float
                     successful_queries += 1
+                    
+                    # Write to CSV file
+                    with open(csv_file_path, "a", newline="") as csvfile:
+                        csv_writer = csv.writer(csvfile)
+                        csv_writer.writerow([index + 1, time_elapsed_float])
                 
                 query_total_time = time.time() - query_start_time
                 
@@ -262,6 +274,11 @@ def parse_arguments():
         action="store_true",
         help="Restart the warehouse before each query",
     )
+    parser.add_argument(
+        "--tpcds",
+        action="store_true",
+        help="Run TPC-DS queries instead of TPC-H queries",
+    )
     return parser.parse_args()
 
 
@@ -303,7 +320,8 @@ def main():
         setup_stats = execute_sql_file(setup_file, sql_tool, database, warehouse, True, is_setup=True)
         print(f"Setup completed. Total execution time: {setup_stats['total_execution_time']:.2f}s, Wall time: {setup_stats['total_wall_time']:.2f}s")
 
-    queries_file = os.path.join(sql_dir, "queries.sql")
+    # Choose between TPC-H and TPC-DS queries
+    queries_file = os.path.join(sql_dir, "tpcds_queries.sql" if args.tpcds else "queries.sql")
     queries_stats = execute_sql_file(queries_file, sql_tool, database, warehouse, args.nosuspend, is_setup=False)
     print(f"Queries completed. Total execution time: {queries_stats['total_execution_time']:.2f}s, Wall time: {queries_stats['total_wall_time']:.2f}s")
 
