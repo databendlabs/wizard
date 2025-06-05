@@ -316,7 +316,8 @@ def main():
     if args.setup:
         print(f"\n{'='*50}\nStarting setup phase\n{'='*50}")
         db_setup_time = setup_database(database, sql_tool, warehouse)
-        setup_file = os.path.join(sql_dir, "setup.sql")
+        # Choose between TPC-H and TPC-DS setup files
+        setup_file = os.path.join(sql_dir, "tpcds_setup.sql" if args.tpcds else "setup.sql")
         setup_stats = execute_sql_file(setup_file, sql_tool, database, warehouse, True, is_setup=True)
         print(f"Setup completed. Total execution time: {setup_stats['total_execution_time']:.2f}s, Wall time: {setup_stats['total_wall_time']:.2f}s")
 
