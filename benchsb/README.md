@@ -48,62 +48,98 @@ password = <password>
 
 ## TPC-H
 - TPC-H SF100, [data is from redshift](https://github.com/awslabs/amazon-redshift-utils/tree/master/src/CloudDataWarehouseBenchmark/Cloud-DWB-Derived-from-TPCH), and loaded into [Databend](./sql/bend/setup.sql)/[Snowflake](./sql/snow/setup.sql).
-- Each run, suspend the warehouse, and resume it before the query runs, this is to avoid any cache effect.
+- Each run, suspend the warehouse, and resume it before the query runs, this is to avoid any cache effect. Use the `--suspend` flag to enable this behavior.
 - Each run time is the server side time.
 
 ## TPC-DS
-- TPC-DS SF100, data is loaded from S3 into [Databend](./sql/bend/tpcds_setup.sql)/[Snowflake](./sql/snow/tpcds_setup.sql).
-- Uses the same warehouse suspension/resumption strategy as TPC-H to avoid cache effects.
+- TPC-DS SF100, [data is from redshift](https://github.com/awslabs/amazon-redshift-utils/tree/master/src/CloudDataWarehouseBenchmark/Cloud-DWB-Derived-from-TPCDS), and loaded into [Databend](./sql/bend/tpcds_setup.sql)/[Snowflake](./sql/snow/tpcds_setup.sql).
+- Uses the same warehouse suspension/resumption strategy as TPC-H to avoid cache effects. Use the `--suspend` flag to enable this behavior.
 - Server-side execution time is measured for accurate performance comparison.
 
 # How to run
 
-Before running, you should prepare the data and config:
+Before running, you should prepare the data and config. Below are the command examples for different scenarios.
 
-## Databend
-
-Setup:
-```
-python3 ./benchsb.py --database tpch_sf100 --setup --runbend
-```
-Run:
-```sql
-python3 ./benchsb.py --database tpch_sf100 --runbend
-```
+## Command Examples
 
 ### TPC-H Benchmark
-```bash
-python3 ./benchsb.py --database tpch_sf100 --runbend
-```
+
+#### Setup
+
+| Database  | Command |
+|-----------|--------|
+| Databend  | `python3 ./benchsb.py --database tpch_100 --setup --runbend` |
+| Snowflake | `python3 ./benchsb.py --database tpch_100 --setup --runsnow` |
+
+#### Run (Normal)
+
+| Database  | Command |
+|-----------|--------|
+| Databend  | `python3 ./benchsb.py --database tpch_100 --runbend` |
+| Snowflake | `python3 ./benchsb.py --database tpch_100 --runsnow` |
+
+#### Cold Run (With Warehouse Suspension)
+
+| Database  | Command |
+|-----------|--------|
+| Databend  | `python3 ./benchsb.py --database tpch_100 --runbend --suspend` |
+| Snowflake | `python3 ./benchsb.py --database tpch_100 --runsnow --suspend` |
 
 ### TPC-DS Benchmark
-Add the `--tpcds` flag to run TPC-DS benchmark instead of TPC-H:
-```bash
-python3 ./benchsb.py --tpcds --database tpcds_100 --runbend
-```
 
-When using the `--tpcds` flag with `--setup`, the script will automatically use the TPC-DS setup files instead of TPC-H:
-```bash
-python3 ./benchsb.py --tpcds --database tpcds_100 --setup --runbend
-```
+#### Setup
 
-## Snowflake
-Setup:
-```
-python3 ./benchsb.py --database tpch_sf100 --setup --runsnow
-```
-### TPC-H Benchmark
-```bash
-python3 ./benchsb.py --database tpch_sf100 --runsnow
-```
+| Database  | Command |
+|-----------|--------|
+| Databend  | `python3 ./benchsb.py --tpcds --database tpcds_100 --setup --runbend` |
+| Snowflake | `python3 ./benchsb.py --tpcds --database tpcds_100 --setup --runsnow` |
 
-### TPC-DS Benchmark
-Add the `--tpcds` flag to run TPC-DS benchmark instead of TPC-H:
-```bash
-python3 ./benchsb.py --tpcds --database tpcds_100 --runsnow
-```
+#### Run (Normal)
 
-When using the `--tpcds` flag with `--setup`, the script will automatically use the TPC-DS setup files instead of TPC-H:
-```bash
-python3 ./benchsb.py --tpcds --database tpcds_100 --setup --runsnow
+| Database  | Command |
+|-----------|--------|
+| Databend  | `python3 ./benchsb.py --tpcds --database tpcds_100 --runbend` |
+| Snowflake | `python3 ./benchsb.py --tpcds --database tpcds_100 --runsnow` |
+
+#### Cold Run (With Warehouse Suspension)
+
+| Database  | Command |
+|-----------|--------|
+| Databend  | `python3 ./benchsb.py --tpcds --database tpcds_100 --runbend --suspend` |
+| Snowflake | `python3 ./benchsb.py --tpcds --database tpcds_100 --runsnow --suspend` |
+
+
+Example output:
+
+```
+Queries Execution Summary (snowsql):
+----------------------------------------
+Total queries: 99
+Successful queries: 99
+Failed queries: 0
+Total server execution time: 409.66s
+Total warehouse restart time: 0.00s
+Total wall clock time: 495.74s
+Average query time (server): 4.14s
+
+Queries completed. Total execution time: 409.66s, Wall time: 495.74s
+
+============================================================
+FINAL BENCHMARK SUMMARY - SNOWSQL
+============================================================
+Database: tpcds_100
+Warehouse: COMPUTE_WH
+Timestamp: 2025-06-05 11:37:25.258799
+============================================================
+
+QUERIES PHASE:
+  - Queries: 99/99 successful
+  - Server execution time: 409.66s
+  - Warehouse restart time: 0.00s
+  - Total wall time: 495.74s
+
+OVERALL:
+  - Total server execution time: 409.66s
+  - Total warehouse restart time: 0.00s
+  - Total benchmark time: 496.67s
 ```

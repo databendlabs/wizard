@@ -125,7 +125,7 @@ def restart_warehouse(sql_tool, warehouse, database):
     return elapsed_time
 
 
-def execute_sql_file(sql_file, sql_tool, database, warehouse, nosuspend, is_setup=False):
+def execute_sql_file(sql_file, sql_tool, database, warehouse, suspend, is_setup=False):
     """Execute SQL queries from a file using the specified tool and write results to a file."""
     with open(sql_file, "r") as file:
         queries = [query.strip() for query in file.read().split(";") if query.strip()]
@@ -161,7 +161,7 @@ def execute_sql_file(sql_file, sql_tool, database, warehouse, nosuspend, is_setu
                 print(f"\nQuery {index+1}/{len(queries)} - Started at {datetime.now().strftime('%H:%M:%S')}")
                 print(f"SQL: {query}")
                 
-                if not nosuspend:
+                if suspend:
                     restart_time = restart_warehouse(sql_tool, warehouse, database)
                     total_restart_time += restart_time
 
@@ -269,7 +269,7 @@ def parse_arguments():
         "--runsnow", action="store_true", help="Run only snowsql setup and action"
     )
     parser.add_argument(
-        "--nosuspend",
+        "--suspend",
         default=False,
         action="store_true",
         help="Restart the warehouse before each query",
@@ -318,12 +318,12 @@ def main():
         db_setup_time = setup_database(database, sql_tool, warehouse)
         # Choose between TPC-H and TPC-DS setup files
         setup_file = os.path.join(sql_dir, "tpcds_setup.sql" if args.tpcds else "setup.sql")
-        setup_stats = execute_sql_file(setup_file, sql_tool, database, warehouse, True, is_setup=True)
+        setup_stats = execute_sql_file(setup_file, sql_tool, database, warehouse, False, is_setup=True)
         print(f"Setup completed. Total execution time: {setup_stats['total_execution_time']:.2f}s, Wall time: {setup_stats['total_wall_time']:.2f}s")
 
     # Choose between TPC-H and TPC-DS queries
     queries_file = os.path.join(sql_dir, "tpcds_queries.sql" if args.tpcds else "queries.sql")
-    queries_stats = execute_sql_file(queries_file, sql_tool, database, warehouse, args.nosuspend, is_setup=False)
+    queries_stats = execute_sql_file(queries_file, sql_tool, database, warehouse, args.suspend, is_setup=False)
     print(f"Queries completed. Total execution time: {queries_stats['total_execution_time']:.2f}s, Wall time: {queries_stats['total_wall_time']:.2f}s")
 
     overall_time = time.time() - overall_start_time
