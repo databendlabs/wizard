@@ -1,6 +1,6 @@
 # benchsb
 
-<b>Bench</b>marking for the <b>s</b>now and <b>b</b>end TPC-H queries.
+<b>Bench</b>marking for the <b>s</b>now and <b>b</b>end TPC-H and TPC-DS queries.
 
 # Installation
 
@@ -45,9 +45,16 @@ password = <password>
 ```
 
 # Test method
-- TPC-H SF100, [data is from redshift](https://github.com/awslabs/amazon-redshift-utils/tree/master/src/CloudDataWarehouseBenchmark/Cloud-DWB-Derived-from-TPCH), and loaded into [Databend](./bend/prepare.sql)/[Snowflake](./snow/prepare.sql).
+
+## TPC-H
+- TPC-H SF100, [data is from redshift](https://github.com/awslabs/amazon-redshift-utils/tree/master/src/CloudDataWarehouseBenchmark/Cloud-DWB-Derived-from-TPCH), and loaded into [Databend](./sql/bend/setup.sql)/[Snowflake](./sql/snow/setup.sql).
 - Each run, suspend the warehouse, and resume it before the query runs, this is to avoid any cache effect.
 - Each run time is the server side time.
+
+## TPC-DS
+- TPC-DS SF100, data is loaded from S3 into [Databend](./sql/bend/tpcds_setup.sql)/[Snowflake](./sql/snow/tpcds_setup.sql).
+- Uses the same warehouse suspension/resumption strategy as TPC-H to avoid cache effects.
+- Server-side execution time is measured for accurate performance comparison.
 
 # How to run
 
@@ -64,20 +71,39 @@ Run:
 python3 ./benchsb.py --database tpch_sf100 --runbend
 ```
 
-Add `--tpcds` flag to run TPC-DS benchmark instead of TPC-H:
+### TPC-H Benchmark
+```bash
+python3 ./benchsb.py --database tpch_sf100 --runbend
 ```
+
+### TPC-DS Benchmark
+Add the `--tpcds` flag to run TPC-DS benchmark instead of TPC-H:
+```bash
 python3 ./benchsb.py --tpcds --database tpcds_100 --runbend
 ```
 
-
-
+When using the `--tpcds` flag with `--setup`, the script will automatically use the TPC-DS setup files instead of TPC-H:
+```bash
+python3 ./benchsb.py --tpcds --database tpcds_100 --setup --runbend
+```
 
 ## Snowflake
 Setup:
 ```
 python3 ./benchsb.py --database tpch_sf100 --setup --runsnow
 ```
-Run:
-```sql
+### TPC-H Benchmark
+```bash
 python3 ./benchsb.py --database tpch_sf100 --runsnow
+```
+
+### TPC-DS Benchmark
+Add the `--tpcds` flag to run TPC-DS benchmark instead of TPC-H:
+```bash
+python3 ./benchsb.py --tpcds --database tpcds_100 --runsnow
+```
+
+When using the `--tpcds` flag with `--setup`, the script will automatically use the TPC-DS setup files instead of TPC-H:
+```bash
+python3 ./benchsb.py --tpcds --database tpcds_100 --setup --runsnow
 ```
