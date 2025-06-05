@@ -6,6 +6,7 @@ import re
 import time
 from datetime import datetime
 import csv
+import math
 
 
 def get_bendsql_warehouse_from_env():
@@ -125,6 +126,37 @@ def restart_warehouse(sql_tool, warehouse, database):
     return elapsed_time
 
 
+def create_ascii_table(data, headers, title=None):
+    """Create an ASCII table from data."""
+    # Calculate column widths
+    col_widths = [len(h) for h in headers]
+    for row in data:
+        for i, cell in enumerate(row):
+            col_widths[i] = max(col_widths[i], len(str(cell)))
+    
+    # Create horizontal line
+    h_line = '+' + '+'.join('-' * (w + 2) for w in col_widths) + '+'
+    
+    # Create table
+    table = []
+    if title:
+        table.append(title)
+    table.append(h_line)
+    
+    # Add headers
+    header_row = '|' + '|'.join(' ' + h.ljust(w) + ' ' for h, w in zip(headers, col_widths)) + '|'
+    table.append(header_row)
+    table.append(h_line)
+    
+    # Add data rows
+    for row in data:
+        data_row = '|' + '|'.join(' ' + str(cell).ljust(w) + ' ' for cell, w in zip(row, col_widths)) + '|'
+        table.append(data_row)
+    
+    table.append(h_line)
+    return '\n'.join(table)
+
+
 def execute_sql_file(sql_file, sql_tool, database, warehouse, suspend, is_setup=False):
     """Execute SQL queries from a file using the specified tool and write results to a file."""
     with open(sql_file, "r") as file:
@@ -198,7 +230,7 @@ def execute_sql_file(sql_file, sql_tool, database, warehouse, suspend, is_setup=
                 
                 results.append({
                     "query_index": index + 1,
-                    "server_time": time_elapsed,
+                    "server_time": float(time_elapsed) if isinstance(time_elapsed, str) else time_elapsed,
                     "total_time": query_total_time,
                     "restart_time": restart_time
                 })
@@ -215,10 +247,23 @@ def execute_sql_file(sql_file, sql_tool, database, warehouse, suspend, is_setup=
                     "query_index": index + 1,
                     "error": str(e),
                     "total_time": query_total_time,
-                    "restart_time": restart_time
+                    "restart_time": restart_time,
+                    "server_time": 0.0
                 })
 
     total_wall_time = time.time() - total_start_time
+    
+    # Create ASCII table for query times
+    table_data = []
+    for result in results:
+        if "error" not in result:
+            table_data.append([result["query_index"], f"{result['server_time']:.2f}s"])
+    
+    # Sort by query index
+    table_data.sort(key=lambda x: x[0])
+    
+    # Create ASCII table
+    query_times_table = create_ascii_table(table_data, ["Query", "Time(s)"], f"{phase} Query Execution Times:")
     
     # Print and write summary statistics
     summary = f"""
@@ -231,6 +276,8 @@ Total server execution time: {total_execution_time:.2f}s
 Total warehouse restart time: {total_restart_time:.2f}s
 Total wall clock time: {total_wall_time:.2f}s
 Average query time (server): {(total_execution_time / successful_queries if successful_queries else 0):.2f}s
+
+{query_times_table}
 """
     
     print(summary)
@@ -242,7 +289,8 @@ Average query time (server): {(total_execution_time / successful_queries if succ
         "total_wall_time": total_wall_time,
         "total_restart_time": total_restart_time,
         "successful_queries": successful_queries,
-        "total_queries": len(queries)
+        "total_queries": len(queries),
+        "results": results
     }
 
 
@@ -357,6 +405,21 @@ def main():
     print(f"  - Total benchmark time: {overall_time:.2f}s")
     print(f"{'='*60}")
     
+    # Create ASCII table for query times if queries were executed
+    if 'results' in queries_stats:
+        table_data = []
+        for result in queries_stats['results']:
+            if "error" not in result:
+                table_data.append([result["query_index"], f"{result['server_time']:.2f}s"])
+        
+        # Sort by query index
+        table_data.sort(key=lambda x: x[0])
+        
+        # Create ASCII table
+        query_times_table = create_ascii_table(table_data, ["Query", "Time(s)"], "Query Execution Times:")
+    else:
+        query_times_table = "No query results available."
+    
     # Write summary to file
     with open("benchmark_summary.txt", "a") as summary_file:
         summary_file.write(f"\n{'='*60}\nBENCHMARK SUMMARY - {sql_tool.upper()} - {datetime.now()}\n{'='*60}\n")
@@ -380,7 +443,10 @@ def main():
         summary_file.write(f"OVERALL:\n")
         summary_file.write(f"  - Total server execution time: {total_server_time:.2f}s\n")
         summary_file.write(f"  - Total warehouse restart time: {total_restart_time:.2f}s\n")
-        summary_file.write(f"  - Total benchmark time: {overall_time:.2f}s\n")
+        summary_file.write(f"  - Total benchmark time: {overall_time:.2f}s\n\n")
+        
+        # Add query times table to summary
+        summary_file.write(f"{query_times_table}\n\n")
         summary_file.write(f"{'='*60}\n")
 
 
