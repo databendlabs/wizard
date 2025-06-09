@@ -14,6 +14,14 @@ git clone https://github.com/datafuselabs/wizard.git
 cd wizard
 ```
 
+### Python Dependencies
+
+Install the required Python packages:
+
+```bash
+pip install -r requirements.txt
+```
+
 ### CLI Tools Installation
 
 For Ubuntu/Debian users, we provide an automated installer for BendSQL and SnowSQL:

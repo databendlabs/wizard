@@ -1,0 +1,11 @@
+# Core dependencies for all wizard tools
+argparse
+pathlib
+requests
+beautifulsoup4
+lxml
+databend-driver
+termcolor
+statistics
+
+# Note: These dependencies cover all tools in the wizard repository
