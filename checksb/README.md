@@ -33,12 +33,32 @@ password = <pwd>
 
 # Run
 
+## Basic Usage
+
 ```bash
-python3 checksb.py --database mergeinto --case <mergeinto|selects>
+python3 checksb.py --database test_db --case selects
 
 options:
   --run-check-only      Run only check.sql if set
-  --case CASE           Case to execute (e.g., selects, mergeinto, streams, updates, deletes)
+  --case CASE           Case to execute (e.g., selects, mergeinto, streams, updates, deletes, all).
+                        Multiple cases can be specified with comma separation (e.g., selects,streams).
+                        Use 'all' to run all available test cases.
   --runbend             Run only bendsql setup and action
   --runsnow             Run only snowsql setup and action
+```
+
+## Running Multiple Cases
+
+You can run multiple test cases by separating them with commas:
+
+```bash
+python3 checksb.py --database test_db --case selects,streams
+```
+
+## Running All Available Cases
+
+To run all available test cases:
+
+```bash
+python3 checksb.py --database test_db --case all
 ```
