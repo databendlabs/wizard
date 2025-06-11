@@ -323,9 +323,10 @@ def parse_arguments():
         help="Restart the warehouse before each query",
     )
     parser.add_argument(
-        "--tpcds",
-        action="store_true",
-        help="Run TPC-DS queries instead of TPC-H queries",
+        "--case",
+        choices=['tpch', 'tpcds'],
+        default='tpch',
+        help="Specify the benchmark case: TPC-H (default) or TPC-DS",
     )
     return parser.parse_args()
 
@@ -365,12 +366,12 @@ def main():
         print(f"\n{'='*50}\nStarting setup phase\n{'='*50}")
         db_setup_time = setup_database(database, sql_tool, warehouse)
         # Choose between TPC-H and TPC-DS setup files
-        setup_file = os.path.join(sql_dir, "tpcds_setup.sql" if args.tpcds else "setup.sql")
+        setup_file = os.path.join(sql_dir, "tpcds_setup.sql" if args.case == 'tpcds' else "setup.sql")
         setup_stats = execute_sql_file(setup_file, sql_tool, database, warehouse, False, is_setup=True)
         print(f"Setup completed. Total execution time: {setup_stats['total_execution_time']:.2f}s, Wall time: {setup_stats['total_wall_time']:.2f}s")
 
     # Choose between TPC-H and TPC-DS queries
-    queries_file = os.path.join(sql_dir, "tpcds_queries.sql" if args.tpcds else "queries.sql")
+    queries_file = os.path.join(sql_dir, "tpcds_queries.sql" if args.case == 'tpcds' else "queries.sql")
     queries_stats = execute_sql_file(queries_file, sql_tool, database, warehouse, args.suspend, is_setup=False)
     print(f"Queries completed. Total execution time: {queries_stats['total_execution_time']:.2f}s, Wall time: {queries_stats['total_wall_time']:.2f}s")
 

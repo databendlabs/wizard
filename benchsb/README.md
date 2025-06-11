@@ -68,22 +68,22 @@ Before running, you should prepare the data and config. Below are the command ex
 
 | Database  | Command |
 |-----------|--------|
-| Databend  | `python3 ./benchsb.py --database tpch_100 --setup --runbend` |
-| Snowflake | `python3 ./benchsb.py --database tpch_100 --setup --runsnow` |
+| Databend  | `python3 ./benchsb.py --case tpch --database tpch_100 --setup --runbend` |
+| Snowflake | `python3 ./benchsb.py --case tpch --database tpch_100 --setup --runsnow` |
 
 #### Run (Normal)
 
 | Database  | Command |
 |-----------|--------|
-| Databend  | `python3 ./benchsb.py --database tpch_100 --runbend` |
-| Snowflake | `python3 ./benchsb.py --database tpch_100 --runsnow` |
+| Databend  | `python3 ./benchsb.py --case tpch --database tpch_100 --runbend` |
+| Snowflake | `python3 ./benchsb.py --case tpch --database tpch_100 --runsnow` |
 
 #### Cold Run (With Warehouse Suspension)
 
 | Database  | Command |
 |-----------|--------|
-| Databend  | `python3 ./benchsb.py --database tpch_100 --runbend --suspend` |
-| Snowflake | `python3 ./benchsb.py --database tpch_100 --runsnow --suspend` |
+| Databend  | `python3 ./benchsb.py --case tpch --database tpch_100 --runbend --suspend` |
+| Snowflake | `python3 ./benchsb.py --case tpch --database tpch_100 --runsnow --suspend` |
 
 ### TPC-DS Benchmark
 
@@ -91,22 +91,22 @@ Before running, you should prepare the data and config. Below are the command ex
 
 | Database  | Command |
 |-----------|--------|
-| Databend  | `python3 ./benchsb.py --tpcds --database tpcds_100 --setup --runbend` |
-| Snowflake | `python3 ./benchsb.py --tpcds --database tpcds_100 --setup --runsnow` |
+| Databend  | `python3 ./benchsb.py --case tpcds --database tpcds_100 --setup --runbend` |
+| Snowflake | `python3 ./benchsb.py --case tpcds --database tpcds_100 --setup --runsnow` |
 
 #### Run (Normal)
 
 | Database  | Command |
 |-----------|--------|
-| Databend  | `python3 ./benchsb.py --tpcds --database tpcds_100 --runbend` |
-| Snowflake | `python3 ./benchsb.py --tpcds --database tpcds_100 --runsnow` |
+| Databend  | `python3 ./benchsb.py --case tpcds --database tpcds_100 --runbend` |
+| Snowflake | `python3 ./benchsb.py --case tpcds --database tpcds_100 --runsnow` |
 
 #### Cold Run (With Warehouse Suspension)
 
 | Database  | Command |
 |-----------|--------|
-| Databend  | `python3 ./benchsb.py --tpcds --database tpcds_100 --runbend --suspend` |
-| Snowflake | `python3 ./benchsb.py --tpcds --database tpcds_100 --runsnow --suspend` |
+| Databend  | `python3 ./benchsb.py --case tpcds --database tpcds_100 --runbend --suspend` |
+| Snowflake | `python3 ./benchsb.py --case tpcds --database tpcds_100 --runsnow --suspend` |
 
 
 Example output:
