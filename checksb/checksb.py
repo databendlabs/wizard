@@ -152,7 +152,7 @@ def run_check_sql(database_name, warehouse, script_path):
 
             # Print the preparing message with progress indicator
             logger.info(f"\n[{current_query}/{total_queries}] Testing {query_identifier}...")
-            logger.info(f"Query: {query.strip()[:100]}{'...' if len(query.strip()) > 100 else ''}")
+            logger.info(f"Query: {query.strip()[:60]}{'...' if len(query.strip()) > 60 else ''}")
 
             start_time = time.time()
             bend_result_str = fetch_query_results(query, "bendsql", database_name)
