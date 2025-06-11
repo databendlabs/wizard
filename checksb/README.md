@@ -1,11 +1,6 @@
 
 Check the operation behaves as expected, by comparing the result of the operation with snowflake.
 
-# How it works
-1. setup.sql: set up the tables and same data in Databend and Snowflake.
-2. action.sql: run the same actions in Databend and Snowflake.
-3. check.sql: run the check query to compare the result of the action in Databend and Snowflake.
-
 # Installation
 
 ## Prerequisites
@@ -27,7 +22,7 @@ python3 install_bendsql_snowsql.py
 1. Install [BendSQL](https://docs.databend.com/guides/sql-clients/bendsql/#installing-bendsql)
 2. Install [SnowSQL](https://docs.snowflake.com/en/user-guide/snowsql-install-config)
 
-## Configuration
+# Configuration
 
 ### BendSQL
 
@@ -48,10 +43,31 @@ username = <name>
 password = <pwd>
 ```
 
-# Run
+# Usage
 
-To run all available test cases:
+`python3 checksb.py --database <db_name> --case <case_name|all> [options]`
 
+## Key Options
+
+| Flag          | Description                                                      |
+|---------------|------------------------------------------------------------------|
+| `--setup`     | Run setup and action scripts before checking. (Default: skipped) |
+| `--runbend`   | With `--setup`, only run scripts for Databend.                   |
+| `--runsnow`   | With `--setup`, only run scripts for Snowflake.                  |
+| `--warehouse` | Specify Snowflake warehouse (Default: `COMPUTE_WH`).             |
+
+## Examples
+
+**Run checks only (default behavior):**
 ```bash
+# Check a single case
+python3 checksb.py --database test_db --case merges
+
+# Check all cases
 python3 checksb.py --database test_db --case all
+```
+
+**Run setup and then checks:**
+```bash
+python3 checksb.py --database test_db --case merges --setup
 ```

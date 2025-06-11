@@ -6,6 +6,7 @@ import time
 from termcolor import colored
 import logging
 from datetime import datetime
+import difflib
 
 # Global logger instance
 logger = logging.getLogger(__name__)
@@ -23,7 +24,7 @@ def parse_arguments():
         required=False,
     )
     parser.add_argument(
-        "--run-check-only", action="store_true", help="Run only check.sql if set"
+        "--setup", action="store_true", help="Run setup scripts. By default, setup is skipped."
     )
     parser.add_argument(
         "--case",
@@ -80,8 +81,7 @@ def execute_sql(query, sql_tool, database, warehouse=None):
                 return output
             sys.exit(1)
 
-        logger.info("Command executed successfully. Output:")
-        logger.info(output)
+        logger.info("Command executed successfully.")
         return output
     except subprocess.CalledProcessError as e:
         error_message = f"{sql_tool} command failed: {e.stderr}"
@@ -142,8 +142,15 @@ def run_check_sql(database_name, warehouse, script_path):
             elapsed_time = end_time - start_time
 
             if bend_result != snow_result:
+                diff = difflib.unified_diff(
+                    snow_result.splitlines(keepends=True),
+                    bend_result.splitlines(keepends=True),
+                    fromfile='snowsql',
+                    tofile='bendsql',
+                )
                 logger.error("❌ DIFFERENCE FOUND")
                 logger.error("Differences:")
+                logger.error("".join(diff))
                 logger.error("bendsql result:")
                 logger.error(bend_result)
                 logger.error("snowsql result:")
@@ -373,12 +380,7 @@ def run_single_case(case, args):
     }
 
     try:
-        if args.run_check_only:
-            # Run only the check script
-            logger.info("Running check queries only (skipping setup and action scripts)")
-            check_sql_path = f"{base_sql_dir}/check.sql"
-            check_result = run_check_sql(database_name, warehouse, check_sql_path)
-        else:
+        if args.setup:
             # Setup database based on the specified arguments
             if args.runbend:
                 logger.info("Running bendsql setup and action only")
@@ -390,10 +392,13 @@ def run_single_case(case, args):
                 logger.info("Running complete test (bendsql and snowsql)")
                 setup_and_execute("bendsql", base_sql_dir, database_name)
                 setup_and_execute("snowsql", base_sql_dir, database_name, warehouse)
+        else:
+            logger.info("Skipping setup and action scripts. Use --setup to run them.")
 
-            # Compare results from check.sql after executing scripts
-            check_sql_path = f"{base_sql_dir}/check.sql"
-            check_result = run_check_sql(database_name, warehouse, check_sql_path)
+        # Always run the check
+        logger.info("\nRunning check queries...")
+        check_sql_path = f"{base_sql_dir}/check.sql"
+        check_result = run_check_sql(database_name, warehouse, check_sql_path)
         
         # Update result with check results
         result["success"] = check_result["success"]
