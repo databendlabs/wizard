@@ -102,6 +102,9 @@ def execute_sql_scripts(sql_tool, script_path, database, warehouse=None):
 
 def fetch_query_results(query, sql_tool, database, warehouse=None):
     result = execute_sql(query, sql_tool, database, warehouse)
+    # Normalize "None" to "NULL" to treat them as semantically equivalent for comparison
+    if result is not None:
+        result = result.replace("None", "NULL")
     return result
 
 
