@@ -117,8 +117,8 @@ def normalize_line(line_string):
             continue
         try:
             num = float(part)
-            # Round to a defined number of decimal places, e.g., 6
-            num_rounded = round(num, 6)
+            # Round to a defined number of decimal places, e.g., 3
+            num_rounded = round(num, 3)
             # If after rounding, it's an integer, display as int
             if num_rounded == int(num_rounded):
                 normalized_parts.append(str(int(num_rounded)))
