@@ -117,10 +117,15 @@ def normalize_line(line_string):
             continue
         try:
             num = float(part)
-            if num == int(num): # Check if it's an integer to avoid ".0"
-                normalized_parts.append(str(int(num)))
+            # Round to a defined number of decimal places, e.g., 6
+            num_rounded = round(num, 6)
+            # If after rounding, it's an integer, display as int
+            if num_rounded == int(num_rounded):
+                normalized_parts.append(str(int(num_rounded)))
             else:
-                normalized_parts.append(str(num)) # Normalize float representation
+                # Format to ensure consistent number of decimal places if needed, or just str()
+                # Using str() will show up to 6 decimal places correctly due to rounding.
+                normalized_parts.append(str(num_rounded))
         except ValueError:
             normalized_parts.append(part) # Not a number, keep original
     return "\t".join(normalized_parts) # Rejoin with tabs for consistent spacing
