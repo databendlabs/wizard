@@ -157,13 +157,13 @@ def run_check_sql(database_name, warehouse, script_path):
             query_identifier = match.group(1).strip() if match else f"Query-{current_query}"
 
             # Print the preparing message with progress indicator
-            logger.info(f"\n[{current_query+1}/{total_queries}] Testing {query_identifier}...")
+            logger.info(f"\n[{current_query}/{total_queries}] Testing {query_identifier}...")
 
             start_time = time.time()
             bend_result_str = fetch_query_results(query, "bendsql", database_name)
             snow_result_str = fetch_query_results(query, "snowsql", database_name, warehouse)
 
-            current_query += 1
+            # current_query is now incremented only once at the start of the loop iteration
 
             bend_is_error = bend_result_str is not None and bend_result_str.startswith("__ERROR__:")
             snow_is_error = snow_result_str is not None and snow_result_str.startswith("__ERROR__:")
