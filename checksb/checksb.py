@@ -164,8 +164,9 @@ def run_check_sql(database_name, warehouse, script_path):
 
             # Stage 1: Exact string comparison
             if bend_result_str == snow_result_str:
-                logger.info(f"✅ MATCH (exact) - Results are identical ({elapsed_time:.2f}s)")
                 passed_tests.append((query_identifier, elapsed_time))
+                progress_summary = f" [Progress: passed {len(passed_tests)}, failed {len(failed_tests)}, total {current_query}/{total_queries}]"
+                logger.info(f"✅ MATCH (exact) - Results are identical ({elapsed_time:.2f}s){progress_summary}")
             else:
                 # Stage 2: Normalized, Order-Sensitive Comparison
                 bend_lines_raw = bend_result_str.splitlines()
@@ -175,38 +176,50 @@ def run_check_sql(database_name, warehouse, script_path):
                 snow_lines_normalized_ordered = [normalize_line(line) for line in snow_lines_raw]
 
                 if bend_lines_normalized_ordered == snow_lines_normalized_ordered:
-                    logger.info(f"✅ MATCH (numeric format, order-sensitive) - Results identical after numeric normalization ({elapsed_time:.2f}s)")
-                    logger.info("  (Note: Original results differed only in numeric formatting but content and order were otherwise the same)")
                     passed_tests.append((query_identifier, elapsed_time))
+                    progress_summary = f" [Progress: passed {len(passed_tests)}, failed {len(failed_tests)}, total {current_query}/{total_queries}]"
+                    logger.info(f"✅ MATCH (numeric format, order-sensitive) - Results identical after numeric normalization ({elapsed_time:.2f}s){progress_summary}")
+                    logger.info("  (Note: Original results differed only in numeric formatting but content and order were otherwise the same)")
                 else:
                     # Stage 3: Normalized, Order-Agnostic Comparison
                     bend_lines_normalized_sorted = sorted(bend_lines_normalized_ordered)
                     snow_lines_normalized_sorted = sorted(snow_lines_normalized_ordered)
 
                     if bend_lines_normalized_sorted == snow_lines_normalized_sorted:
-                        logger.info(f"✅ MATCH (numeric format, order-agnostic) - Results identical after numeric normalization and ignoring row order ({elapsed_time:.2f}s)")
-                        logger.info("  (Note: Original results differed in row order and/or numeric formatting, but content is the same after normalization)")
                         passed_tests.append((query_identifier, elapsed_time))
+                        progress_summary = f" [Progress: passed {len(passed_tests)}, failed {len(failed_tests)}, total {current_query}/{total_queries}]"
+                        logger.info(f"✅ MATCH (numeric format, order-agnostic) - Results identical after numeric normalization and ignoring row order ({elapsed_time:.2f}s){progress_summary}")
+                        logger.info("  (Note: Original results differed in row order and/or numeric formatting, but content is the same after normalization)")
                     else:
                         # Stage 4: Reporting Differences
-                        # Diff is based on sorted, normalized lines to show actual content differences
-                        diff = difflib.unified_diff(
-                            [line + '\n' for line in snow_lines_normalized_sorted],
-                            [line + '\n' for line in bend_lines_normalized_sorted],
-                            fromfile='snowsql (normalized & sorted)',
-                            tofile='bendsql (normalized & sorted)',
-                        )
-                        logger.error("❌ DIFFERENCE FOUND (content mismatch after all normalizations)")
-                        logger.error("Differences (based on normalized & sorted results):")
-                        logger.error("".join(diff))
+                        failed_tests.append((query_identifier, bend_result_str, snow_result_str))
+                        progress_summary = f" [Progress: passed {len(passed_tests)}, failed {len(failed_tests)}, total {current_query}/{total_queries}]"
+                        logger.error(f"❌ DIFFERENCE FOUND (content mismatch after all normalizations){progress_summary}")
+                        logger.error("Differences (line-by-line, based on normalized & sorted results):")
+                        
+                        len_snow = len(snow_lines_normalized_sorted)
+                        len_bend = len(bend_lines_normalized_sorted)
+                        max_len = max(len_snow, len_bend)
+
+                        for i in range(max_len):
+                            row_num = i + 1
+                            snow_line_display = snow_lines_normalized_sorted[i] if i < len_snow else "--- (missing in snowsql output)"
+                            bend_line_display = bend_lines_normalized_sorted[i] if i < len_bend else "--- (missing in bendsql output)"
+
+                            # Only print if lines actually differ or one is missing
+                            if (i >= len_snow or i >= len_bend or 
+                                snow_lines_normalized_sorted[i] != bend_lines_normalized_sorted[i]):
+                                logger.error(f"  row-{row_num}:")
+                                logger.error(f"    snowsql: {snow_line_display}")
+                                logger.error(f"    bendsql: {bend_line_display}")
+                        
+                        if len_snow != len_bend:
+                            logger.error(f"  (Note: Result sets have different number of rows after normalization: snowsql {len_snow}, bendsql {len_bend})")
                         logger.error("bendsql result (original):")
                         logger.error(bend_result_str)
                         logger.error("snowsql result (original):")
                         logger.error(snow_result_str)
-                        failed_tests.append((query_identifier, bend_result_str, snow_result_str))
             
-            # Print current progress summary
-            logger.info(f"\nCurrent Progress: [passed: {len(passed_tests)}, failed: {len(failed_tests)}, total: {current_query}/{total_queries}]")
 
     total_end_time = time.time()
     total_elapsed_time = total_end_time - total_start_time
