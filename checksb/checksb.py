@@ -186,43 +186,73 @@ def run_check_sql(database_name, warehouse, script_path):
                     logger.info("  (Note: Original results differed only in numeric formatting but content and order were otherwise the same)")
                 else:
                     # Stage 3: Normalized, Order-Agnostic Comparison
-                    bend_lines_normalized_sorted = sorted(bend_lines_normalized_ordered)
-                    snow_lines_normalized_sorted = sorted(snow_lines_normalized_ordered)
+                    bend_lines_normalized_fully_sorted = sorted(bend_lines_normalized_ordered)
+                    snow_lines_normalized_fully_sorted = sorted(snow_lines_normalized_ordered)
 
-                    if bend_lines_normalized_sorted == snow_lines_normalized_sorted:
+                    MAX_LINES_FOR_DETAILED_COMPARISON = 100
+                    is_truncated_comparison = False
+
+                    # Determine actual lists to compare (potentially truncated)
+                    final_bend_lines_to_compare = bend_lines_normalized_fully_sorted
+                    final_snow_lines_to_compare = snow_lines_normalized_fully_sorted
+
+                    if len(bend_lines_normalized_fully_sorted) > MAX_LINES_FOR_DETAILED_COMPARISON or \
+                       len(snow_lines_normalized_fully_sorted) > MAX_LINES_FOR_DETAILED_COMPARISON:
+                        logger.warning(
+                            f"Result sets are large. Order-agnostic comparison and diff will be limited to the top "
+                            f"{MAX_LINES_FOR_DETAILED_COMPARISON} sorted & normalized lines."
+                        )
+                        final_bend_lines_to_compare = bend_lines_normalized_fully_sorted[:MAX_LINES_FOR_DETAILED_COMPARISON]
+                        final_snow_lines_to_compare = snow_lines_normalized_fully_sorted[:MAX_LINES_FOR_DETAILED_COMPARISON]
+                        is_truncated_comparison = True
+
+                    if final_bend_lines_to_compare == final_snow_lines_to_compare:
                         passed_tests.append((query_identifier, elapsed_time))
                         progress_summary = f" [Progress: passed {len(passed_tests)}, failed {len(failed_tests)}, total {current_query}/{total_queries}]"
-                        logger.info(f"✅ MATCH (numeric format, order-agnostic) - Results identical after numeric normalization and ignoring row order ({elapsed_time:.2f}s){progress_summary}")
+                        truncation_note = f" (comparison limited to top {MAX_LINES_FOR_DETAILED_COMPARISON} lines)" if is_truncated_comparison else ""
+                        logger.info(f"✅ MATCH (numeric format, order-agnostic) - Results identical after numeric normalization and ignoring row order ({elapsed_time:.2f}s){progress_summary}{truncation_note}")
                         logger.info("  (Note: Original results differed in row order and/or numeric formatting, but content is the same after normalization)")
                     else:
                         # Stage 4: Reporting Differences
-                        failed_tests.append((query_identifier, bend_result_str, snow_result_str))
-                        progress_summary = f" [Progress: passed {len(passed_tests)}, failed {len(failed_tests)}, total {current_query}/{total_queries}]"
-                        logger.error(f"❌ DIFFERENCE FOUND (content mismatch after all normalizations){progress_summary}")
-                        logger.error("Differences (line-by-line, based on normalized & sorted results):")
+                        diff_details_for_summary = []
+                        truncation_note_for_diff = f" (comparison limited to top {MAX_LINES_FOR_DETAILED_COMPARISON} lines)" if is_truncated_comparison else ""
+                        diff_log_header = f"Differences (line-by-line, based on normalized & sorted results{truncation_note_for_diff}):"
+                        logger.error(diff_log_header)
+                        diff_details_for_summary.append(diff_log_header)
                         
-                        len_snow = len(snow_lines_normalized_sorted)
-                        len_bend = len(bend_lines_normalized_sorted)
+                        # Use the (potentially truncated) lists for diff generation
+                        len_snow = len(final_snow_lines_to_compare)
+                        len_bend = len(final_bend_lines_to_compare)
                         max_len = max(len_snow, len_bend)
 
                         for i in range(max_len):
                             row_num = i + 1
-                            snow_line_display = snow_lines_normalized_sorted[i] if i < len_snow else "--- (missing in snowsql output)"
-                            bend_line_display = bend_lines_normalized_sorted[i] if i < len_bend else "--- (missing in bendsql output)"
+                            snow_line_display = final_snow_lines_to_compare[i] if i < len_snow else "--- (missing in snowsql output)"
+                            bend_line_display = final_bend_lines_to_compare[i] if i < len_bend else "--- (missing in bendsql output)"
 
-                            # Only print if lines actually differ or one is missing
+                            # This comparison is now on the potentially truncated and sorted lists
                             if (i >= len_snow or i >= len_bend or 
-                                snow_lines_normalized_sorted[i] != bend_lines_normalized_sorted[i]):
-                                logger.error(f"  row-{row_num}:")
-                                logger.error(f"    snowsql: {snow_line_display}")
-                                logger.error(f"    bendsql: {bend_line_display}")
+                                final_snow_lines_to_compare[i] != final_bend_lines_to_compare[i]):
+                                line_diff_row = f"  row-{row_num}:"
+                                line_diff_snow = f"    snowsql: {snow_line_display}"
+                                line_diff_bend = f"    bendsql: {bend_line_display}"
+                                logger.error(line_diff_row)
+                                logger.error(line_diff_snow)
+                                logger.error(line_diff_bend)
+                                diff_details_for_summary.extend([line_diff_row, line_diff_snow, line_diff_bend])
                         
+                        # Note about row count differences should refer to the lists used for comparison
                         if len_snow != len_bend:
-                            logger.error(f"  (Note: Result sets have different number of rows after normalization: snowsql {len_snow}, bendsql {len_bend})")
-                        logger.error("bendsql result (original):")
-                        logger.error(bend_result_str)
-                        logger.error("snowsql result (original):")
-                        logger.error(snow_result_str)
+                            row_count_note = f"  (Note: Compared result sets have different number of rows: snowsql {len_snow}, bendsql {len_bend}{truncation_note_for_diff})"
+                            logger.error(row_count_note)
+                            diff_details_for_summary.append(row_count_note)
+                        
+                        # Store the captured diff details along with original results for potential deeper inspection if needed
+                        failed_tests.append((query_identifier, "\n".join(diff_details_for_summary), bend_result_str, snow_result_str))
+                        progress_summary = f" [Progress: passed {len(passed_tests)}, failed {len(failed_tests)}, total {current_query}/{total_queries}]"
+                        logger.error(f"❌ DIFFERENCE FOUND (content mismatch after all normalizations){progress_summary}")
+                        # The detailed diff has already been logged above.
+                        # Original results are captured in failed_tests but no longer printed here.
             
 
     total_end_time = time.time()
@@ -244,17 +274,14 @@ def run_check_sql(database_name, warehouse, script_path):
             logger.info(f"  {i}. {test} ({elapsed_time:.2f}s)")
 
     if failed_tests:
-        logger.error("\nFailed Tests:")
-        for i, (test, _, _) in enumerate(failed_tests, 1):
-            logger.error(f"  {i}. {test}")
-        
-        logger.error("\nDetailed Differences:")
-        for i, (test, bend_result, snow_result) in enumerate(failed_tests, 1):
-            logger.error(f"\n{i}. Test: {test}")
-            logger.error("   bendsql result:")
-            logger.error(f"   {bend_result.replace(chr(10), chr(10)+'   ')}")
-            logger.error("   snowsql result:")
-            logger.error(f"   {snow_result.replace(chr(10), chr(10)+'   ')}")
+        logger.error("\nFailed Tests and Differences:")
+        # The tuple now is (query_identifier, captured_diff_string, original_bend_result, original_snow_result)
+        for i, (test_identifier, diff_summary, _, _) in enumerate(failed_tests, 1):
+            logger.error(f"  {i}. Test: {test_identifier}")
+            # Print the captured line-by-line diff summary
+            for line in diff_summary.splitlines():
+                logger.error(f"    {line}") # Indent summary lines for clarity
+            logger.error("-"*40) # Separator for readability
     
     # Final result indicator
     if failed_tests:
