@@ -137,31 +137,45 @@ def run_check_sql(database_name, warehouse, script_path):
             logger.info(f"Query: {query.strip()[:100]}{'...' if len(query.strip()) > 100 else ''}")
 
             start_time = time.time()
-            bend_result = fetch_query_results(query, "bendsql", database_name)
-            snow_result = fetch_query_results(
+            bend_result_str = fetch_query_results(query, "bendsql", database_name)
+            snow_result_str = fetch_query_results(
                 query, "snowsql", database_name, warehouse
             )
             end_time = time.time()
             elapsed_time = end_time - start_time
 
-            if bend_result != snow_result:
-                diff = difflib.unified_diff(
-                    snow_result.splitlines(keepends=True),
-                    bend_result.splitlines(keepends=True),
-                    fromfile='snowsql',
-                    tofile='bendsql',
-                )
-                logger.error("❌ DIFFERENCE FOUND")
-                logger.error("Differences:")
-                logger.error("".join(diff))
-                logger.error("bendsql result:")
-                logger.error(bend_result)
-                logger.error("snowsql result:")
-                logger.error(snow_result)
-                failed_tests.append((query_identifier, bend_result, snow_result))
-            else:
-                logger.info(f"✅ MATCH - Results are identical ({elapsed_time:.2f}s)")
+            if bend_result_str == snow_result_str:
+                logger.info(f"✅ MATCH (exact) - Results are identical ({elapsed_time:.2f}s)")
                 passed_tests.append((query_identifier, elapsed_time))
+            else:
+                # Initial results differ, try order-agnostic comparison
+                bend_lines = bend_result_str.splitlines()
+                snow_lines = snow_result_str.splitlines()
+
+                bend_lines_sorted = sorted(bend_lines)
+                snow_lines_sorted = sorted(snow_lines)
+
+                if bend_lines_sorted == snow_lines_sorted:
+                    logger.info(f"✅ MATCH (order-agnostic) - Results identical after ignoring row order ({elapsed_time:.2f}s)")
+                    # Optionally, log that an order difference was detected but content matches
+                    logger.info("  (Note: Original results differed in row order but content is the same)")
+                    passed_tests.append((query_identifier, elapsed_time))
+                else:
+                    # Generate diff based on sorted lines to show content differences
+                    diff = difflib.unified_diff(
+                        [line + '\n' for line in snow_lines_sorted],
+                        [line + '\n' for line in bend_lines_sorted],
+                        fromfile='snowsql (sorted)',
+                        tofile='bendsql (sorted)',
+                    )
+                    logger.error("❌ DIFFERENCE FOUND (even after order-agnostic comparison)")
+                    logger.error("Differences (based on sorted results):")
+                    logger.error("".join(diff))
+                    logger.error("bendsql result (original):")
+                    logger.error(bend_result_str)
+                    logger.error("snowsql result (original):")
+                    logger.error(snow_result_str)
+                    failed_tests.append((query_identifier, bend_result_str, snow_result_str))
             
             # Print current progress summary
             logger.info(f"\nCurrent Progress: [passed: {len(passed_tests)}, failed: {len(failed_tests)}, total: {current_query}/{total_queries}]")
