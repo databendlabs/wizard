@@ -4,6 +4,11 @@ import sys
 import subprocess
 import time
 from termcolor import colored
+import logging
+from datetime import datetime
+
+# Global logger instance
+logger = logging.getLogger(__name__)
 
 
 def parse_arguments():
@@ -53,7 +58,7 @@ def execute_sql(query, sql_tool, database, warehouse=None):
     elif sql_tool == "bendsql":
         command.extend(["--query=" + query, "-D", database])
 
-    print(f"Executing command: {' '.join(command)}")
+    logger.info(f"Executing command: {' '.join(command)}")
 
     try:
         result = subprocess.run(command, text=True, capture_output=True, check=False)
@@ -62,31 +67,31 @@ def execute_sql(query, sql_tool, database, warehouse=None):
 
         # For database setup operations, we want to continue even if there are errors
         if "DROP DATABASE" in query and "Unknown database" in (output + error):
-            print("Database doesn't exist, continuing with creation...")
+            logger.info("Database doesn't exist, continuing with creation...")
             return output
 
         # Custom check for known error patterns
         if ("error" in output.lower() or "error" in error.lower() or 
             "unknown function" in output.lower()):
             error_message = f"Error detected in command output: {output or error}"
-            print(colored(error_message, "red"))  # Print the error in red
+            logger.error(error_message) # Print the error in red
             if "DROP DATABASE" in query:
                 # Don't exit for database drop errors
                 return output
             sys.exit(1)
 
-        print("Command executed successfully. Output:")
-        print(output)
+        logger.info("Command executed successfully. Output:")
+        logger.info(output)
         return output
     except subprocess.CalledProcessError as e:
         error_message = f"{sql_tool} command failed: {e.stderr}"
-        print(colored(error_message, "red"))  # Print the error in red
+        logger.error(error_message)  # Print the error in red
         # Re-raise the exception to be handled by the caller
         raise
 
 
 def execute_sql_scripts(sql_tool, script_path, database, warehouse=None):
-    print(f"Executing SQL scripts from: {script_path} using {sql_tool}")
+    logger.info(f"Executing SQL scripts from: {script_path} using {sql_tool}")
     with open(script_path, "r") as file:
         sql_script = file.read()
     queries = sql_script.split(";")
@@ -113,9 +118,9 @@ def run_check_sql(database_name, warehouse, script_path):
         # Count non-empty queries
         total_queries = sum(1 for q in check_queries if q.strip())
 
-    print(colored(f"\n{'='*80}", "blue"))
-    print(colored(f"Starting comparison of {total_queries} queries between bendsql and snowsql", "blue"))
-    print(colored(f"{'='*80}\n", "blue"))
+    logger.info(f"\n{'='*80}")
+    logger.info(f"Starting comparison of {total_queries} queries between bendsql and snowsql")
+    logger.info(f"{'='*80}\n")
 
     for query in check_queries:
         if query.strip():
@@ -125,8 +130,8 @@ def run_check_sql(database_name, warehouse, script_path):
             query_identifier = match.group(1).strip() if match else f"Query-{current_query}"
 
             # Print the preparing message with progress indicator
-            print(colored(f"\n[{current_query}/{total_queries}] Testing {query_identifier}...", "yellow"))
-            print(colored(f"Query: {query.strip()[:100]}{'...' if len(query.strip()) > 100 else ''}", "yellow"))
+            logger.info(f"\n[{current_query}/{total_queries}] Testing {query_identifier}...")
+            logger.info(f"Query: {query.strip()[:100]}{'...' if len(query.strip()) > 100 else ''}")
 
             start_time = time.time()
             bend_result = fetch_query_results(query, "bendsql", database_name)
@@ -137,57 +142,57 @@ def run_check_sql(database_name, warehouse, script_path):
             elapsed_time = end_time - start_time
 
             if bend_result != snow_result:
-                print(colored("❌ DIFFERENCE FOUND", "red"))
-                print(colored("Differences:", "red"))
-                print(colored("bendsql result:", "red"))
-                print(colored(bend_result, "red"))
-                print(colored("snowsql result:", "red"))
-                print(colored(snow_result, "red"))
+                logger.error("❌ DIFFERENCE FOUND")
+                logger.error("Differences:")
+                logger.error("bendsql result:")
+                logger.error(bend_result)
+                logger.error("snowsql result:")
+                logger.error(snow_result)
                 failed_tests.append((query_identifier, bend_result, snow_result))
             else:
-                print(colored(f"✅ MATCH - Results are identical ({elapsed_time:.2f}s)", "green"))
+                logger.info(f"✅ MATCH - Results are identical ({elapsed_time:.2f}s)")
                 passed_tests.append((query_identifier, elapsed_time))
             
             # Print current progress summary
-            print(colored(f"\nCurrent Progress: [passed: {len(passed_tests)}, failed: {len(failed_tests)}, total: {current_query}/{total_queries}]", "blue"))
+            logger.info(f"\nCurrent Progress: [passed: {len(passed_tests)}, failed: {len(failed_tests)}, total: {current_query}/{total_queries}]")
 
     total_end_time = time.time()
     total_elapsed_time = total_end_time - total_start_time
 
     # Print final summary with clear separation
-    print(colored(f"\n{'='*80}", "blue"))
-    print(colored("FINAL SUMMARY", "blue"))
-    print(colored(f"{'='*80}", "blue"))
+    logger.info(f"\n{'='*80}")
+    logger.info("FINAL SUMMARY")
+    logger.info(f"{'='*80}")
     
-    print(colored(f"\nTotal Queries: {total_queries}", "white"))
-    print(colored(f"Passed: {len(passed_tests)} ({len(passed_tests)/total_queries*100:.1f}%)", "green"))
-    print(colored(f"Failed: {len(failed_tests)} ({len(failed_tests)/total_queries*100:.1f}%)", "red" if failed_tests else "green"))
-    print(colored(f"Total Time: {total_elapsed_time:.2f}s", "blue"))
+    logger.info(f"\nTotal Queries: {total_queries}")
+    logger.info(f"Passed: {len(passed_tests)} ({len(passed_tests)/total_queries*100:.1f}%)")
+    logger.info(f"Failed: {len(failed_tests)} ({len(failed_tests)/total_queries*100:.1f}%)")
+    logger.info(f"Total Time: {total_elapsed_time:.2f}s")
 
     if passed_tests:
-        print(colored("\nPassed Tests:", "green"))
+        logger.info("\nPassed Tests:")
         for i, (test, elapsed_time) in enumerate(passed_tests, 1):
-            print(colored(f"  {i}. {test} ({elapsed_time:.2f}s)", "green"))
+            logger.info(f"  {i}. {test} ({elapsed_time:.2f}s)")
 
     if failed_tests:
-        print(colored("\nFailed Tests:", "red"))
+        logger.error("\nFailed Tests:")
         for i, (test, _, _) in enumerate(failed_tests, 1):
-            print(colored(f"  {i}. {test}", "red"))
+            logger.error(f"  {i}. {test}")
         
-        print(colored("\nDetailed Differences:", "red"))
+        logger.error("\nDetailed Differences:")
         for i, (test, bend_result, snow_result) in enumerate(failed_tests, 1):
-            print(colored(f"\n{i}. Test: {test}", "red"))
-            print(colored("   bendsql result:", "yellow"))
-            print(f"   {bend_result.replace(chr(10), chr(10)+'   ')}")
-            print(colored("   snowsql result:", "yellow"))
-            print(f"   {snow_result.replace(chr(10), chr(10)+'   ')}")
+            logger.error(f"\n{i}. Test: {test}")
+            logger.error("   bendsql result:")
+            logger.error(f"   {bend_result.replace(chr(10), chr(10)+'   ')}")
+            logger.error("   snowsql result:")
+            logger.error(f"   {snow_result.replace(chr(10), chr(10)+'   ')}")
     
     # Final result indicator
     if failed_tests:
-        print(colored(f"\n❌ COMPARISON FAILED: {len(failed_tests)} differences found", "red"))
+        logger.error(f"\n❌ COMPARISON FAILED: {len(failed_tests)} differences found")
         case_success = False
     else:
-        print(colored(f"\n✅ COMPARISON SUCCESSFUL: All {total_queries} queries match!", "green"))
+        logger.info(f"\n✅ COMPARISON SUCCESSFUL: All {total_queries} queries match!")
         
     # Return the results instead of exiting
     return {
@@ -200,7 +205,7 @@ def run_check_sql(database_name, warehouse, script_path):
 
 
 def setup_database(database_name, sql_tool):
-    print(colored(f"\nSetting up database '{database_name}' using {sql_tool}...", "blue"))
+    logger.info(f"\nSetting up database '{database_name}' using {sql_tool}...")
     
     # For bendsql, we need to handle the case where the database doesn't exist yet
     if sql_tool == "bendsql":
@@ -209,7 +214,7 @@ def setup_database(database_name, sql_tool):
             drop_query = f"DROP DATABASE IF EXISTS {database_name};"
             execute_sql(drop_query, sql_tool, "default")  # Use default database for initial connection
         except Exception as e:
-            print(f"Warning: Could not drop database (it may not exist): {e}")
+            logger.warning(f"Warning: Could not drop database (it may not exist): {e}")
         
         # Create the database
         create_query = f"CREATE DATABASE {database_name};"
@@ -221,33 +226,44 @@ def setup_database(database_name, sql_tool):
         execute_sql(drop_query, sql_tool, database_name)
         execute_sql(create_query, sql_tool, database_name)
     
-    print(colored(f"✅ Database '{database_name}' has been set up successfully.", "green"))
+    logger.info(f"✅ Database '{database_name}' has been set up successfully.")
 
 
 def setup_and_execute(sql_tool, base_sql_dir, database_name, warehouse=None):
     # Determine the correct setup directory based on the SQL tool
     setup_dir = "bend" if sql_tool == "bendsql" else "snow"
 
-    print(colored(f"\n{'='*80}", "blue"))
-    print(colored(f"Setting up and executing {sql_tool} scripts", "blue"))
-    print(colored(f"{'='*80}", "blue"))
+    logger.info(f"\n{'='*80}")
+    logger.info(f"Setting up and executing {sql_tool} scripts")
+    logger.info(f"{'='*80}")
     
     setup_database(database_name, sql_tool)
 
-    print(colored(f"\nExecuting setup scripts for {sql_tool}...", "blue"))
+    logger.info(f"\nExecuting setup scripts for {sql_tool}...")
     execute_sql_scripts(
         sql_tool, f"{base_sql_dir}/{setup_dir}/setup.sql", database_name, warehouse
     )
     
-    print(colored(f"\nExecuting action scripts for {sql_tool}...", "blue"))
+    logger.info(f"\nExecuting action scripts for {sql_tool}...")
     execute_sql_scripts(
         sql_tool, f"{base_sql_dir}/action.sql", database_name, warehouse
     )
     
-    print(colored(f"✅ All {sql_tool} scripts executed successfully.", "green"))
+    logger.info(f"✅ All {sql_tool} scripts executed successfully.")
 
 
 def main():
+    # Setup logging
+    log_filename = f"checksb_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(log_filename),
+            logging.StreamHandler(sys.stdout) # Keep console output
+        ]
+    )
+
     args = parse_arguments()
 
     # Process the case argument to handle multiple cases or 'all'
@@ -261,10 +277,10 @@ def main():
         cases = [case.strip() for case in args.case.split(',')]
     
     # Print a nice header for the entire run
-    print(colored(f"\n{'='*80}", "blue"))
-    print(colored(f"SQL Compatibility Test: Running {len(cases)} case(s): {', '.join(cases).upper()}", "blue"))
-    print(colored(f"Database: {args.database}", "blue"))
-    print(colored(f"{'='*80}\n", "blue"))
+    logger.info(f"\n{'='*80}")
+    logger.info(f"SQL Compatibility Test: Running {len(cases)} case(s): {', '.join(cases).upper()}")
+    logger.info(f"Database: {args.database}")
+    logger.info(f"{'='*80}\n")
 
     # Track overall results
     overall_results = {
@@ -297,42 +313,42 @@ def main():
     overall_end_time = time.time()
     overall_elapsed_time = overall_end_time - overall_results["start_time"]
     
-    print(colored(f"\n{'='*80}", "blue"))
-    print(colored(f"OVERALL SUMMARY FOR {len(cases)} CASE(S)", "blue"))
-    print(colored(f"{'='*80}", "blue"))
+    logger.info(f"\n{'='*80}")
+    logger.info(f"OVERALL SUMMARY FOR {len(cases)} CASE(S)")
+    logger.info(f"{'='*80}")
     
-    print(colored(f"\nTotal Cases: {overall_results['total_cases']}", "white"))
-    print(colored(f"Passed Cases: {overall_results['passed_cases']} ({overall_results['passed_cases']/overall_results['total_cases']*100:.1f}%)", "green"))
+    logger.info(f"\nTotal Cases: {overall_results['total_cases']}")
+    logger.info(f"Passed Cases: {overall_results['passed_cases']} ({overall_results['passed_cases']/overall_results['total_cases']*100:.1f}%)")
     
     if overall_results["failed_cases"]:
-        print(colored(f"Failed Cases: {len(overall_results['failed_cases'])} ({len(overall_results['failed_cases'])/overall_results['total_cases']*100:.1f}%)", "red"))
-        print(colored("\nFailed Cases List:", "red"))
+        logger.error(f"Failed Cases: {len(overall_results['failed_cases'])} ({len(overall_results['failed_cases'])/overall_results['total_cases']*100:.1f}%)")
+        logger.error("\nFailed Cases List:")
         for i, failed_case in enumerate(overall_results["failed_cases"], 1):
-            print(colored(f"  {i}. {failed_case}", "red"))
+            logger.error(f"  {i}. {failed_case}")
     
-    print(colored(f"\nTotal Queries: {overall_results['total_queries']}", "white"))
-    print(colored(f"Passed Queries: {overall_results['passed_queries']}", "green"))
+    logger.info(f"\nTotal Queries: {overall_results['total_queries']}")
+    logger.info(f"Passed Queries: {overall_results['passed_queries']}")
     
     if overall_results["failed_queries"] > 0:
-        print(colored(f"Failed Queries: {overall_results['failed_queries']}", "red"))
+        logger.error(f"Failed Queries: {overall_results['failed_queries']}")
         
         # Show detailed failures for each case
-        print(colored("\nDetailed Failures by Case:", "red"))
+        logger.error("\nDetailed Failures by Case:")
         for case_result in overall_results["case_results"]:
             if not case_result["success"] and case_result.get("failed_tests"):
-                print(colored(f"\n  Case: {case_result['case'].upper()}", "red"))
+                logger.error(f"\n  Case: {case_result['case'].upper()}")
                 
                 # Print detailed differences for each failed test
-                print(colored("\n  Detailed Differences:", "red"))
+                logger.error("\n  Detailed Differences:")
                 for i, (test, bend_result, snow_result) in enumerate(case_result["failed_tests"], 1):
-                    print(colored(f"\n    {i}. Test: {test}", "red"))
-                    print(colored("       bendsql result:", "yellow"))
-                    print(f"       {bend_result.replace(chr(10), chr(10)+'       ')}")
-                    print(colored("       snowsql result:", "yellow"))
-                    print(f"       {snow_result.replace(chr(10), chr(10)+'       ')}")
+                    logger.error(f"\n    {i}. Test: {test}")
+                    logger.error("       bendsql result:")
+                    logger.error(f"       {bend_result.replace(chr(10), chr(10)+'       ')}")
+                    logger.error("       snowsql result:")
+                    logger.error(f"       {snow_result.replace(chr(10), chr(10)+'       ')}")
 
     
-    print(colored(f"\nTotal Time: {overall_elapsed_time:.2f}s", "blue"))
+    logger.info(f"\nTotal Time: {overall_elapsed_time:.2f}s")
 
 
 def run_single_case(case, args):
@@ -340,10 +356,10 @@ def run_single_case(case, args):
     database_name, warehouse = args.database, args.warehouse
 
     # Print a nice header for this case
-    print(colored(f"\n{'='*80}", "blue"))
-    print(colored(f"SQL Compatibility Test: {case.upper()}", "blue"))
-    print(colored(f"Database: {database_name}", "blue"))
-    print(colored(f"{'='*80}\n", "blue"))
+    logger.info(f"\n{'='*80}")
+    logger.info(f"SQL Compatibility Test: {case.upper()}")
+    logger.info(f"Database: {database_name}")
+    logger.info(f"{'='*80}\n")
 
     # Initialize result
     result = {
@@ -359,19 +375,19 @@ def run_single_case(case, args):
     try:
         if args.run_check_only:
             # Run only the check script
-            print(colored("Running check queries only (skipping setup and action scripts)", "yellow"))
+            logger.info("Running check queries only (skipping setup and action scripts)")
             check_sql_path = f"{base_sql_dir}/check.sql"
             check_result = run_check_sql(database_name, warehouse, check_sql_path)
         else:
             # Setup database based on the specified arguments
             if args.runbend:
-                print(colored("Running bendsql setup and action only", "yellow"))
+                logger.info("Running bendsql setup and action only")
                 setup_and_execute("bendsql", base_sql_dir, database_name)
             elif args.runsnow:
-                print(colored("Running snowsql setup and action only", "yellow"))
+                logger.info("Running snowsql setup and action only")
                 setup_and_execute("snowsql", base_sql_dir, database_name, warehouse)
             else:
-                print(colored("Running complete test (bendsql and snowsql)", "yellow"))
+                logger.info("Running complete test (bendsql and snowsql)")
                 setup_and_execute("bendsql", base_sql_dir, database_name)
                 setup_and_execute("snowsql", base_sql_dir, database_name, warehouse)
 
@@ -388,7 +404,7 @@ def run_single_case(case, args):
         result["elapsed_time"] = check_result["elapsed_time"]
     
     except Exception as e:
-        print(colored(f"Error running case {case}: {str(e)}", "red"))
+        logger.error(f"Error running case {case}: {str(e)}")
         result["success"] = False
         result["error"] = str(e)
     
@@ -399,8 +415,13 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print(colored("\nTest interrupted by user. Exiting...", "yellow"))
+        logger.error("Test interrupted by user. Exiting...")
         sys.exit(1)
     except Exception as e:
-        print(colored(f"\nError: {str(e)}", "red"))
+        # Ensure logger is available or use print for this fallback
+        if logger.handlers:
+            logger.critical(f"Unhandled exception: {e}", exc_info=True)
+        else:
+            # Fallback if logger isn't initialized (e.g., error during arg parsing before logging setup)
+            print(f"CRITICAL: Unhandled exception before logger initialization: {e}")
         sys.exit(1)
