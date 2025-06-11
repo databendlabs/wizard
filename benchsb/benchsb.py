@@ -7,6 +7,10 @@ import time
 from datetime import datetime
 import csv
 import math
+import logging
+
+# Global logger instance
+logger = logging.getLogger(__name__)
 
 
 def get_bendsql_warehouse_from_env():
@@ -97,7 +101,7 @@ def setup_database(database_name, sql_tool, warehouse):
         execute_sql(create_query, sql_tool, database_name, warehouse)
     
     elapsed_time = time.time() - start_time
-    print(f"Database '{database_name}' has been set up. Time: {elapsed_time:.2f}s")
+    logger.info(f"Database '{database_name}' has been set up. Time: {elapsed_time:.2f}s")
     return elapsed_time
 
 
@@ -110,7 +114,7 @@ def restart_warehouse(sql_tool, warehouse, database):
     else:
         alter_suspend = f"ALTER WAREHOUSE {warehouse} SUSPEND;"
 
-    print(f"Suspending warehouse {warehouse}...")
+    logger.info(f"Suspending warehouse {warehouse}...")
     execute_sql(alter_suspend, sql_tool, database, warehouse)
 
     time.sleep(2)
@@ -122,7 +126,7 @@ def restart_warehouse(sql_tool, warehouse, database):
     execute_sql(alter_resume, sql_tool, database, warehouse)
     
     elapsed_time = time.time() - start_time
-    print(f"Warehouse {warehouse} restarted. Time: {elapsed_time:.2f}s")
+    logger.info(f"Warehouse {warehouse} restarted. Time: {elapsed_time:.2f}s")
     return elapsed_time
 
 
@@ -178,7 +182,7 @@ def execute_sql_file(sql_file, sql_tool, database, warehouse, suspend, is_setup=
     total_restart_time = 0.0
     
     phase = "Setup" if is_setup else "Queries"
-    print(f"\n{'='*50}\n{phase} Execution - {sql_tool} - Started at {datetime.now().strftime('%H:%M:%S')}\n{'='*50}")
+    logger.info(f"\n{'='*50}\n{phase} Execution - {sql_tool} - Started at {datetime.now().strftime('%H:%M:%S')}\n{'='*50}")
 
     with open(result_file_path, mode) as result_file:
         # Add header for this execution
@@ -190,8 +194,8 @@ def execute_sql_file(sql_file, sql_tool, database, warehouse, suspend, is_setup=
             
             try:
                 # Print real-time progress
-                print(f"\nQuery {index+1}/{len(queries)} - Started at {datetime.now().strftime('%H:%M:%S')}")
-                print(f"SQL: {query}")
+                logger.info(f"\nQuery {index+1}/{len(queries)} - Started at {datetime.now().strftime('%H:%M:%S')}")
+                logger.info(f"SQL: {query}")
                 
                 if suspend:
                     restart_time = restart_warehouse(sql_tool, warehouse, database)
@@ -218,11 +222,11 @@ def execute_sql_file(sql_file, sql_tool, database, warehouse, suspend, is_setup=
                 query_total_time = time.time() - query_start_time
                 
                 # Print real-time timing information
-                print(f"Query {index+1} completed:")
-                print(f"  - Server execution time: {time_elapsed}s")
-                print(f"  - Total time (including restart): {query_total_time:.2f}s")
+                logger.info(f"Query {index+1} completed:")
+                logger.info(f"  - Server execution time: {time_elapsed}s")
+                logger.info(f"  - Total time (including restart): {query_total_time:.2f}s")
                 if restart_time > 0:
-                    print(f"  - Warehouse restart time: {restart_time:.2f}s")
+                    logger.info(f"  - Warehouse restart time: {restart_time:.2f}s")
                 
                 result_file.write(f"SQL: {query}\n")
                 result_file.write(f"Time Elapsed (server): {time_elapsed}s\n")
@@ -237,8 +241,8 @@ def execute_sql_file(sql_file, sql_tool, database, warehouse, suspend, is_setup=
                 
             except Exception as e:
                 query_total_time = time.time() - query_start_time
-                print(f"Query {index+1} failed: {e}")
-                print(f"  - Total time until failure: {query_total_time:.2f}s")
+                logger.error(f"Query {index+1} failed: {e}")
+                logger.error(f"  - Total time until failure: {query_total_time:.2f}s")
                 
                 result_file.write(f"SQL: {query}\nError: {e}\n")
                 result_file.write(f"Total time until failure: {query_total_time:.2f}s\n\n")
@@ -280,7 +284,7 @@ Average query time (server): {(total_execution_time / successful_queries if succ
 {query_times_table}
 """
     
-    print(summary)
+    logger.info(summary)
     with open(result_file_path, "a") as result_file:
         result_file.write(summary)
     
@@ -332,6 +336,17 @@ def parse_arguments():
 
 
 def main():
+    # Setup logging
+    log_filename = f"benchsb_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(log_filename),
+            logging.StreamHandler(sys.stdout)
+        ]
+    )
+
     args = parse_arguments()
 
     base_sql_dir = "sql"  # Base directory for SQL files
@@ -351,60 +366,72 @@ def main():
             "ALTER ACCOUNT SET USE_CACHED_RESULT=FALSE;", sql_tool, database, warehouse
         )
     else:
-        print("Please specify --runbend or --runsnow.")
+        logger.error("Please specify --runbend or --runsnow.")
         sys.exit(1)
 
-    print(f"\n{'='*50}\nStarting benchmark with {sql_tool}\n{'='*50}")
-    print(f"Database: {database}")
-    print(f"Warehouse: {warehouse}")
-    print(f"Timestamp: {datetime.now()}")
+    logger.info(f"\n{'='*50}\nStarting benchmark with {sql_tool}\n{'='*50}")
+    logger.info(f"Database: {database}")
+    logger.info(f"Warehouse: {warehouse}")
+    logger.info(f"Timestamp: {datetime.now()}")
     
     setup_stats = {"total_execution_time": 0, "total_wall_time": 0, "total_restart_time": 0, "successful_queries": 0, "total_queries": 0}
     db_setup_time = 0
     
     if args.setup:
-        print(f"\n{'='*50}\nStarting setup phase\n{'='*50}")
+        logger.info(f"\n{'='*50}\nStarting setup phase\n{'='*50}")
         db_setup_time = setup_database(database, sql_tool, warehouse)
         # Choose between TPC-H and TPC-DS setup files
         setup_file = os.path.join(sql_dir, "tpcds_setup.sql" if args.case == 'tpcds' else "setup.sql")
         setup_stats = execute_sql_file(setup_file, sql_tool, database, warehouse, False, is_setup=True)
-        print(f"Setup completed. Total execution time: {setup_stats['total_execution_time']:.2f}s, Wall time: {setup_stats['total_wall_time']:.2f}s")
+        logger.info(f"Setup completed. Total execution time: {setup_stats['total_execution_time']:.2f}s, Wall time: {setup_stats['total_wall_time']:.2f}s")
 
     # Choose between TPC-H and TPC-DS queries
     queries_file = os.path.join(sql_dir, "tpcds_queries.sql" if args.case == 'tpcds' else "queries.sql")
     queries_stats = execute_sql_file(queries_file, sql_tool, database, warehouse, args.suspend, is_setup=False)
-    print(f"Queries completed. Total execution time: {queries_stats['total_execution_time']:.2f}s, Wall time: {queries_stats['total_wall_time']:.2f}s")
+    logger.info(f"Queries completed. Total execution time: {queries_stats['total_execution_time']:.2f}s, Wall time: {queries_stats['total_wall_time']:.2f}s")
 
     overall_time = time.time() - overall_start_time
     
     # Print overall summary
-    print(f"\n{'='*60}\nFINAL BENCHMARK SUMMARY - {sql_tool.upper()}\n{'='*60}")
-    print(f"Database: {database}")
-    print(f"Warehouse: {warehouse}")
-    print(f"Timestamp: {datetime.now()}")
-    print(f"{'='*60}")
+    logger.info(f"\n{'='*60}\nFINAL BENCHMARK SUMMARY - {sql_tool.upper()}\n{'='*60}")
+    logger.info(f"Database: {database}")
+    logger.info(f"Warehouse: {warehouse}")
+    logger.info(f"Timestamp: {datetime.now()}")
+    logger.info(f"{'='*60}")
     
     if args.setup:
-        print(f"SETUP PHASE:")
-        print(f"  - Database creation time: {db_setup_time:.2f}s")
-        print(f"  - Setup queries: {setup_stats['successful_queries']}/{setup_stats['total_queries']} successful")
-        print(f"  - Server execution time: {setup_stats['total_execution_time']:.2f}s")
-        print(f"  - Warehouse restart time: {setup_stats['total_restart_time']:.2f}s")
-        print(f"  - Total wall time: {setup_stats['total_wall_time']:.2f}s")
+        logger.info(f"SETUP PHASE:")
+        logger.info(f"  - Database creation time: {db_setup_time:.2f}s")
+        logger.info(f"  - Setup queries: {setup_stats['successful_queries']}/{setup_stats['total_queries']} successful")
+        logger.info(f"  - Server execution time: {setup_stats['total_execution_time']:.2f}s")
+        logger.info(f"  - Warehouse restart time: {setup_stats['total_restart_time']:.2f}s")
+        logger.info(f"  - Total wall time: {setup_stats['total_wall_time']:.2f}s")
     
-    print(f"\nQUERIES PHASE:")
-    print(f"  - Queries: {queries_stats['successful_queries']}/{queries_stats['total_queries']} successful")
-    print(f"  - Server execution time: {queries_stats['total_execution_time']:.2f}s")
-    print(f"  - Warehouse restart time: {queries_stats['total_restart_time']:.2f}s")
-    print(f"  - Total wall time: {queries_stats['total_wall_time']:.2f}s")
+    logger.info(f"\nQUERIES PHASE:")
+    logger.info(f"  - Queries: {queries_stats['successful_queries']}/{queries_stats['total_queries']} successful")
+    logger.info(f"  - Server execution time: {queries_stats['total_execution_time']:.2f}s")
+    logger.info(f"  - Warehouse restart time: {queries_stats['total_restart_time']:.2f}s")
+    logger.info(f"  - Total wall time: {queries_stats['total_wall_time']:.2f}s")
     
-    print(f"\nOVERALL:")
+    logger.info(f"\nOVERALL:")
     total_server_time = setup_stats['total_execution_time'] + queries_stats['total_execution_time']
     total_restart_time = setup_stats['total_restart_time'] + queries_stats['total_restart_time']
-    print(f"  - Total server execution time: {total_server_time:.2f}s")
-    print(f"  - Total warehouse restart time: {total_restart_time:.2f}s")
-    print(f"  - Total benchmark time: {overall_time:.2f}s")
-    print(f"{'='*60}")
+    logger.info(f"  - Total server execution time: {total_server_time:.2f}s")
+    logger.info(f"  - Total warehouse restart time: {total_restart_time:.2f}s")
+    logger.info(f"  - Total benchmark time: {overall_time:.2f}s")
+    logger.info(f"{'='*60}")
+    
+    # Generate comparison table
+    headers = ["Metric", "Setup", "Queries", "Overall"]
+    data = [
+        ["Successful Queries", f"{setup_stats['successful_queries']}/{setup_stats['total_queries']}", f"{queries_stats['successful_queries']}/{queries_stats['total_queries']}", f"{setup_stats['successful_queries'] + queries_stats['successful_queries']}/{setup_stats['total_queries'] + queries_stats['total_queries']}"],
+        ["Server Execution Time (s)", f"{setup_stats['total_execution_time']:.2f}", f"{queries_stats['total_execution_time']:.2f}", f"{setup_stats['total_execution_time'] + queries_stats['total_execution_time']:.2f}"],
+        ["Warehouse Restart Time (s)", f"{setup_stats['total_restart_time']:.2f}", f"{queries_stats['total_restart_time']:.2f}", f"{setup_stats['total_restart_time'] + queries_stats['total_restart_time']:.2f}"],
+        ["Total Wall Time (s)", f"{setup_stats['total_wall_time']:.2f}", f"{queries_stats['total_wall_time']:.2f}", f"{overall_time:.2f}"]
+    ]
+    
+    summary_table = create_ascii_table(data, headers, "Overall Benchmark Summary")
+    logger.info(f"\n{summary_table}")
     
     # Create ASCII table for query times if queries were executed
     if 'results' in queries_stats:
