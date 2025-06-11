@@ -108,6 +108,24 @@ def fetch_query_results(query, sql_tool, database, warehouse=None):
     return result
 
 
+# Helper function to normalize a single line of query output
+def normalize_line(line_string):
+    parts = re.split(r'\s+', line_string.strip()) # Split by any whitespace, strip leading/trailing
+    normalized_parts = []
+    for part in parts:
+        if not part: # Handle potential empty strings from multiple spaces
+            continue
+        try:
+            num = float(part)
+            if num == int(num): # Check if it's an integer to avoid ".0"
+                normalized_parts.append(str(int(num)))
+            else:
+                normalized_parts.append(str(num)) # Normalize float representation
+        except ValueError:
+            normalized_parts.append(part) # Not a number, keep original
+    return "\t".join(normalized_parts) # Rejoin with tabs for consistent spacing
+
+
 def run_check_sql(database_name, warehouse, script_path):
     failed_tests = []
     passed_tests = []
@@ -144,38 +162,48 @@ def run_check_sql(database_name, warehouse, script_path):
             end_time = time.time()
             elapsed_time = end_time - start_time
 
+            # Stage 1: Exact string comparison
             if bend_result_str == snow_result_str:
                 logger.info(f"✅ MATCH (exact) - Results are identical ({elapsed_time:.2f}s)")
                 passed_tests.append((query_identifier, elapsed_time))
             else:
-                # Initial results differ, try order-agnostic comparison
-                bend_lines = bend_result_str.splitlines()
-                snow_lines = snow_result_str.splitlines()
+                # Stage 2: Normalized, Order-Sensitive Comparison
+                bend_lines_raw = bend_result_str.splitlines()
+                snow_lines_raw = snow_result_str.splitlines()
 
-                bend_lines_sorted = sorted(bend_lines)
-                snow_lines_sorted = sorted(snow_lines)
+                bend_lines_normalized_ordered = [normalize_line(line) for line in bend_lines_raw]
+                snow_lines_normalized_ordered = [normalize_line(line) for line in snow_lines_raw]
 
-                if bend_lines_sorted == snow_lines_sorted:
-                    logger.info(f"✅ MATCH (order-agnostic) - Results identical after ignoring row order ({elapsed_time:.2f}s)")
-                    # Optionally, log that an order difference was detected but content matches
-                    logger.info("  (Note: Original results differed in row order but content is the same)")
+                if bend_lines_normalized_ordered == snow_lines_normalized_ordered:
+                    logger.info(f"✅ MATCH (numeric format, order-sensitive) - Results identical after numeric normalization ({elapsed_time:.2f}s)")
+                    logger.info("  (Note: Original results differed only in numeric formatting but content and order were otherwise the same)")
                     passed_tests.append((query_identifier, elapsed_time))
                 else:
-                    # Generate diff based on sorted lines to show content differences
-                    diff = difflib.unified_diff(
-                        [line + '\n' for line in snow_lines_sorted],
-                        [line + '\n' for line in bend_lines_sorted],
-                        fromfile='snowsql (sorted)',
-                        tofile='bendsql (sorted)',
-                    )
-                    logger.error("❌ DIFFERENCE FOUND (even after order-agnostic comparison)")
-                    logger.error("Differences (based on sorted results):")
-                    logger.error("".join(diff))
-                    logger.error("bendsql result (original):")
-                    logger.error(bend_result_str)
-                    logger.error("snowsql result (original):")
-                    logger.error(snow_result_str)
-                    failed_tests.append((query_identifier, bend_result_str, snow_result_str))
+                    # Stage 3: Normalized, Order-Agnostic Comparison
+                    bend_lines_normalized_sorted = sorted(bend_lines_normalized_ordered)
+                    snow_lines_normalized_sorted = sorted(snow_lines_normalized_ordered)
+
+                    if bend_lines_normalized_sorted == snow_lines_normalized_sorted:
+                        logger.info(f"✅ MATCH (numeric format, order-agnostic) - Results identical after numeric normalization and ignoring row order ({elapsed_time:.2f}s)")
+                        logger.info("  (Note: Original results differed in row order and/or numeric formatting, but content is the same after normalization)")
+                        passed_tests.append((query_identifier, elapsed_time))
+                    else:
+                        # Stage 4: Reporting Differences
+                        # Diff is based on sorted, normalized lines to show actual content differences
+                        diff = difflib.unified_diff(
+                            [line + '\n' for line in snow_lines_normalized_sorted],
+                            [line + '\n' for line in bend_lines_normalized_sorted],
+                            fromfile='snowsql (normalized & sorted)',
+                            tofile='bendsql (normalized & sorted)',
+                        )
+                        logger.error("❌ DIFFERENCE FOUND (content mismatch after all normalizations)")
+                        logger.error("Differences (based on normalized & sorted results):")
+                        logger.error("".join(diff))
+                        logger.error("bendsql result (original):")
+                        logger.error(bend_result_str)
+                        logger.error("snowsql result (original):")
+                        logger.error(snow_result_str)
+                        failed_tests.append((query_identifier, bend_result_str, snow_result_str))
             
             # Print current progress summary
             logger.info(f"\nCurrent Progress: [passed: {len(passed_tests)}, failed: {len(failed_tests)}, total: {current_query}/{total_queries}]")
