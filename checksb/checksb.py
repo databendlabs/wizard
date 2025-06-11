@@ -74,20 +74,17 @@ def execute_sql(query, sql_tool, database, warehouse=None):
         # Custom check for known error patterns
         if ("error" in output.lower() or "error" in error.lower() or 
             "unknown function" in output.lower()):
-            error_message = f"Error detected in command output: {output or error}"
-            logger.error(error_message) # Print the error in red
-            if "DROP DATABASE" in query:
-                # Don't exit for database drop errors
-                return output
-            sys.exit(1)
+            # Combine output and error streams to capture the full error message
+            error_content = (output + "\n" + error).strip()
+            # Return a uniquely prefixed string to signal an error to the caller
+            return f"__ERROR__:{error_content}"
 
         logger.info("Command executed successfully.")
         return output
     except subprocess.CalledProcessError as e:
-        error_message = f"{sql_tool} command failed: {e.stderr}"
-        logger.error(error_message)  # Print the error in red
-        # Re-raise the exception to be handled by the caller
-        raise
+        # This block is unlikely to be hit with check=False, but as a safeguard:
+        logger.error(f"{sql_tool} command failed unexpectedly: {e}")
+        return f"__ERROR__:{e}"
 
 
 def execute_sql_scripts(sql_tool, script_path, database, warehouse=None):
@@ -102,7 +99,11 @@ def execute_sql_scripts(sql_tool, script_path, database, warehouse=None):
 
 def fetch_query_results(query, sql_tool, database, warehouse=None):
     result = execute_sql(query, sql_tool, database, warehouse)
-    # Normalize "None" to "NULL" to treat them as semantically equivalent for comparison
+    # Check for the error flag and pass it through without modification
+    if result is not None and result.startswith("__ERROR__:"):
+        return result
+    
+    # For successful results, normalize "None" to "NULL"
     if result is not None:
         result = result.replace("None", "NULL")
     return result
@@ -156,13 +157,37 @@ def run_check_sql(database_name, warehouse, script_path):
             query_identifier = match.group(1).strip() if match else f"Query-{current_query}"
 
             # Print the preparing message with progress indicator
-            logger.info(f"\n[{current_query}/{total_queries}] Testing {query_identifier}...")
+            logger.info(f"\n[{current_query+1}/{total_queries}] Testing {query_identifier}...")
 
             start_time = time.time()
             bend_result_str = fetch_query_results(query, "bendsql", database_name)
-            snow_result_str = fetch_query_results(
-                query, "snowsql", database_name, warehouse
-            )
+            snow_result_str = fetch_query_results(query, "snowsql", database_name, warehouse)
+
+            current_query += 1
+
+            bend_is_error = bend_result_str is not None and bend_result_str.startswith("__ERROR__:")
+            snow_is_error = snow_result_str is not None and snow_result_str.startswith("__ERROR__:")
+
+            # Handle cases where SQL execution failed
+            if bend_is_error or snow_is_error:
+                bend_info = bend_result_str[len("__ERROR__:"):] if bend_is_error else "Execution OK"
+                snow_info = snow_result_str[len("__ERROR__:"):] if snow_is_error else "Execution OK"
+                
+                failed_tests.append((query_identifier, "Execution Failed", bend_info, snow_info))
+                progress_summary = f" [Progress: passed {len(passed_tests)}, failed {len(failed_tests)}, total {current_query}/{total_queries}]"
+                logger.error(f"❌ FAILED (execution error) - Query: {query_identifier}{progress_summary}")
+                
+                # Log the truncated error(s)
+                MAX_ERROR_LENGTH = 250
+                if bend_is_error:
+                    truncated_error = (bend_info[:MAX_ERROR_LENGTH] + '...') if len(bend_info) > MAX_ERROR_LENGTH else bend_info
+                    logger.error(f"  bendsql error: {truncated_error.replace(chr(10), ' ')}")
+                if snow_is_error:
+                    truncated_error = (snow_info[:MAX_ERROR_LENGTH] + '...') if len(snow_info) > MAX_ERROR_LENGTH else snow_info
+                    logger.error(f"  snowsql error: {truncated_error.replace(chr(10), ' ')}")
+                
+                continue
+
             end_time = time.time()
             elapsed_time = end_time - start_time
 
@@ -276,11 +301,22 @@ def run_check_sql(database_name, warehouse, script_path):
     if failed_tests:
         logger.error("\nFailed Tests and Differences:")
         # The tuple now is (query_identifier, captured_diff_string, original_bend_result, original_snow_result)
-        for i, (test_identifier, diff_summary, _, _) in enumerate(failed_tests, 1):
+        # The tuple is (query_identifier, diff_summary_or_flag, bend_data, snow_data)
+        for i, (test_identifier, result_info, bend_data, snow_data) in enumerate(failed_tests, 1):
             logger.error(f"  {i}. Test: {test_identifier}")
-            # Print the captured line-by-line diff summary
-            for line in diff_summary.splitlines():
-                logger.error(f"    {line}") # Indent summary lines for clarity
+            if result_info == "Execution Failed":
+                logger.error("    Result: Execution Failed")
+                MAX_ERROR_LENGTH = 250
+                if "Execution OK" not in bend_data:
+                    truncated_error = (bend_data[:MAX_ERROR_LENGTH] + '...') if len(bend_data) > MAX_ERROR_LENGTH else bend_data
+                    logger.error(f"      bendsql: {truncated_error.replace(chr(10), ' ')}")
+                if "Execution OK" not in snow_data:
+                    truncated_error = (snow_data[:MAX_ERROR_LENGTH] + '...') if len(snow_data) > MAX_ERROR_LENGTH else snow_data
+                    logger.error(f"      snowsql: {truncated_error.replace(chr(10), ' ')}")
+            else:
+                # This is a comparison failure, print the captured diff
+                for line in result_info.splitlines():
+                    logger.error(f"    {line}")
             logger.error("-"*40) # Separator for readability
     
     # Final result indicator
