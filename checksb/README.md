@@ -51,23 +51,19 @@ password = <pwd>
 
 | Flag          | Description                                                      |
 |---------------|------------------------------------------------------------------|
-| `--setup`     | Run setup and action scripts before checking. (Default: skipped) |
-| `--runbend`   | With `--setup`, only run scripts for Databend.                   |
-| `--runsnow`   | With `--setup`, only run scripts for Snowflake.                  |
 | `--skip`      | Comma-separated list of benchmarks to skip (e.g., `tpcds,selects`). |
 
 ## Examples
 
 **Run checks only (default behavior):**
 ```bash
+# Check all cases
+python3 checksb.py --case all
+
 # Check a single case
 python3 checksb.py --case tpcds
 
-# Check all cases
-python3 checksb.py --case all
+# Check all cases except tpcds
+python3 checksb.py --case all --skip tpcds
 ```
 
-**Run setup and then checks:**
-```bash
-python3 checksb.py --case tpcds --setup
-```
