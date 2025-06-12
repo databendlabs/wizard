@@ -45,7 +45,7 @@ password = <pwd>
 
 # Usage
 
-`python3 checksb.py --database <db_name> --case <case_name|all> [options]`
+`python3 checksb.py --case <case_name|all> [options]`
 
 ## Key Options
 
@@ -54,7 +54,6 @@ password = <pwd>
 | `--setup`     | Run setup and action scripts before checking. (Default: skipped) |
 | `--runbend`   | With `--setup`, only run scripts for Databend.                   |
 | `--runsnow`   | With `--setup`, only run scripts for Snowflake.                  |
-| `--warehouse` | Specify Snowflake warehouse (Default: `COMPUTE_WH`).             |
 | `--skip`      | Comma-separated list of benchmarks to skip (e.g., `tpcds,selects`). |
 
 ## Examples
@@ -62,13 +61,13 @@ password = <pwd>
 **Run checks only (default behavior):**
 ```bash
 # Check a single case
-python3 checksb.py --database test_db --case tpcds
+python3 checksb.py --case tpcds
 
 # Check all cases
-python3 checksb.py --database test_db --case all
+python3 checksb.py --case all
 ```
 
 **Run setup and then checks:**
 ```bash
-python3 checksb.py --database test_db --case tpcds --setup
+python3 checksb.py --case tpcds --setup
 ```

@@ -16,7 +16,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser(
         description="Compare SQL execution on different databases."
     )
-    parser.add_argument("--database", help="Database name", required=True)
+    parser.add_argument("--database", help="Database name", default="checksb_db", required=False)
     parser.add_argument(
         "--warehouse",
         default="COMPUTE_WH",
