@@ -554,6 +554,12 @@ def main():
     
     logger.info(f"\nTotal Time: {overall_elapsed_time:.2f}s")
     print(f"\n[Overall Progress] Finished {len(cases)} cases in {overall_elapsed_time:.1f}s.")
+
+
+def run_single_case(case, args):
+    base_sql_dir = f"sql/{case}"
+    database_name, warehouse = args.database, args.warehouse
+
     # Print a nice header for this case
     logger.info(f"\n{'='*80}")
     logger.info(f"SQL Compatibility Test: {case.upper()}")
