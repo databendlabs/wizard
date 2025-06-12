@@ -5578,7 +5578,8 @@ ORDER BY i_category  NULLS FIRST,
          i_class  NULLS FIRST,
          i_item_id  NULLS FIRST,
          i_item_desc  NULLS FIRST,
-         revenueratio NULLS FIRST;
+         revenueratio NULLS FIRST
+         LIMIT 10; -- this limit is added to make the result consistent with snowflake
 
 -- Query 99
 SELECT w_substr ,

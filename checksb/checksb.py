@@ -38,6 +38,13 @@ def parse_arguments():
     parser.add_argument(
         "--runsnow", action="store_true", help="Run only snowsql setup and action"
     )
+    parser.add_argument(
+        "--skip",
+        type=str,
+        help="Benchmarks to skip (e.g., tpcds,selects). Multiple benchmarks can be specified with comma separation.",
+        default="",
+        required=False,
+    )
     args = parser.parse_args()
     return args
 
@@ -366,7 +373,7 @@ def setup_and_execute(sql_tool, base_sql_dir, database_name, warehouse=None):
     setup_dir = "bend" if sql_tool == "bendsql" else "snow"
 
     logger.info(f"\n{'='*80}")
-    logger.info(f"Setting up and executing {sql_tool} scripts")
+    logger.info(f"Setting up and executing {sql_tool} scripts for case: {base_sql_dir.split('/')[-1]}")
     logger.info(f"{'='*80}")
     
     setup_database(database_name, sql_tool)
@@ -406,7 +413,9 @@ def main():
         cases = [d for d in os.listdir('sql') if os.path.isdir(os.path.join('sql', d))]
     else:
         # Handle comma-separated cases
-        cases = [case.strip() for case in args.case.split(',')]
+        cases = [c.strip() for c in args.case.split(',')]
+
+    skipped_benchmarks = [b.strip().lower() for b in args.skip.split(',')] if args.skip else []
     
     # Print a nice header for the entire run
     logger.info(f"\n{'='*80}")
@@ -428,18 +437,29 @@ def main():
 
     # Run each case
     for case in cases:
-        case_result = run_single_case(case, args)
-        overall_results["case_results"].append(case_result)
+        case_name = case
+        if case_name.lower() in skipped_benchmarks:
+            logger.info(f"SKIPPING benchmark checks: {case_name} as per --skip argument.")
+            # Add a placeholder result or handle as appropriate for overall summary
+            overall_results["case_results"].append({
+                "case": case_name,
+                "status": "SKIPPED",
+                "summary": "Skipped due to --skip argument."
+            })
+            continue
+
+        result = run_single_case(case_name, args)
+        overall_results["case_results"].append(result)
         
         # Update overall statistics
-        overall_results["total_queries"] += case_result["total_queries"]
-        overall_results["passed_queries"] += case_result["passed_queries"]
-        overall_results["failed_queries"] += case_result["failed_queries"]
+        overall_results["total_queries"] += result["total_queries"]
+        overall_results["passed_queries"] += result["passed_queries"]
+        overall_results["failed_queries"] += result["failed_queries"]
         
-        if case_result["success"]:
+        if result["success"]:
             overall_results["passed_cases"] += 1
         else:
-            overall_results["failed_cases"].append(case_result["case"])
+            overall_results["failed_cases"].append(result["case"])
     
     # Print overall summary
     overall_end_time = time.time()
@@ -506,17 +526,21 @@ def run_single_case(case, args):
 
     try:
         if args.setup:
-            # Setup database based on the specified arguments
-            if args.runbend:
-                logger.info("Running bendsql setup and action only")
-                setup_and_execute("bendsql", base_sql_dir, database_name)
-            elif args.runsnow:
-                logger.info("Running snowsql setup and action only")
-                setup_and_execute("snowsql", base_sql_dir, database_name, warehouse)
+            skipped_benchmarks_for_setup = [b.strip().lower() for b in args.skip.split(',')] if args.skip else []
+            if case.lower() in skipped_benchmarks_for_setup:
+                logger.info(f"SKIPPING setup for benchmark: {case} as per --skip argument.")
             else:
-                logger.info("Running complete test (bendsql and snowsql)")
-                setup_and_execute("bendsql", base_sql_dir, database_name)
-                setup_and_execute("snowsql", base_sql_dir, database_name, warehouse)
+                logger.info(f"\n--- Setting up for case: {case} ---")
+                # If --runbend or --runsnow is specified, only run the respective setup and action
+                if args.runbend or args.runsnow:
+                    if args.runbend:
+                        setup_and_execute("bendsql", f"sql/{case}", args.database)
+                    if args.runsnow:
+                        setup_and_execute("snowsql", f"sql/{case}", args.database, args.warehouse)
+                else:
+                    # Default behavior: setup and run for both if neither is specified
+                    setup_and_execute("bendsql", f"sql/{case}", args.database)
+                    setup_and_execute("snowsql", f"sql/{case}", args.database, args.warehouse)
         else:
             logger.info("Skipping setup and action scripts. Use --setup to run them.")
 

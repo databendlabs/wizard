@@ -55,13 +55,14 @@ password = <pwd>
 | `--runbend`   | With `--setup`, only run scripts for Databend.                   |
 | `--runsnow`   | With `--setup`, only run scripts for Snowflake.                  |
 | `--warehouse` | Specify Snowflake warehouse (Default: `COMPUTE_WH`).             |
+| `--skip`      | Comma-separated list of benchmarks to skip (e.g., `tpcds,selects`). |
 
 ## Examples
 
 **Run checks only (default behavior):**
 ```bash
 # Check a single case
-python3 checksb.py --database test_db --case merges
+python3 checksb.py --database test_db --case tpcds
 
 # Check all cases
 python3 checksb.py --database test_db --case all
@@ -69,5 +70,5 @@ python3 checksb.py --database test_db --case all
 
 **Run setup and then checks:**
 ```bash
-python3 checksb.py --database test_db --case merges --setup
+python3 checksb.py --database test_db --case tpcds --setup
 ```
