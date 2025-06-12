@@ -542,7 +542,21 @@ def run_single_case(case, args):
                     setup_and_execute("bendsql", f"sql/{case}", args.database)
                     setup_and_execute("snowsql", f"sql/{case}", args.database, args.warehouse)
         else:
-            logger.info("Skipping setup and action scripts. Use --setup to run them.")
+            # Only skip setup for tpcds; run setup for other cases
+            # List of cases to skip setup by default (can be extended)
+            HEAVY_SETUP_CASES = ["tpcds"]
+            if any(case.lower().startswith(prefix) for prefix in HEAVY_SETUP_CASES):
+                logger.info(f"Skipping setup and action scripts for heavy setup case: {case}. Use --setup to run them.")
+            else:
+                logger.info(f"\n--- Setting up for case: {case} (default since not in heavy setup list) ---")
+                if args.runbend or args.runsnow:
+                    if args.runbend:
+                        setup_and_execute("bendsql", f"sql/{case}", args.database)
+                    if args.runsnow:
+                        setup_and_execute("snowsql", f"sql/{case}", args.database, args.warehouse)
+                else:
+                    setup_and_execute("bendsql", f"sql/{case}", args.database)
+                    setup_and_execute("snowsql", f"sql/{case}", args.database, args.warehouse)
 
         # Always run the check
         logger.info("\nRunning check queries...")
