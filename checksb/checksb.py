@@ -66,7 +66,6 @@ def execute_sql(query, sql_tool, database, warehouse=None):
     elif sql_tool == "bendsql":
         command.extend(["--query=" + query, "-D", database])
 
-    logger.info(f"Executing command: {' '.join(command)}")
 
     try:
         result = subprocess.run(command, text=True, capture_output=True, check=False)
@@ -436,31 +435,84 @@ def main():
     }
 
     # Run each case
-    for case in cases:
+    start_time = time.time()
+    case_iter = cases
+    for idx, case in enumerate(case_iter, 1):
         case_name = case
+        case_info = f"{case_name}"
+        elapsed = time.time() - start_time
+        # Estimate ETA
+        eta = None
+        if idx > 0:
+            avg_time = elapsed / idx
+            eta = avg_time * (len(cases) - idx)
+        eta_str = f"{eta:.1f}s" if eta is not None else "--"
+        global_stats = {
+            "case": case_info,
+            "idx": idx,
+            "total_cases": len(cases),
+            "passed": overall_results["passed_cases"],
+            "failed": len(overall_results["failed_cases"]),
+            "elapsed": f"{elapsed:.1f}s",
+            "eta": eta_str
+        }
         if case_name.lower() in skipped_benchmarks:
             logger.info(f"SKIPPING benchmark checks: {case_name} as per --skip argument.")
-            # Add a placeholder result or handle as appropriate for overall summary
             overall_results["case_results"].append({
                 "case": case_name,
                 "status": "SKIPPED",
                 "summary": "Skipped due to --skip argument."
             })
+            print(f"[Progress] case={case_info} | {idx}/{len(cases)} | passed=0 | failed=0 | total=0 | elapsed={elapsed:.1f}s | eta={eta_str}")
             continue
 
         result = run_single_case(case_name, args)
         overall_results["case_results"].append(result)
         
-        # Update overall statistics
         overall_results["total_queries"] += result["total_queries"]
         overall_results["passed_queries"] += result["passed_queries"]
         overall_results["failed_queries"] += result["failed_queries"]
         
-        if result["success"]:
-            overall_results["passed_cases"] += 1
-        else:
-            overall_results["failed_cases"].append(result["case"])
-    
+        # Per-case stats
+        case_passed = result.get("passed_queries", 0)
+        case_failed = result.get("failed_queries", 0)
+        case_total = result.get("total_queries", 0)
+        # Update stats after result
+        elapsed = time.time() - start_time
+        if idx > 0:
+            avg_time = elapsed / idx
+            eta = avg_time * (len(cases) - idx)
+        eta_str = f"{eta:.1f}s" if eta is not None else "--"
+        progress_stats = {
+            "case": case_info,
+            "idx": idx,
+            "total_cases": len(cases),
+            "passed_queries": case_passed,
+            "failed_queries": case_failed,
+            "total_queries": case_total,
+            "elapsed": f"{elapsed:.1f}s",
+            "eta": eta_str
+        }
+        print(f"[Progress] case={case_info} | {idx}/{len(cases)} | passed={case_passed} | failed={case_failed} | total={case_total} | elapsed={elapsed:.1f}s | eta={eta_str}")
+
+        # Print summary so far (only finished cases)
+        if idx > 0:
+            print("[Summary so far]")
+            for prev_result in overall_results["case_results"]:
+                name = prev_result["case"]
+                passed = prev_result.get("passed_queries", 0)
+                total = prev_result.get("total_queries", 0)
+                failed = prev_result.get("failed_queries", 0)
+                # Determine status and color
+                if prev_result.get("success", False):
+                    status = "PASSED"
+                    color = "\033[92m"  # Green
+                else:
+                    status = "FAILED"
+                    color = "\033[91m"  # Red
+                reset = "\033[0m"
+                print(f"  {name}: {color}{status}{reset} ({passed}/{total})")
+
     # Print overall summary
     overall_end_time = time.time()
     overall_elapsed_time = overall_end_time - overall_results["start_time"]
@@ -493,7 +545,7 @@ def main():
                 # Print detailed differences for each failed test
                 logger.error("\n  Detailed Differences:")
                 for i, (test, bend_result, snow_result) in enumerate(case_result["failed_tests"], 1):
-                    logger.error(f"\n    {i}. Test: {test}")
+                    logger.error(f"\n    {i}. {test}")
                     logger.error("       bendsql result:")
                     logger.error(f"       {bend_result.replace(chr(10), chr(10)+'       ')}")
                     logger.error("       snowsql result:")
@@ -501,12 +553,7 @@ def main():
 
     
     logger.info(f"\nTotal Time: {overall_elapsed_time:.2f}s")
-
-
-def run_single_case(case, args):
-    base_sql_dir = f"sql/{case}"
-    database_name, warehouse = args.database, args.warehouse
-
+    print(f"\n[Overall Progress] Finished {len(cases)} cases in {overall_elapsed_time:.1f}s.")
     # Print a nice header for this case
     logger.info(f"\n{'='*80}")
     logger.info(f"SQL Compatibility Test: {case.upper()}")
