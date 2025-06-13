@@ -111,10 +111,37 @@ class SystemBinCLIInstaller:
         """Install BendSQL directly to /usr/bin"""
         self.print_status("Starting BendSQL installation to /usr/bin...", "INFO")
         
+        # Check if BendSQL is already installed
+        bendsql_path = Path("/usr/bin/bendsql")
+        if bendsql_path.exists():
+            self.print_status("Existing BendSQL installation found, uninstalling first...", "INFO")
+            try:
+                # Get current version before uninstalling
+                version_result = self.run_command("bendsql --version")
+                if version_result and version_result.returncode == 0:
+                    old_version = version_result.stdout.strip()
+                    self.print_status(f"Uninstalling BendSQL {old_version}", "INFO")
+                
+                # Remove existing installation
+                uninstall_result = self.run_command("sudo rm -f /usr/bin/bendsql")
+                if uninstall_result and uninstall_result.returncode == 0:
+                    self.print_status("Previous BendSQL version removed successfully", "SUCCESS")
+                else:
+                    self.print_status("Failed to remove previous BendSQL version", "WARNING")
+            except Exception as e:
+                self.print_status(f"Error during BendSQL uninstallation: {e}", "WARNING")
+        
         try:
             # Create installation script
             install_script = f'''#!/bin/bash
 set -e
+
+# Check if BendSQL is already installed and remove it
+if [ -f "/usr/bin/bendsql" ]; then
+    echo "Removing existing BendSQL installation..."
+    sudo rm -f /usr/bin/bendsql
+    echo "Previous BendSQL installation removed"
+fi
 
 # Create temporary directory for BendSQL installation
 TEMP_BENDSQL_DIR=$(mktemp -d)
@@ -138,12 +165,33 @@ echo "Architecture: $ARCH, OS: $OS"
 # Try to get latest release info from GitHub
 echo "Fetching latest BendSQL release..."
 LATEST_URL="https://api.github.com/repos/databendlabs/bendsql/releases/latest"
-DOWNLOAD_URL=$(curl -s "$LATEST_URL" | grep "browser_download_url.*$OS-$ARCH.tar.gz" | cut -d '"' -f 4 | head -1)
+LATEST_INFO=$(curl -s "$LATEST_URL")
+LATEST_VERSION=$(echo "$LATEST_INFO" | grep -o '"tag_name": "[^"]*"' | head -1 | cut -d '"' -f 4)
 
+# First try to find the OS-specific tar.gz file
+DOWNLOAD_URL=$(echo "$LATEST_INFO" | grep -o '"browser_download_url": "[^"]*'"$OS-$ARCH.tar.gz"'"' | head -1 | cut -d '"' -f 4)
+
+# If not found, try the more specific format with unknown-linux-gnu
+if [ -z "$DOWNLOAD_URL" ]; then
+    if [ "$OS" = "linux" ]; then
+        DOWNLOAD_URL=$(echo "$LATEST_INFO" | grep -o '"browser_download_url": "[^"]*'"$ARCH-unknown-linux-gnu.tar.gz"'"' | head -1 | cut -d '"' -f 4)
+    fi
+fi
+
+# If still not found, try the .deb package for Linux
+if [ -z "$DOWNLOAD_URL" ] && [ "$OS" = "linux" ]; then
+    if [ "$ARCH" = "x86_64" ]; then
+        DOWNLOAD_URL=$(echo "$LATEST_INFO" | grep -o '"browser_download_url": "[^"]*amd64.deb"' | head -1 | cut -d '"' -f 4)
+    elif [ "$ARCH" = "aarch64" ]; then
+        DOWNLOAD_URL=$(echo "$LATEST_INFO" | grep -o '"browser_download_url": "[^"]*arm64.deb"' | head -1 | cut -d '"' -f 4)
+    fi
+fi
+
+# If still not found, fallback to direct repository URL with hardcoded version
 if [ -z "$DOWNLOAD_URL" ]; then
     echo "Could not find download URL from GitHub, trying direct repository..."
-    # Fallback to direct repository URL
-    VERSION="v0.22.2"
+    # Fallback to direct repository URL with latest known version
+    VERSION="v0.27.5"
     if [ "$ARCH" = "x86_64" ]; then
         DOWNLOAD_URL="https://repo.databend.com/bendsql/$VERSION/bendsql-x86_64-unknown-linux-gnu.tar.gz"
     else
@@ -152,15 +200,46 @@ if [ -z "$DOWNLOAD_URL" ]; then
 fi
 
 echo "Downloading BendSQL from: $DOWNLOAD_URL"
-curl -L -o bendsql.tar.gz "$DOWNLOAD_URL"
 
-if [ ! -f bendsql.tar.gz ]; then
-    echo "Failed to download BendSQL"
-    exit 1
+# Check if it's a .deb file
+if [[ "$DOWNLOAD_URL" == *.deb ]]; then
+    echo "Detected .deb package, using dpkg for installation..."
+    curl -L -o bendsql.deb "$DOWNLOAD_URL"
+    
+    if [ ! -f bendsql.deb ]; then
+        echo "Failed to download BendSQL .deb package"
+        exit 1
+    fi
+    
+    echo "Installing BendSQL using dpkg..."
+    sudo dpkg -i bendsql.deb
+    
+    # Check if bendsql is in /usr/bin after installation
+    if [ ! -f /usr/bin/bendsql ]; then
+        echo "BendSQL not found in /usr/bin after package installation"
+        # Try to find where it was installed
+        BENDSQL_BIN=$(find /usr -name "bendsql" -type f -executable 2>/dev/null | head -1)
+        if [ -n "$BENDSQL_BIN" ]; then
+            echo "Found BendSQL at $BENDSQL_BIN, copying to /usr/bin"
+            sudo cp "$BENDSQL_BIN" /usr/bin/bendsql
+            sudo chmod +x /usr/bin/bendsql
+        else
+            echo "Could not find BendSQL binary after package installation"
+            exit 1
+        fi
+    fi
+else
+    # Handle tar.gz files
+    curl -L -o bendsql.tar.gz "$DOWNLOAD_URL"
+    
+    if [ ! -f bendsql.tar.gz ]; then
+        echo "Failed to download BendSQL"
+        exit 1
+    fi
+    
+    echo "Extracting BendSQL..."
+    tar -xzf bendsql.tar.gz
 fi
-
-echo "Extracting BendSQL..."
-tar -xzf bendsql.tar.gz
 
 # Find the bendsql binary
 BENDSQL_BIN=$(find . -name "bendsql" -type f -executable | head -1)
@@ -243,6 +322,35 @@ echo "BendSQL installation to /usr/bin completed"
         """Install SnowSQL directly to /usr/bin using RPM package"""
         self.print_status("Starting SnowSQL installation to /usr/bin...", "INFO")
         
+        # Check if SnowSQL is already installed
+        snowsql_path = Path("/usr/bin/snowsql")
+        if snowsql_path.exists():
+            self.print_status("Existing SnowSQL installation found, uninstalling first...", "INFO")
+            try:
+                # Try to get current version before uninstalling
+                version_result = self.run_command("snowsql --version")
+                if version_result and version_result.returncode == 0:
+                    old_version = version_result.stdout.strip()
+                    self.print_status(f"Uninstalling SnowSQL {old_version}", "INFO")
+                
+                # Check if it was installed via package manager
+                pkg_check = self.run_command("dpkg -l | grep snowflake-snowsql")
+                if pkg_check and pkg_check.returncode == 0:
+                    # Uninstall via package manager
+                    self.print_status("Uninstalling SnowSQL package...", "INFO")
+                    uninstall_result = self.run_command("sudo dpkg -r snowflake-snowsql")
+                    if uninstall_result and uninstall_result.returncode != 0:
+                        self.print_status("Package uninstallation failed, removing binary directly", "WARNING")
+                        self.run_command("sudo rm -f /usr/bin/snowsql")
+                else:
+                    # Just remove the binary if not installed via package manager
+                    self.print_status("Removing SnowSQL binary...", "INFO")
+                    self.run_command("sudo rm -f /usr/bin/snowsql")
+                
+                self.print_status("Previous SnowSQL version removed successfully", "SUCCESS")
+            except Exception as e:
+                self.print_status(f"Error during SnowSQL uninstallation: {e}", "WARNING")
+        
         try:
             version = "1.4.0"
             bootstrap_version = "1.3"
@@ -257,6 +365,19 @@ echo "BendSQL installation to /usr/bin completed"
             # Create installation script that installs directly to /usr/bin
             install_script = f'''#!/bin/bash
 set -e
+
+# Check if SnowSQL is already installed and remove it
+if [ -f "/usr/bin/snowsql" ]; then
+    echo "Removing existing SnowSQL installation..."
+    # Check if installed via package manager
+    if dpkg -l | grep -q snowflake-snowsql; then
+        echo "Uninstalling SnowSQL package..."
+        sudo dpkg -r snowflake-snowsql || sudo rm -f /usr/bin/snowsql
+    else
+        sudo rm -f /usr/bin/snowsql
+    fi
+    echo "Previous SnowSQL installation removed"
+fi
 
 echo "Downloading SnowSQL RPM package..."
 curl -L -O "{rpm_url}"

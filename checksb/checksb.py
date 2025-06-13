@@ -3,6 +3,7 @@ import re
 import sys
 import subprocess
 import time
+import os
 from termcolor import colored
 import logging
 from datetime import datetime
@@ -369,7 +370,18 @@ class CheckSB:
         print(f"{'=' * 80}")
         print(f"📋 Cases to run: {', '.join(cases)}")
         print(f"🗄️  Database: {self.args.database}")
-        print(f"🏭 Warehouse: {self.args.warehouse}")
+        
+        # Extract warehouse from BENDSQL_DSN if available
+        dsn_warehouse = extract_warehouse_from_dsn()
+        if dsn_warehouse:
+            print(f"🏭 bendsql warehouse: {dsn_warehouse}")
+        
+        print(f"🏭 snowsql warehouse: {self.args.warehouse}")
+        # Get CLI versions
+        bendsql_version, snowsql_version = get_cli_versions()
+        print(f"📊 bendsql --version: {bendsql_version}")
+        print(f"📊 snowsql --version: {snowsql_version}")
+        
         if self.args.runbend:
             print(f"⚡ Mode: bendsql only")
         elif self.args.runsnow:
@@ -448,6 +460,39 @@ class CheckSB:
             failed_case_names = [case for case, r in self.results.items() if not r.success]
             print(f"\n❌ {colored(f'{failed_cases} CASE(S) FAILED', 'red', attrs=['bold'])}")
             print(f"   Failed cases: {', '.join(failed_case_names)}")
+
+def extract_warehouse_from_dsn() -> Optional[str]:
+    """Extract warehouse name from BENDSQL_DSN environment variable."""
+    dsn = os.environ.get('BENDSQL_DSN', '')
+    if not dsn:
+        return None
+    
+    # Format: databend://bohu:xx!@tnscfp003--pr18131.gw.aws-us-east-2.default.databend.com
+    match = re.search(r'@[^@]+--([^.]+)\.', dsn)
+    if match:
+        return match.group(1)
+    return None
+
+def get_cli_versions() -> Tuple[str, str]:
+    """Get the versions of bendsql and snowsql CLI tools."""
+    bendsql_version = "Not installed"
+    snowsql_version = "Not installed"
+    
+    try:
+        result = subprocess.run(["bendsql", "--version"], text=True, capture_output=True)
+        if result.returncode == 0:
+            bendsql_version = result.stdout.strip()
+    except FileNotFoundError:
+        pass
+    
+    try:
+        result = subprocess.run(["snowsql", "--version"], text=True, capture_output=True)
+        if result.returncode == 0:
+            snowsql_version = result.stdout.strip()
+    except FileNotFoundError:
+        pass
+    
+    return bendsql_version, snowsql_version
 
 def main():
     parser = argparse.ArgumentParser(description="Compare SQL execution on different databases")
