@@ -151,11 +151,21 @@ class QueryComparator:
     
     @classmethod
     def compare(cls, bend_result: str, snow_result: str) -> Tuple[bool, Optional[str]]:
+        # Check for empty result sets
+        bend_lines = [cls.normalize_line(line) for line in bend_result.splitlines() if line.strip()]
+        snow_lines = [cls.normalize_line(line) for line in snow_result.splitlines() if line.strip()]
+        
+        # Mark empty result sets as unsuitable
+        if len(bend_lines) == 0 and len(snow_lines) == 0:
+            return True, "UNSUITABLE: empty result set"
+        elif len(bend_lines) == 0:
+            return False, "UNSUITABLE: bendsql returned empty result set"
+        elif len(snow_lines) == 0:
+            return False, "UNSUITABLE: snowsql returned empty result set"
+        
+        # Continue with regular comparison if not empty
         if bend_result == snow_result:
             return True, "exact match"
-        
-        bend_lines = [cls.normalize_line(line) for line in bend_result.splitlines()]
-        snow_lines = [cls.normalize_line(line) for line in snow_result.splitlines()]
         
         if bend_lines == snow_lines:
             return True, "numeric normalization"

@@ -659,3 +659,88 @@ INSERT INTO assets SELECT * FROM assets_10;
 
 -- INSERT-INTO-A32: assets
 INSERT INTO assets SELECT * FROM assets_10w;
+
+-- MERGE-INTO-TEMP1: Using temporary table for order processing
+-- Create a temporary table for pending orders
+CREATE TEMPORARY TABLE temp_pending_orders_new AS
+SELECT * FROM orders WHERE status = 'pending' AND created_at > '2022-01-01';
+
+-- Merge using the temporary table
+MERGE INTO orders_25 as target USING (
+    SELECT * FROM temp_pending_orders_new
+) AS source ON target.order_id = source.order_id
+    WHEN MATCHED THEN
+        UPDATE SET target.status = 'in_progress';
+
+-- MERGE-INTO-TEMP2: Using temporary table for asset aggregation
+-- Create a temporary table for asset aggregation
+CREATE OR REPLACE TEMPORARY TABLE temp_asset_aggregation AS
+SELECT user_id, asset_type, SUM(quantity) AS total_quantity, AVG(value) AS avg_value
+FROM assets
+GROUP BY user_id, asset_type;
+
+-- Merge using the temporary table
+MERGE INTO assets_10 as target USING (
+    SELECT * FROM temp_asset_aggregation
+) AS source ON target.user_id = source.user_id AND target.asset_type = source.asset_type
+    WHEN MATCHED THEN
+        UPDATE SET target.quantity = source.total_quantity, target.value = source.avg_value;
+
+-- MERGE-INTO-TEMP3: Using temporary tables for multi-stage processing
+-- Stage 1: Create temporary table for filtered transactions
+CREATE TEMPORARY TABLE temp_filtered_transactions AS
+SELECT * FROM transactions 
+WHERE transaction_time > '2022-06-01';
+
+-- Stage 2: Create temporary table with aggregated data
+CREATE TEMPORARY TABLE temp_transaction_aggregates AS
+SELECT user_id, asset_type, 
+       SUM(quantity) AS total_quantity,
+       COUNT(*) AS transaction_count
+FROM temp_filtered_transactions
+GROUP BY user_id, asset_type;
+
+-- Stage 3: Merge using the aggregated temporary table
+MERGE INTO transactions_50 as target USING (
+    SELECT * FROM temp_transaction_aggregates
+) AS source ON target.user_id = source.user_id AND target.asset_type = source.asset_type
+    WHEN MATCHED THEN
+        UPDATE SET target.quantity = source.total_quantity;
+
+-- MERGE-INTO-TEMP4: Using temporary table with joins
+-- Create temporary table for assets with high value
+CREATE TEMPORARY TABLE temp_high_value_assets AS
+SELECT * FROM assets WHERE value > 1000;
+
+-- Create temporary table joining orders with high-value assets
+CREATE TEMPORARY TABLE temp_orders_with_high_value_assets AS
+SELECT o.*, a.value AS asset_value
+FROM orders o
+JOIN temp_high_value_assets a ON o.user_id = a.user_id AND o.asset_type = a.asset_type;
+
+-- Merge using the joined temporary table
+MERGE INTO orders_25 as target USING (
+    SELECT * FROM temp_orders_with_high_value_assets
+) AS source ON target.order_id = source.order_id
+    WHEN MATCHED THEN
+        UPDATE SET target.price = target.price * 1.1;
+
+-- MERGE-INTO-TEMP5: Using temporary table with window functions
+-- Create temporary table with window function results
+CREATE TEMPORARY TABLE temp_ranked_transactions AS
+SELECT *, 
+       ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY quantity DESC) AS quantity_rank,
+       AVG(quantity) OVER (PARTITION BY asset_type) AS avg_type_quantity
+FROM transactions;
+
+-- Create temporary table for top transactions per user
+CREATE TEMPORARY TABLE temp_top_user_transactions AS
+SELECT * FROM temp_ranked_transactions
+WHERE quantity_rank <= 3;
+
+-- Merge using the temporary table with window function results
+MERGE INTO transactions_50 as target USING (
+    SELECT * FROM temp_top_user_transactions
+) AS source ON target.transaction_id = source.transaction_id
+    WHEN MATCHED THEN
+        UPDATE SET target.quantity = source.quantity * 2;
