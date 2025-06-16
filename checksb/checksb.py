@@ -140,23 +140,55 @@ class SQLExecutor:
 class QueryComparator:
     @staticmethod
     def normalize_line(line: str) -> str:
+        import math
         parts = []
         for part in re.split(r'\s+', line.strip()):
             if not part:
                 continue
             try:
+                # Handle special float values first
+                if part.lower() in ['inf', 'infinity', '+inf', '+infinity']:
+                    parts.append('inf')
+                    continue
+                elif part.lower() in ['-inf', '-infinity']:
+                    parts.append('-inf')
+                    continue
+                elif part.lower() in ['nan', '+nan', '-nan']:
+                    parts.append('nan')
+                    continue
+                
+                # Try to parse as number
                 num = round(float(part), 3)
-                # Handle special float values that cannot be converted to int
-                if math.isinf(num) or math.isnan(num):
-                    parts.append(str(num))
-                # Convert extremely large finite values to inf/-inf for consistency
-                elif abs(num) > 1.79e+308:  # Approximate DOUBLE_MAX
+                
+                # Handle extremely large finite values
+                if abs(num) > 1.79e+308:  # Approximate double max
                     parts.append('inf' if num > 0 else '-inf')
+                elif math.isinf(num):
+                    parts.append('inf' if num > 0 else '-inf')
+                elif math.isnan(num):
+                    parts.append('nan')
                 else:
                     parts.append(str(int(num)) if num == int(num) else str(num))
             except ValueError:
-                parts.append(part)
-        return "\t".join(parts)
+                # Handle boolean case normalization
+                if part.lower() == 'true':
+                    parts.append('true')
+                elif part.lower() == 'false':
+                    parts.append('false')
+                # Handle timestamp precision normalization
+                elif ':' in part and '.' in part:
+                    # Normalize timestamp precision (e.g., 00:00:00.000000 -> 00:00:00.000)
+                    if part.count('.') == 1:
+                        time_part, fraction = part.split('.')
+                        # Truncate to 3 decimal places for millisecond precision
+                        normalized_fraction = fraction[:3].ljust(3, '0')
+                        parts.append(f"{time_part}.{normalized_fraction}")
+                    else:
+                        parts.append(part)
+                else:
+                    parts.append(part)
+        
+        return ' '.join(parts)
     
     @classmethod
     def compare(cls, bend_result: str, snow_result: str) -> Tuple[bool, Optional[str]]:
