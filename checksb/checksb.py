@@ -198,7 +198,7 @@ class QueryComparator:
         return '\t'.join(normalized_parts)
     
     @classmethod
-    def compare(cls, bend_result: str, snow_result: str) -> Tuple[bool, Optional[str]]:
+    def compare(cls, bend_result: str, snow_result: str, query: str = None) -> Tuple[bool, Optional[str]]:
         # Check for empty result sets
         bend_lines = [cls.normalize_line(line) for line in bend_result.splitlines() if line.strip()]
         snow_lines = [cls.normalize_line(line) for line in snow_result.splitlines() if line.strip()]
@@ -218,92 +218,88 @@ class QueryComparator:
         if bend_lines == snow_lines:
             return True, "numeric normalization"
         
-        if sorted(bend_lines) == sorted(snow_lines):
-            return True, "order-agnostic"
-        
-        return False, cls._generate_diff(bend_lines, snow_lines)
+        return False, cls._generate_diff(bend_lines, snow_lines, query)
     
     @staticmethod
-    def _generate_diff(bend_lines: List[str], snow_lines: List[str]) -> str:
+    def _generate_diff(databend_lines, snowflake_lines, query=None):
+        """Generate detailed diff output with side-by-side comparison style"""
         diff_output = []
-        max_rows = max(len(bend_lines), len(snow_lines))
         
-        for i in range(max_rows):
-            bend_line = bend_lines[i] if i < len(bend_lines) else ""
-            snow_line = snow_lines[i] if i < len(snow_lines) else ""
+        # Add SQL query at the top if provided
+        if query:
+            diff_output.append("                🔍 SQL Query that caused the difference:")
+            diff_output.append("                ┌─────────────────────────────────────────────────────────────────────────┐")
+            # Split query into lines and format each line
+            query_lines = query.strip().split('\n')
+            for line in query_lines:
+                formatted_line = f"                │ {line:<71} │"
+                diff_output.append(formatted_line)
+            diff_output.append("                └─────────────────────────────────────────────────────────────────────────┘")
+            diff_output.append("")  # Empty line
+        
+        for i, (db_line, sf_line) in enumerate(zip(databend_lines, snowflake_lines)):
+            db_normalized = QueryComparator.normalize_line(db_line)
+            sf_normalized = QueryComparator.normalize_line(sf_line)
             
-            # Normalize both lines for comparison
-            bend_normalized = QueryComparator.normalize_line(bend_line)
-            snow_normalized = QueryComparator.normalize_line(snow_line)
-            
-            if bend_normalized != snow_normalized:
-                # For mismatched rows, show detailed comparison
-                diff_output.append(f"        Row {i+1} Comparison:")
+            if db_normalized != sf_normalized:
+                # Split by tabs to get columns
+                db_cols = db_normalized.split('\t')
+                sf_cols = sf_normalized.split('\t')
                 
-                # Split into columns
-                bend_cols = bend_line.split('\t') if bend_line else []
-                snow_cols = snow_line.split('\t') if snow_line else []
-                max_cols = max(len(bend_cols), len(snow_cols))
+                max_cols = max(len(db_cols), len(sf_cols))
                 
-                if max_cols <= 1:
-                    # Single column or simple text - show full content
-                    diff_output.append("┌─────────────────────────────────────────────────────────────────────┐")
-                    diff_output.append("│ Databend vs Snowflake                                              │")
-                    diff_output.append("├─────────────────────────────────────────────────────────────────────┤")
-                    diff_output.append(f"│ {bend_line[:65]:<65} │")
-                    diff_output.append(f"│ {snow_line[:65]:<65} │")
-                    diff_output.append("├─────────────────────────────────────────────────────────────────────┤")
-                    diff_output.append("│ ❌ DIFF                                                             │")
-                    diff_output.append("└─────────────────────────────────────────────────────────────────────┘")
-                else:
-                    # Multi-column table format
-                    headers = [f"Col {j+1}" for j in range(max_cols)]
-                    
-                    # Create table with full column content (no truncation for mismatches)
-                    table_lines = []
-                    
-                    # Header
-                    header_line = "┌" + "┬".join("─" * 20 for _ in headers) + "┐"
-                    table_lines.append(header_line)
-                    
-                    header_content = "│" + "│".join(f" {h:<18} " for h in headers) + "│"
-                    table_lines.append(header_content)
-                    
-                    # Separator
-                    sep_line = "├" + "┼".join("─" * 20 for _ in headers) + "┤"
-                    table_lines.append(sep_line)
-                    
-                    # Data rows - show full content for mismatched rows
-                    bend_row = "│" + "│".join(f" {(bend_cols[j] if j < len(bend_cols) else ''):<18} " for j in range(max_cols)) + "│"
-                    snow_row = "│" + "│".join(f" {(snow_cols[j] if j < len(snow_cols) else ''):<18} " for j in range(max_cols)) + "│"
-                    
-                    table_lines.append(bend_row)
-                    table_lines.append(snow_row)
-                    
-                    # Status row
-                    table_lines.append(sep_line)
-                    status_cells = []
-                    for j in range(max_cols):
-                        bend_val = bend_cols[j] if j < len(bend_cols) else ""
-                        snow_val = snow_cols[j] if j < len(snow_cols) else ""
-                        bend_norm = QueryComparator.normalize_line(bend_val)
-                        snow_norm = QueryComparator.normalize_line(snow_val)
-                        status = "✓ MATCH" if bend_norm == snow_norm else "❌ DIFF"
-                        status_cells.append(f" {status:<18} ")
-                    
-                    status_row = "│" + "│".join(status_cells) + "│"
-                    table_lines.append(status_row)
-                    
-                    # Footer
-                    footer_line = "└" + "┴".join("─" * 20 for _ in headers) + "┘"
-                    table_lines.append(footer_line)
-                    
-                    diff_output.extend(table_lines)
+                # Pad shorter list with empty strings
+                while len(db_cols) < max_cols:
+                    db_cols.append('')
+                while len(sf_cols) < max_cols:
+                    sf_cols.append('')
                 
-                diff_output.append("")  # Empty line between rows
+                diff_output.append(f"                Row {i+1} DIFFERENCES:")
+                
+                # Count matches and differences
+                matches = 0
+                differences = []
+                
+                for j in range(max_cols):
+                    db_val = db_cols[j] if j < len(db_cols) else ''
+                    sf_val = sf_cols[j] if j < len(sf_cols) else ''
+                    
+                    if db_val != sf_val:
+                        differences.append((j+1, db_val, sf_val))
+                    else:
+                        matches += 1
+                
+                # Show each difference in a box
+                for col_num, db_val, sf_val in differences:
+                    # Calculate box width based on content
+                    max_width = max(len(f"Databend:  {db_val}"), len(f"Snowflake: {sf_val}"), 20)
+                    box_width = min(max_width + 4, 80)  # Limit to 80 chars max
+                    
+                    # Create the box
+                    header = f"─ Col {col_num} "
+                    header_padding = "─" * (box_width - len(header) - 1)
+                    
+                    diff_output.append(f"┌{header}{header_padding}┐")
+                    
+                    # Format content lines
+                    db_line_content = f"│ Databend:  {db_val}"
+                    sf_line_content = f"│ Snowflake: {sf_val}"
+                    
+                    # Pad lines to box width
+                    db_line_content += " " * (box_width - len(db_line_content)) + "│"
+                    sf_line_content += " " * (box_width - len(sf_line_content)) + "│"
+                    
+                    diff_output.append(db_line_content)
+                    diff_output.append(sf_line_content)
+                    diff_output.append("└" + "─" * (box_width - 2) + "┘")
+                
+                # Show match summary
+                if matches > 0:
+                    diff_output.append(f"({matches} other columns match)")
+                
+                diff_output.append("")  # Empty line for spacing
             else:
-                # For matched rows, just show a simple confirmation
-                diff_output.append(f"        Row {i+1}: ✓ MATCH")
+                diff_output.append(f"                Row {i+1}: ✓ MATCH")
         
         return "\n".join(diff_output)
 
@@ -442,7 +438,7 @@ class CheckSB:
                 continue
             
             print(f"      • Comparing results...", end="", flush=True)
-            match, match_type = QueryComparator.compare(bend_result, snow_result)
+            match, match_type = QueryComparator.compare(bend_result, snow_result, query)
             
             if match:
                 result.passed += 1
