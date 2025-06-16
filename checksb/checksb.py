@@ -146,8 +146,12 @@ class QueryComparator:
                 continue
             try:
                 num = round(float(part), 3)
+                # Handle special float values that cannot be converted to int
                 if math.isinf(num) or math.isnan(num):
                     parts.append(str(num))
+                # Convert extremely large finite values to inf/-inf for consistency
+                elif abs(num) > 1.79e+308:  # Approximate DOUBLE_MAX
+                    parts.append('inf' if num > 0 else '-inf')
                 else:
                     parts.append(str(int(num)) if num == int(num) else str(num))
             except ValueError:
