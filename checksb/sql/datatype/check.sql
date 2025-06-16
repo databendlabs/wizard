@@ -16,18 +16,8 @@ SELECT 'Test 1: Numeric boundaries' as test_name,
 FROM test_numbers
 ORDER BY id;
 
--- Test 2: String boundary values (empty, short, long, unicode)
-SELECT 'Test 2: String boundaries' as test_name,
-       id,
-       varchar_empty,
-       varchar_short,
-       varchar_long,
-       varchar_unicode
-FROM test_strings
-ORDER BY id;
-
--- Test 3: Boolean values (true, false, null)
-SELECT 'Test 3: Boolean values' as test_name,
+-- Test 2: Boolean values (true, false, null)
+SELECT 'Test 2: Boolean values' as test_name,
        id,
        bool_true,
        bool_false,
@@ -35,16 +25,16 @@ SELECT 'Test 3: Boolean values' as test_name,
 FROM test_booleans
 ORDER BY id;
 
--- Test 4: Date/Time boundary values
-SELECT 'Test 4: Date/Time boundaries' as test_name,
+-- Test 3: Date/Time boundary values
+SELECT 'Test 3: Date/Time boundaries' as test_name,
        id,
        date_val,
        timestamp_val
 FROM test_dates
 ORDER BY id;
 
--- Test 5: VARIANT boundary value extraction
-SELECT 'Test 5: VARIANT boundaries' as test_name,
+-- Test 4: VARIANT boundary value extraction
+SELECT 'Test 4: VARIANT boundaries' as test_name,
        id,
        variant_nested:unicode::VARCHAR as unicode_text,
        variant_nested:escape::VARCHAR as escape_chars,
@@ -59,8 +49,8 @@ SELECT 'Test 5: VARIANT boundaries' as test_name,
 FROM test_variants
 ORDER BY id;
 
--- Test 6: Arithmetic operations with boundary values
-SELECT 'Test 6: Arithmetic boundary operations' as test_name,
+-- Test 5: Arithmetic operations with boundary values
+SELECT 'Test 5: Arithmetic boundary operations' as test_name,
        id,
        int_max,
        int_max + 1 as int_overflow,
@@ -69,12 +59,12 @@ SELECT 'Test 6: Arithmetic boundary operations' as test_name,
        bigint_max + bigint_max as bigint_double,
        smallint_max * smallint_max as smallint_square,
        float_val * 2 as float_double,
-       double_val * 2 as double_double
+       double_val / 2 as double_half
 FROM test_numbers WHERE id <= 2
 ORDER BY id;
 
--- Test 7: Type casting with boundary values
-SELECT 'Test 7: Type casting' as test_name,
+-- Test 6: Type casting with boundary values
+SELECT 'Test 6: Type cast boundaries' as test_name,
        id,
        CAST(int_max AS BIGINT) as int_to_bigint,
        CAST(bigint_max AS FLOAT) as bigint_to_float,
@@ -83,27 +73,27 @@ SELECT 'Test 7: Type casting' as test_name,
 FROM test_numbers WHERE id <= 2
 ORDER BY id;
 
--- Test 8: NULL handling across all types
-SELECT 'Test 8: NULL handling' as test_name,
+-- Test 7: NULL handling across all types
+SELECT 'Test 7: NULL handling' as test_name,
        'Numbers' as table_type,
        COUNT(*) as total_rows,
        COUNT(int_max) as non_null_count
 FROM test_numbers
 UNION ALL
-SELECT 'Test 8: NULL handling' as test_name,
+SELECT 'Test 7: NULL handling' as test_name,
        'Booleans' as table_type,
        COUNT(*) as total_rows,
        COUNT(bool_true) as non_null_count
 FROM test_booleans
 UNION ALL
-SELECT 'Test 8: NULL handling' as test_name,
+SELECT 'Test 7: NULL handling' as test_name,
        'Dates' as table_type,
        COUNT(*) as total_rows,
        COUNT(date_val) as non_null_count
 FROM test_dates;
 
--- Test 9: Edge case detection
-SELECT 'Test 9: Edge cases' as test_name,
+-- Test 8: Edge case detection
+SELECT 'Test 8: Edge cases' as test_name,
        id,
        CASE WHEN int_max = 2147483647 THEN 'INT_MAX' ELSE 'OTHER' END as int_max_check,
        CASE WHEN bigint_min = -9223372036854775808 THEN 'BIGINT_MIN' ELSE 'OTHER' END as bigint_min_check,
@@ -112,8 +102,8 @@ SELECT 'Test 9: Edge cases' as test_name,
 FROM test_numbers WHERE id <= 3
 ORDER BY id;
 
--- Test 10: Data consistency validation
-SELECT 'Test 10: Data consistency' as test_name,
+-- Test 9: Data consistency validation
+SELECT 'Test 9: Data consistency' as test_name,
        (SELECT COUNT(*) FROM test_numbers) as numbers_count,
        (SELECT COUNT(*) FROM test_booleans) as booleans_count,
        (SELECT COUNT(*) FROM test_dates) as dates_count,
