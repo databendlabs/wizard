@@ -141,20 +141,27 @@ class QueryComparator:
     @staticmethod
     def normalize_line(line: str) -> str:
         import math
-        parts = []
-        for part in re.split(r'\s+', line.strip()):
+        
+        # Split by tabs to preserve column structure
+        parts = line.split('\t')
+        normalized_parts = []
+        
+        for part in parts:
+            part = part.strip()  # Remove leading/trailing whitespace
             if not part:
+                normalized_parts.append('')
                 continue
+                
             try:
                 # Handle special float values first
                 if part.lower() in ['inf', 'infinity', '+inf', '+infinity']:
-                    parts.append('inf')
+                    normalized_parts.append('inf')
                     continue
                 elif part.lower() in ['-inf', '-infinity']:
-                    parts.append('-inf')
+                    normalized_parts.append('-inf')
                     continue
                 elif part.lower() in ['nan', '+nan', '-nan']:
-                    parts.append('nan')
+                    normalized_parts.append('nan')
                     continue
                 
                 # Try to parse as number
@@ -162,19 +169,19 @@ class QueryComparator:
                 
                 # Handle extremely large finite values
                 if abs(num) > 1.79e+308:  # Approximate double max
-                    parts.append('inf' if num > 0 else '-inf')
+                    normalized_parts.append('inf' if num > 0 else '-inf')
                 elif math.isinf(num):
-                    parts.append('inf' if num > 0 else '-inf')
+                    normalized_parts.append('inf' if num > 0 else '-inf')
                 elif math.isnan(num):
-                    parts.append('nan')
+                    normalized_parts.append('nan')
                 else:
-                    parts.append(str(int(num)) if num == int(num) else str(num))
+                    normalized_parts.append(str(int(num)) if num == int(num) else str(num))
             except ValueError:
                 # Handle boolean case normalization
                 if part.lower() == 'true':
-                    parts.append('true')
+                    normalized_parts.append('true')
                 elif part.lower() == 'false':
-                    parts.append('false')
+                    normalized_parts.append('false')
                 # Handle timestamp precision normalization
                 elif ':' in part and '.' in part:
                     # Normalize timestamp precision (e.g., 00:00:00.000000 -> 00:00:00.000)
@@ -182,13 +189,13 @@ class QueryComparator:
                         time_part, fraction = part.split('.')
                         # Truncate to 3 decimal places for millisecond precision
                         normalized_fraction = fraction[:3].ljust(3, '0')
-                        parts.append(f"{time_part}.{normalized_fraction}")
+                        normalized_parts.append(f"{time_part}.{normalized_fraction}")
                     else:
-                        parts.append(part)
+                        normalized_parts.append(part)
                 else:
-                    parts.append(part)
+                    normalized_parts.append(part)
         
-        return ' '.join(parts)
+        return '\t'.join(normalized_parts)
     
     @classmethod
     def compare(cls, bend_result: str, snow_result: str) -> Tuple[bool, Optional[str]]:
