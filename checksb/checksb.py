@@ -4,6 +4,7 @@ import sys
 import subprocess
 import time
 import os
+import math
 from termcolor import colored
 import logging
 from datetime import datetime
@@ -145,7 +146,10 @@ class QueryComparator:
                 continue
             try:
                 num = round(float(part), 3)
-                parts.append(str(int(num)) if num == int(num) else str(num))
+                if math.isinf(num) or math.isnan(num):
+                    parts.append(str(num))
+                else:
+                    parts.append(str(int(num)) if num == int(num) else str(num))
             except ValueError:
                 parts.append(part)
         return "\t".join(parts)
