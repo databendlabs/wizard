@@ -218,94 +218,87 @@ class QueryComparator:
     
     @staticmethod
     def _generate_diff(bend_lines: List[str], snow_lines: List[str]) -> str:
-        diff_lines = []
-        max_len = max(len(bend_lines), len(snow_lines))
+        diff_output = []
+        max_rows = max(len(bend_lines), len(snow_lines))
         
-        for i in range(min(max_len, 100)):
-            bend_line = bend_lines[i] if i < len(bend_lines) else "--- (missing)"
-            snow_line = snow_lines[i] if i < len(snow_lines) else "--- (missing)"
+        for i in range(max_rows):
+            bend_line = bend_lines[i] if i < len(bend_lines) else ""
+            snow_line = snow_lines[i] if i < len(snow_lines) else ""
             
-            if bend_line != snow_line:
-                # Split lines into columns
-                bend_parts = bend_line.split('\t') if bend_line != "--- (missing)" else ["--- (missing)"]
-                snow_parts = snow_line.split('\t') if snow_line != "--- (missing)" else ["--- (missing)"]
+            # Normalize both lines for comparison
+            bend_normalized = QueryComparator.normalize_line(bend_line)
+            snow_normalized = QueryComparator.normalize_line(snow_line)
+            
+            if bend_normalized != snow_normalized:
+                # For mismatched rows, show detailed comparison
+                diff_output.append(f"        Row {i+1} Comparison:")
                 
-                max_cols = max(len(bend_parts), len(snow_parts))
+                # Split into columns
+                bend_cols = bend_line.split('\t') if bend_line else []
+                snow_cols = snow_line.split('\t') if snow_line else []
+                max_cols = max(len(bend_cols), len(snow_cols))
                 
-                # Generate table-style comparison
-                diff_lines.append(f"Row {i+1} Comparison:")
-                
-                # Calculate column widths (max 20 chars per column for readability)
-                col_widths = []
-                for col_idx in range(max_cols):
-                    bend_val = bend_parts[col_idx] if col_idx < len(bend_parts) else "--- (missing)"
-                    snow_val = snow_parts[col_idx] if col_idx < len(snow_parts) else "--- (missing)"
-                    header = f"Col {col_idx+1}"
+                if max_cols <= 1:
+                    # Single column or simple text - show full content
+                    diff_output.append("┌─────────────────────────────────────────────────────────────────────┐")
+                    diff_output.append("│ Databend vs Snowflake                                              │")
+                    diff_output.append("├─────────────────────────────────────────────────────────────────────┤")
+                    diff_output.append(f"│ {bend_line[:65]:<65} │")
+                    diff_output.append(f"│ {snow_line[:65]:<65} │")
+                    diff_output.append("├─────────────────────────────────────────────────────────────────────┤")
+                    diff_output.append("│ ❌ DIFF                                                             │")
+                    diff_output.append("└─────────────────────────────────────────────────────────────────────┘")
+                else:
+                    # Multi-column table format
+                    headers = [f"Col {j+1}" for j in range(max_cols)]
                     
-                    # Truncate very long values for display
-                    bend_display = bend_val[:17] + "..." if len(bend_val) > 20 else bend_val
-                    snow_display = snow_val[:17] + "..." if len(snow_val) > 20 else snow_val
+                    # Create table with full column content (no truncation for mismatches)
+                    table_lines = []
                     
-                    max_width = max(len(header), len(bend_display), len(snow_display), 8)
-                    col_widths.append(min(max_width, 20))
-                
-                # Create table header
-                header_line = "┌" + "┬".join("─" * (w + 2) for w in col_widths) + "┐"
-                diff_lines.append(header_line)
-                
-                # Column headers
-                headers = []
-                for col_idx in range(max_cols):
-                    header = f"Col {col_idx+1}"
-                    headers.append(f" {header:<{col_widths[col_idx]}} ")
-                diff_lines.append("│" + "│".join(headers) + "│")
-                
-                # Separator
-                sep_line = "├" + "┼".join("─" * (w + 2) for w in col_widths) + "┤"
-                diff_lines.append(sep_line)
-                
-                # Data rows
-                bend_row = []
-                snow_row = []
-                status_row = []
-                
-                for col_idx in range(max_cols):
-                    bend_val = bend_parts[col_idx] if col_idx < len(bend_parts) else "--- (missing)"
-                    snow_val = snow_parts[col_idx] if col_idx < len(snow_parts) else "--- (missing)"
+                    # Header
+                    header_line = "┌" + "┬".join("─" * 20 for _ in headers) + "┐"
+                    table_lines.append(header_line)
                     
-                    # Truncate for display
-                    bend_display = bend_val[:17] + "..." if len(bend_val) > 20 else bend_val
-                    snow_display = snow_val[:17] + "..." if len(snow_val) > 20 else snow_val
+                    header_content = "│" + "│".join(f" {h:<18} " for h in headers) + "│"
+                    table_lines.append(header_content)
                     
-                    bend_row.append(f" {bend_display:<{col_widths[col_idx]}} ")
-                    snow_row.append(f" {snow_display:<{col_widths[col_idx]}} ")
+                    # Separator
+                    sep_line = "├" + "┼".join("─" * 20 for _ in headers) + "┤"
+                    table_lines.append(sep_line)
                     
-                    # Status indicator
-                    if bend_val == snow_val:
-                        status = "✓ MATCH"
-                    else:
-                        status = "❌ DIFF"
-                    status_row.append(f" {status:<{col_widths[col_idx]}} ")
+                    # Data rows - show full content for mismatched rows
+                    bend_row = "│" + "│".join(f" {(bend_cols[j] if j < len(bend_cols) else ''):<18} " for j in range(max_cols)) + "│"
+                    snow_row = "│" + "│".join(f" {(snow_cols[j] if j < len(snow_cols) else ''):<18} " for j in range(max_cols)) + "│"
+                    
+                    table_lines.append(bend_row)
+                    table_lines.append(snow_row)
+                    
+                    # Status row
+                    table_lines.append(sep_line)
+                    status_cells = []
+                    for j in range(max_cols):
+                        bend_val = bend_cols[j] if j < len(bend_cols) else ""
+                        snow_val = snow_cols[j] if j < len(snow_cols) else ""
+                        bend_norm = QueryComparator.normalize_line(bend_val)
+                        snow_norm = QueryComparator.normalize_line(snow_val)
+                        status = "✓ MATCH" if bend_norm == snow_norm else "❌ DIFF"
+                        status_cells.append(f" {status:<18} ")
+                    
+                    status_row = "│" + "│".join(status_cells) + "│"
+                    table_lines.append(status_row)
+                    
+                    # Footer
+                    footer_line = "└" + "┴".join("─" * 20 for _ in headers) + "┘"
+                    table_lines.append(footer_line)
+                    
+                    diff_output.extend(table_lines)
                 
-                # Add bendsql row
-                diff_lines.append("│" + "│".join(bend_row) + "│")
-                # Add snowsql row  
-                diff_lines.append("│" + "│".join(snow_row) + "│")
-                
-                # Add status separator
-                diff_lines.append(sep_line)
-                # Add status row
-                diff_lines.append("│" + "│".join(status_row) + "│")
-                
-                # Close table
-                footer_line = "└" + "┴".join("─" * (w + 2) for w in col_widths) + "┘"
-                diff_lines.append(footer_line)
-                diff_lines.append("")  # Add blank line between rows
+                diff_output.append("")  # Empty line between rows
+            else:
+                # For matched rows, just show a simple confirmation
+                diff_output.append(f"        Row {i+1}: ✓ MATCH")
         
-        if len(bend_lines) != len(snow_lines):
-            diff_lines.append(f"Row count: bendsql={len(bend_lines)}, snowsql={len(snow_lines)}")
-        
-        return "\n".join(diff_lines)
+        return "\n".join(diff_output)
 
 class CheckSB:
     def __init__(self, args):
