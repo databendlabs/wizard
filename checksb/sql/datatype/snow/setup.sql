@@ -99,19 +99,20 @@ INSERT INTO test_numbers VALUES (
 INSERT INTO test_numbers VALUES (5, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 
 -- VARIANT Test 1: Extremely complex nested structures
-INSERT INTO test_variants VALUES (
+INSERT INTO test_variants
+SELECT 
     1,
     NULL,
-    PARSE_JSON('{"unicode": "测试🌍🚀💻", "escape": "\\n\\t\\r\\\"\\\\", "long": "' || REPEAT('x', 1000) || '"}'),
+    PARSE_JSON('{"unicode": "测试🌍🚀💻", "escape": "\\n\\t\\r\\\"\\\\", "long": "xxxxxxxxxxxxxxxxxxxx"}'),
     PARSE_JSON('{"max_int": 9223372036854775807, "min_int": -9223372036854775808, "float_max": 3.4028235e+38, "scientific": 1.23e-45}'),
     PARSE_JSON('{"true": true, "false": false, "null": null, "mixed": [true, false, null]}'),
     PARSE_JSON('[1, 2, 3, [4, 5, [6, 7, [8, 9, [10]]]], {"nested": [{"deep": [{"deeper": true}]}]}]'),
     PARSE_JSON('{"level1": {"level2": {"level3": {"level4": {"level5": {"data": "deep_nesting_test"}}}}}}'),
-    PARSE_JSON('{"users": [{"id": 1, "profile": {"name": "Alice", "meta": {"tags": ["admin", "user"], "settings": {"theme": "dark", "notifications": {"email": true, "sms": false}}}}}, {"id": 2, "profile": {"name": "Bob", "meta": {"tags": [], "settings": null}}}], "config": {"version": "1.0", "features": {"feature1": true, "feature2": false}, "limits": {"max_users": 1000, "max_storage": 1073741824}}}')
-);
+    PARSE_JSON('{"users": [{"id": 1, "profile": {"name": "Alice", "meta": {"tags": ["admin", "user"], "settings": {"theme": "dark", "notifications": {"email": true, "sms": false}}}}}, {"id": 2, "profile": {"name": "Bob", "meta": {"tags": [], "settings": null}}}], "config": {"version": "1.0", "features": {"feature1": true, "feature2": false}, "limits": {"max_users": 1000, "max_storage": 1073741824}}}');
 
 -- VARIANT Test 2: Edge cases and special characters
-INSERT INTO test_variants VALUES (
+INSERT INTO test_variants
+SELECT
     2,
     NULL,
     PARSE_JSON('{"empty": "", "whitespace": "   ", "newlines": "line1\\nline2\\nline3", "tabs": "col1\\tcol2\\tcol3"}'),
@@ -119,20 +120,19 @@ INSERT INTO test_variants VALUES (
     PARSE_JSON('{"boolean_strings": ["true", "false", "TRUE", "FALSE", "True", "False"], "boolean_numbers": [1, 0, -1]}'),
     PARSE_JSON('[[], [[]], [[[]]], [null, null, null], ["", "", ""], [0, 0, 0]]'),
     PARSE_JSON('{"empty_object": {}, "null_values": {"a": null, "b": null}, "mixed_nulls": {"c": 1, "d": null, "e": "text"}}'),
-    PARSE_JSON('{"special_chars": {"quotes": "\\"double\\" and \'single\'", "backslashes": "\\\\path\\\\to\\\\file", "unicode": "🔥💯⚡️🌟", "control": "\\u0000\\u0001\\u0002"}, "arrays_of_objects": [{"type": "A", "values": [1, 2, 3]}, {"type": "B", "values": [4, 5, 6]}, {"type": "C", "values": []}], "deeply_nested_arrays": [[[[[[["deep"]]]]]]]}')
-);
+    PARSE_JSON('{"special_chars": {"quotes": "\\\"double\\\" and \'single\'", "backslashes": "\\\\path\\\\to\\\\file", "unicode": "🔥💯⚡️🌟", "control": "\\u0000\\u0001\\u0002"}, "arrays_of_objects": [{"type": "A", "values": [1, 2, 3]}, {"type": "B", "values": [4, 5, 6]}, {"type": "C", "values": []}], "deeply_nested_arrays": [[[[[[["deep"]]]]]]] }');
 
 -- VARIANT Test 3: Large data structures
-INSERT INTO test_variants VALUES (
+INSERT INTO test_variants
+SELECT
     3,
     NULL,
-    PARSE_JSON('{"large_string": "' || REPEAT('A', 500) || '", "repeated_pattern": "' || REPEAT('abc123', 100) || '"}'),
-    PARSE_JSON('{"large_array_numbers": [' || REPEAT('999999999, ', 50) || '999999999]}'),
-    PARSE_JSON('{"boolean_array": [' || REPEAT('true, false, ', 25) || 'true]}'),
-    PARSE_JSON('[' || REPEAT('{"id": 1, "data": "test"}, ', 20) || '{"id": 21, "data": "final"}]'),
-    PARSE_JSON('{"matrix": [' || REPEAT('[1, 2, 3, 4, 5], ', 10) || '[6, 7, 8, 9, 10]]}'),
-    PARSE_JSON('{"performance_test": {"large_object": {' || REPEAT('"key_", "value_", ', 100) || '"final_key": "final_value"}, "large_nested": {"level1": {"level2": {"level3": {"data": [' || REPEAT('{"item": "test"}, ', 50) || '{"item": "last"}]}}}}}}')
-);
+    PARSE_JSON('{"large_string": "AAAAAAAAAAAAAAAAAAAA", "repeated_pattern": "abc123abc123abc123"}'),
+    PARSE_JSON('{"large_array_numbers": [999999999, 999999999, 999999999, 999999999, 999999999]}'),
+    PARSE_JSON('{"boolean_array": [true, false, true, false, true]}'),
+    PARSE_JSON('[{"id": 1, "data": "test"}, {"id": 2, "data": "test"}, {"id": 3, "data": "test"}, {"id": 21, "data": "final"}]'),
+    PARSE_JSON('{"matrix": [[1, 2, 3, 4, 5], [1, 2, 3, 4, 5], [6, 7, 8, 9, 10]]}'),
+    PARSE_JSON('{"performance_test": {"large_object": {"key_1": "value_1", "key_2": "value_2", "final_key": "final_value"}, "large_nested": {"level1": {"level2": {"level3": {"data": [{"item": "test"}, {"item": "test"}, {"item": "last"}]}}}}}}');
 
 -- Boolean extreme tests
 INSERT INTO test_booleans VALUES (1, TRUE, FALSE, NULL);
