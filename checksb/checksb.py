@@ -223,6 +223,8 @@ class QueryComparator:
     @staticmethod
     def _generate_diff(databend_lines, snowflake_lines, query=None):
         """Generate detailed diff output with side-by-side comparison style"""
+        from termcolor import colored
+        
         diff_output = []
         
         # Add SQL query at the top if provided
@@ -237,69 +239,100 @@ class QueryComparator:
             diff_output.append("                └─────────────────────────────────────────────────────────────────────────┘")
             diff_output.append("")  # Empty line
         
+        # Create a table header for the comparison results
+        diff_output.append("┌─────────────────────────────────────── COMPARISON RESULTS ───────────────────────────────────────┐")
+        diff_output.append(f"│ Query: {query.strip().split(':')[0].replace('--', '').strip() if query else 'Unknown'}" + " " * 70 + "│")
+        diff_output.append("├────────────┬────────────────────┬────────────────────┬────────────────────┬────────────────────┬──────────┤")
+        
+        # Get column headers from the first row if available
+        headers = []
+        if databend_lines and snowflake_lines:
+            # Try to extract column names from the query
+            try:
+                select_clause = query.upper().split('SELECT')[1].split('FROM')[0].strip()
+                columns = [c.strip().split(' AS ')[-1].strip() for c in select_clause.split(',')]
+                headers = columns
+            except (IndexError, AttributeError):
+                # If we can't extract from query, use generic headers
+                first_row = databend_lines[0].split('\t')
+                headers = [f"Column {i+1}" for i in range(len(first_row))]
+        
+        # Add header row
+        header_row = "│            │"
+        for header in headers[:4]:  # Limit to 4 columns for display
+            header_row += f" {header:<18} │"
+        header_row += "          │"
+        diff_output.append(header_row)
+        diff_output.append("├────────────┼────────────────────┼────────────────────┼────────────────────┼────────────────────┼──────────┤")
+        
+        # Process each row
         for i, (db_line, sf_line) in enumerate(zip(databend_lines, snowflake_lines)):
             db_normalized = QueryComparator.normalize_line(db_line)
             sf_normalized = QueryComparator.normalize_line(sf_line)
             
-            if db_normalized != sf_normalized:
-                # Split by tabs to get columns
-                db_cols = db_normalized.split('\t')
-                sf_cols = sf_normalized.split('\t')
+            # Split by tabs to get columns
+            db_cols = db_normalized.split('\t')
+            sf_cols = sf_normalized.split('\t')
+            
+            max_cols = max(len(db_cols), len(sf_cols))
+            
+            # Pad shorter list with empty strings
+            while len(db_cols) < max_cols:
+                db_cols.append('')
+            while len(sf_cols) < max_cols:
+                sf_cols.append('')
+            
+            # Find differences
+            differences = []
+            for j in range(max_cols):
+                db_val = db_cols[j] if j < len(db_cols) else ''
+                sf_val = sf_cols[j] if j < len(sf_cols) else ''
                 
-                max_cols = max(len(db_cols), len(sf_cols))
-                
-                # Pad shorter list with empty strings
-                while len(db_cols) < max_cols:
-                    db_cols.append('')
-                while len(sf_cols) < max_cols:
-                    sf_cols.append('')
-                
-                diff_output.append(f"                Row {i+1} DIFFERENCES:")
-                
-                # Count matches and differences
-                matches = 0
-                differences = []
-                
-                for j in range(max_cols):
-                    db_val = db_cols[j] if j < len(db_cols) else ''
-                    sf_val = sf_cols[j] if j < len(sf_cols) else ''
-                    
-                    if db_val != sf_val:
-                        differences.append((j+1, db_val, sf_val))
+                if db_val != sf_val:
+                    differences.append(j)
+            
+            # Format the row for display
+            if differences:
+                # First line - Databend values
+                db_row = f"│ Row {i+1:<6} │"
+                for j, val in enumerate(db_cols[:4]):  # Limit to 4 columns
+                    if j in differences:
+                        # Add arrow to highlight difference
+                        db_row += f" {colored(val + ' ←', 'red'):<18} │"
                     else:
-                        matches += 1
+                        db_row += f" {val:<18} │"
+                db_row += "          │"
+                diff_output.append(db_row)
                 
-                # Show each difference in a box
-                for col_num, db_val, sf_val in differences:
-                    # Calculate box width based on content
-                    max_width = max(len(f"Databend:  {db_val}"), len(f"Snowflake: {sf_val}"), 20)
-                    box_width = min(max_width + 4, 80)  # Limit to 80 chars max
-                    
-                    # Create the box
-                    header = f"─ Col {col_num} "
-                    header_padding = "─" * (box_width - len(header) - 1)
-                    
-                    diff_output.append(f"┌{header}{header_padding}┐")
-                    
-                    # Format content lines
-                    db_line_content = f"│ Databend:  {db_val}"
-                    sf_line_content = f"│ Snowflake: {sf_val}"
-                    
-                    # Pad lines to box width
-                    db_line_content += " " * (box_width - len(db_line_content)) + "│"
-                    sf_line_content += " " * (box_width - len(sf_line_content)) + "│"
-                    
-                    diff_output.append(db_line_content)
-                    diff_output.append(sf_line_content)
-                    diff_output.append("└" + "─" * (box_width - 2) + "┘")
-                
-                # Show match summary
-                if matches > 0:
-                    diff_output.append(f"({matches} other columns match)")
-                
-                diff_output.append("")  # Empty line for spacing
+                # Second line - Snowflake values
+                sf_row = "│            │"
+                for j, val in enumerate(sf_cols[:4]):  # Limit to 4 columns
+                    if j in differences:
+                        # Add arrow to highlight difference
+                        sf_row += f" {colored(val + ' ←', 'red'):<18} │"
+                    else:
+                        sf_row += f" {val:<18} │"
+                sf_row += f" {colored('❌ DIFF', 'red'):<8} │"
+                diff_output.append(sf_row)
             else:
-                diff_output.append(f"                Row {i+1}: ✓ MATCH")
+                # Match case - show both rows
+                db_row = f"│ Row {i+1:<6} │"
+                for val in db_cols[:4]:  # Limit to 4 columns
+                    db_row += f" {val:<18} │"
+                db_row += "          │"
+                diff_output.append(db_row)
+                
+                sf_row = "│            │"
+                for val in sf_cols[:4]:  # Limit to 4 columns
+                    sf_row += f" {val:<18} │"
+                sf_row += f" {colored('✓ MATCH', 'green'):<8} │"
+                diff_output.append(sf_row)
+            
+            # Add separator between rows
+            diff_output.append("├────────────┼────────────────────┼────────────────────┼────────────────────┼────────────────────┼──────────┤")
+        
+        # Close the table
+        diff_output[-1] = "└────────────┴────────────────────┴────────────────────┴────────────────────┴────────────────────┴──────────┘"
         
         return "\n".join(diff_output)
 
