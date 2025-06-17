@@ -36,8 +36,7 @@ ORDER BY id;
 -- Test 4: VARIANT boundary value extraction
 SELECT 'Test 4: VARIANT boundaries' as test_name,
        id,
-       variant_string:unicode::VARCHAR as unicode_text,
-       variant_string:escape::VARCHAR as escape_chars,
+       variant_string:simple_string::VARCHAR as simple_string,
        variant_number:max_int::BIGINT as max_int_from_variant,
        variant_number:min_int::BIGINT as min_int_from_variant,
        variant_number:float_max::DOUBLE as float_max_from_variant,

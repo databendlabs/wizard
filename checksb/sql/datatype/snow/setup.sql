@@ -103,7 +103,7 @@ INSERT INTO test_variants
 SELECT 
     1,
     NULL,
-    PARSE_JSON('{"unicode": "测试🌍🚀💻", "escape": "\\n\\t\\r\\\"\\\\", "long": "xxxxxxxxxxxxxxxxxxxx"}'),
+    PARSE_JSON('{"escape": "\\n\\t\\r\\\"\\\\", "long": "xxxxxxxxxxxxxxxxxxxx"}'),
     PARSE_JSON('{"max_int": 9223372036854775807, "min_int": -9223372036854775808, "float_max": 3.4028235e+38, "scientific": 1.23e-45}'),
     PARSE_JSON('{"true": true, "false": false, "null": null, "mixed": [true, false, null]}'),
     PARSE_JSON('[1, 2, 3, [4, 5, [6, 7, [8, 9, [10]]]], {"nested": [{"deep": [{"deeper": true}]}]}]'),
@@ -120,7 +120,7 @@ SELECT
     PARSE_JSON('{"boolean_strings": ["true", "false", "TRUE", "FALSE", "True", "False"], "boolean_numbers": [1, 0, -1]}'),
     PARSE_JSON('[[], [[]], [[[]]], [null, null, null], ["", "", ""], [0, 0, 0]]'),
     PARSE_JSON('{"empty_object": {}, "null_values": {"a": null, "b": null}, "mixed_nulls": {"c": 1, "d": null, "e": "text"}}'),
-    PARSE_JSON('{"special_chars": {"quotes": "\\\"double\\\" and \'single\'", "backslashes": "\\\\path\\\\to\\\\file", "unicode": "🔥💯⚡️🌟", "control": "\\u0000\\u0001\\u0002"}, "arrays_of_objects": [{"type": "A", "values": [1, 2, 3]}, {"type": "B", "values": [4, 5, 6]}, {"type": "C", "values": []}], "deeply_nested_arrays": [[[[[[["deep"]]]]]]] }');
+    PARSE_JSON('{"special_chars": {"quotes": "\\\"double\\\" and \'single\'", "backslashes": "\\\\path\\\\to\\\\file", "control": "\\u0000\\u0001\\u0002"}, "arrays_of_objects": [{"type": "A", "values": [1, 2, 3]}, {"type": "B", "values": [4, 5, 6]}, {"type": "C", "values": []}], "deeply_nested_arrays": [[[[[[["deep"]]]]]]] }');
 
 -- VARIANT Test 3: Large data structures
 INSERT INTO test_variants

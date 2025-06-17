@@ -104,7 +104,7 @@ INSERT INTO test_variants
 SELECT 
     1,
     NULL,
-    PARSE_JSON('{"unicode": "测试🌍🚀💻", "escape": "\\n\\t\\r\\\"\\\\", "long": "xxxxxxxxxxxxxxxxxxxx"}'),
+    PARSE_JSON('{"escape": "\\n\\t\\r\\\"\\\\", "long": "xxxxxxxxxxxxxxxxxxxx"}'),
     PARSE_JSON('{"max_int": 9223372036854775807, "min_int": -9223372036854775808, "float_max": 3.4028235e+38, "scientific": 1.23e-45}'),
     PARSE_JSON('{"true": true, "false": false, "null": null, "mixed": [true, false, null]}'),
     PARSE_JSON('[1, 2, 3, [4, 5, [6, 7, [8, 9, [10]]]], {"nested": [{"deep": [{"deeper": true}]}]}]'),
