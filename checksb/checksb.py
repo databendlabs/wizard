@@ -595,8 +595,7 @@ class CheckSB:
     def _setup_database(self, executor: SQLExecutor):
         db = self.args.database
         base_executor = SQLExecutor(executor.tool, "default", executor.warehouse)
-        base_executor.execute(f"DROP DATABASE IF EXISTS {db}", "drop database")
-        base_executor.execute(f"CREATE DATABASE {db}", "create database")
+        base_executor.execute(f"CREATE DATABASE IF NOT EXISTS {db}", "create database if not exists")
     
     def _execute_script(self, script_path: Path, executor: SQLExecutor):
         with open(script_path) as f:
