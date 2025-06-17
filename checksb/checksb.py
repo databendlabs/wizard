@@ -688,8 +688,14 @@ class CheckSB:
         print(f"   Database: {self.args.database}")
         print(f"   bendsql warehouse: {bend_warehouse}")
         print(f"   snowsql warehouse: {snow_warehouse}")
+        
+        # Get database engine versions
+        databend_version, snowflake_version = get_database_versions(self.bend_executor, self.snow_executor)
+        print(f"   Databend version: {databend_version}")
+        print(f"   Snowflake version: {snowflake_version}")
         print(f"   bendsql --version: {bendsql_version}")
         print(f"   snowsql --version: {snowsql_version}")
+        
         print(f"   Mode: {mode}")
         
         # Final verdict
@@ -738,6 +744,39 @@ def get_cli_versions() -> Tuple[str, str]:
         pass
     
     return bendsql_version, snowsql_version
+
+def get_database_versions(bend_executor: SQLExecutor, snow_executor: SQLExecutor) -> Tuple[str, str]:
+    """Get the versions of Databend and Snowflake database engines."""
+    databend_version = "Not available"
+    snowflake_version = "Not available"
+    
+    # Get Databend version
+    try:
+        result = bend_executor.execute("select version();", "Getting Databend version")
+        if not result.startswith("__ERROR__:"):
+            # Extract version from result, typically in format like "version()\nDatabendQuery v1.2.x-..."
+            lines = result.strip().split('\n')
+            if len(lines) >= 2:
+                databend_version = lines[1].strip()
+            elif len(lines) == 1 and lines[0] != "version()":
+                databend_version = lines[0].strip()
+    except Exception:
+        pass
+    
+    # Get Snowflake version
+    try:
+        result = snow_executor.execute("select CURRENT_VERSION();", "Getting Snowflake version")
+        if not result.startswith("__ERROR__:"):
+            # Extract version from result, typically in format like "CURRENT_VERSION()\n8.x.x"
+            lines = result.strip().split('\n')
+            if len(lines) >= 2:
+                snowflake_version = lines[1].strip()
+            elif len(lines) == 1 and lines[0] != "CURRENT_VERSION()":
+                snowflake_version = lines[0].strip()
+    except Exception:
+        pass
+    
+    return databend_version, snowflake_version
 
 def main():
     parser = argparse.ArgumentParser(description="Compare SQL execution on different databases")
