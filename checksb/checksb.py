@@ -5,7 +5,6 @@ import subprocess
 import time
 import os
 import math
-from termcolor import colored
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -222,58 +221,32 @@ class QueryComparator:
     
     @staticmethod
     def _generate_diff(databend_lines, snowflake_lines, query=None):
-        """Generate detailed diff output with side-by-side comparison style"""
-        from termcolor import colored
+        """Generate detailed diff output with side-by-side comparison style using tabulate"""
+        try:
+            from tabulate import tabulate
+        except ImportError:
+            # Fallback to simple format if tabulate not available
+            return QueryComparator._generate_simple_diff(databend_lines, snowflake_lines, query)
         
         diff_output = []
         
         # Add SQL query at the top if provided
         if query:
-            diff_output.append("                🔍 SQL Query that caused the difference:")
-            diff_output.append("                ┌─────────────────────────────────────────────────────────────────────────┐")
+            diff_output.append(" SQL Query that caused the difference:")
+            diff_output.append("┌─────────────────────────────────────────────────────────────────────────┐")
             # Split query into lines and format each line
             query_lines = query.strip().split('\n')
             for line in query_lines:
-                formatted_line = f"                │ {line:<71} │"
+                formatted_line = f"│ {line:<71} │"
                 diff_output.append(formatted_line)
-            diff_output.append("                └─────────────────────────────────────────────────────────────────────────┘")
+            diff_output.append("└─────────────────────────────────────────────────────────────────────────┘")
             diff_output.append("")  # Empty line
         
-        # Create a table header for the comparison results
-        diff_output.append("┌─────────────────────────────────────── COMPARISON RESULTS ───────────────────────────────────────┐")
-        diff_output.append(f"│ Query: {query.strip().split(':')[0].replace('--', '').strip() if query else 'Unknown'}" + " " * 70 + "│")
-        diff_output.append("├────────────┬────────────────────┬────────────────────┬────────────────────┬────────────────────┬──────────┤")
-        
-        # Get column headers from the first row if available
-        headers = []
-        if databend_lines and snowflake_lines:
-            # Try to extract column names from the query
-            try:
-                select_clause = query.upper().split('SELECT')[1].split('FROM')[0].strip()
-                columns = [c.strip().split(' AS ')[-1].strip() for c in select_clause.split(',')]
-                headers = columns
-            except (IndexError, AttributeError):
-                # If we can't extract from query, use generic headers
-                first_row = databend_lines[0].split('\t')
-                headers = [f"Column {i+1}" for i in range(len(first_row))]
-        
-        # Add header row
-        header_row = "│            │"
-        for header in headers[:4]:  # Limit to 4 columns for display
-            header_row += f" {header:<18} │"
-        header_row += "          │"
-        diff_output.append(header_row)
-        diff_output.append("├────────────┼────────────────────┼────────────────────┼────────────────────┼────────────────────┼──────────┤")
-        
-        # Process each row
+        # Process data and find differences
+        all_data = []
         for i, (db_line, sf_line) in enumerate(zip(databend_lines, snowflake_lines)):
-            db_normalized = QueryComparator.normalize_line(db_line)
-            sf_normalized = QueryComparator.normalize_line(sf_line)
-            
-            # Split by tabs to get columns
-            db_cols = db_normalized.split('\t')
-            sf_cols = sf_normalized.split('\t')
-            
+            db_cols = QueryComparator.normalize_line(db_line).split('\t')
+            sf_cols = QueryComparator.normalize_line(sf_line).split('\t')
             max_cols = max(len(db_cols), len(sf_cols))
             
             # Pad shorter list with empty strings
@@ -282,57 +255,129 @@ class QueryComparator:
             while len(sf_cols) < max_cols:
                 sf_cols.append('')
             
+            all_data.append((db_cols, sf_cols))
+        
+        # Limit to first 4 columns for readability
+        max_cols_to_show = min(4, max(len(data[0]) for data in all_data) if all_data else 0)
+        
+        # Extract query name for header
+        query_name = "Unknown"
+        if query:
+            try:
+                first_line = query.strip().split('\n')[0]
+                if '--' in first_line and ':' in first_line:
+                    query_name = first_line.split('--')[1].split(':')[0].strip()
+                else:
+                    query_name = first_line.replace('--', '').strip()[:30]
+            except:
+                query_name = "Query"
+        
+        # Extract column headers from query
+        headers = []
+        if query and max_cols_to_show > 0:
+            try:
+                select_clause = query.upper().split('SELECT')[1].split('FROM')[0].strip()
+                columns = []
+                for col in select_clause.split(','):
+                    col = col.strip()
+                    if ' AS ' in col.upper():
+                        columns.append(col.upper().split(' AS ')[-1].strip())
+                    else:
+                        col_name = col.split('.')[-1].strip()
+                        if '(' in col_name:
+                            col_name = col_name.split('(')[0]
+                        columns.append(col_name[:15])
+                headers = columns[:max_cols_to_show]
+            except:
+                headers = [f"Col{i+1}" for i in range(max_cols_to_show)]
+        else:
+            headers = [f"Col{i+1}" for i in range(max_cols_to_show)]
+        
+        # Prepare table data
+        table_data = []
+        table_headers = ["Row", "Engine"] + headers + ["Status"]
+        
+        # Process each row
+        for i, (db_cols, sf_cols) in enumerate(all_data):
             # Find differences
             differences = []
-            for j in range(max_cols):
+            for j in range(max_cols_to_show):
                 db_val = db_cols[j] if j < len(db_cols) else ''
                 sf_val = sf_cols[j] if j < len(sf_cols) else ''
-                
                 if db_val != sf_val:
                     differences.append(j)
             
-            # Format the row for display
-            if differences:
-                # First line - Databend values
-                db_row = f"│ Row {i+1:<6} │"
-                for j, val in enumerate(db_cols[:4]):  # Limit to 4 columns
-                    if j in differences:
-                        # Add arrow to highlight difference
-                        db_row += f" {colored(val + ' ←', 'red'):<18} │"
-                    else:
-                        db_row += f" {val:<18} │"
-                db_row += "          │"
-                diff_output.append(db_row)
-                
-                # Second line - Snowflake values
-                sf_row = "│            │"
-                for j, val in enumerate(sf_cols[:4]):  # Limit to 4 columns
-                    if j in differences:
-                        # Add arrow to highlight difference
-                        sf_row += f" {colored(val + ' ←', 'red'):<18} │"
-                    else:
-                        sf_row += f" {val:<18} │"
-                sf_row += f" {colored('❌ DIFF', 'red'):<8} │"
-                diff_output.append(sf_row)
-            else:
-                # Match case - show both rows
-                db_row = f"│ Row {i+1:<6} │"
-                for val in db_cols[:4]:  # Limit to 4 columns
-                    db_row += f" {val:<18} │"
-                db_row += "          │"
-                diff_output.append(db_row)
-                
-                sf_row = "│            │"
-                for val in sf_cols[:4]:  # Limit to 4 columns
-                    sf_row += f" {val:<18} │"
-                sf_row += f" {colored('✓ MATCH', 'green'):<8} │"
-                diff_output.append(sf_row)
+            # Prepare row data
+            db_row_data = [f"Row {i+1}", "Databend"]
+            sf_row_data = ["", "Snowflake"]
             
-            # Add separator between rows
-            diff_output.append("├────────────┼────────────────────┼────────────────────┼────────────────────┼────────────────────┼──────────┤")
+            # Add column values
+            for j in range(max_cols_to_show):
+                db_val = db_cols[j] if j < len(db_cols) else ''
+                sf_val = sf_cols[j] if j < len(sf_cols) else ''
+                
+                if j in differences:
+                    db_row_data.append(db_val + " ←")
+                    sf_row_data.append(sf_val + " ←")
+                else:
+                    db_row_data.append(db_val)
+                    sf_row_data.append(sf_val)
+            
+            # Add status
+            if differences:
+                db_row_data.append("")
+                sf_row_data.append("X")
+            else:
+                db_row_data.append("")
+                sf_row_data.append("O")
+            
+            table_data.append(db_row_data)
+            table_data.append(sf_row_data)
         
-        # Close the table
-        diff_output[-1] = "└────────────┴────────────────────┴────────────────────┴────────────────────┴────────────────────┴──────────┘"
+        # Generate table using tabulate with prettier formatting
+        diff_output.append(f" Query: {query_name}")
+        diff_output.append("")
+        
+        # Use a more beautiful table format
+        table_str = tabulate(
+            table_data, 
+            headers=table_headers, 
+            tablefmt="fancy_grid",  # More beautiful than "grid"
+            stralign="left",
+            numalign="right",
+            floatfmt=".2f"
+        )
+        diff_output.append(table_str)
+        
+        return "\n".join(diff_output)
+    
+    @staticmethod
+    def _generate_simple_diff(databend_lines, snowflake_lines, query=None):
+        """Fallback simple diff format when tabulate is not available"""
+        diff_output = []
+        
+        if query:
+            diff_output.append(" SQL Query:")
+            diff_output.append("-" * 60)
+            diff_output.append(query)
+            diff_output.append("-" * 60)
+            diff_output.append("")
+        
+        diff_output.append(" COMPARISON RESULTS:")
+        diff_output.append("=" * 60)
+        
+        for i, (db_line, sf_line) in enumerate(zip(databend_lines, snowflake_lines)):
+            db_cols = QueryComparator.normalize_line(db_line).split('\t')
+            sf_cols = QueryComparator.normalize_line(sf_line).split('\t')
+            
+            diff_output.append(f"\nRow {i+1}:")
+            diff_output.append(f"  Databend:  {' | '.join(db_cols[:4])}")
+            diff_output.append(f"  Snowflake: {' | '.join(sf_cols[:4])}")
+            
+            if db_cols != sf_cols:
+                diff_output.append("  Status: X MISMATCH")
+            else:
+                diff_output.append("  Status: O MATCH")
         
         return "\n".join(diff_output)
 
@@ -353,7 +398,7 @@ class CheckSB:
         
         for idx, case in enumerate(cases, 1):
             if case.lower() in skip_list:
-                print(colored(f"\n⏭️  Skipping {case} (--skip argument)", "yellow"))
+                print(f"\n Skipping {case} (--skip argument)")
                 self.progress.cases_completed += 1
                 continue
             
@@ -402,7 +447,7 @@ class CheckSB:
         
         for tool_name, executor, subdir in tools:
             self.progress.update(step=f"setting up with {tool_name}")
-            print(f"\n  🔧 Setting up {case} with {tool_name}")
+            print(f"\n  Setting up {case} with {tool_name}")
             
             # Database setup
             self.progress.update(step=f"{tool_name}: creating database")
@@ -421,7 +466,7 @@ class CheckSB:
             print(f"    • Running {action_path}")
             self._execute_script(action_path, executor)
             
-            print(f"    ✅ {tool_name} setup complete")
+            print(f"    Setup complete")
     
     def _setup_database(self, executor: SQLExecutor):
         db = self.args.database
@@ -440,7 +485,7 @@ class CheckSB:
         result = TestResult(case=case)
         start_time = time.time()
         
-        print(f"\n  📊 Running comparison checks")
+        print(f"\n  Running comparison checks")
         
         with open(check_path) as f:
             queries = [q.strip() for q in f.read().split(";") if q.strip()]
@@ -449,7 +494,7 @@ class CheckSB:
         
         # Only run comparison if neither runbend nor runsnow is specified
         if self.args.runbend or self.args.runsnow:
-            print(f"    ⚠️  Skipping comparison (single tool mode)")
+            print(f"    Skipping comparison (single tool mode)")
             result.elapsed = time.time() - start_time
             return result
         
@@ -475,11 +520,11 @@ class CheckSB:
             
             if match:
                 result.passed += 1
-                print(f" {colored('✅ MATCH', 'green')} ({match_type})")
+                print(f" MATCH ({match_type})")
             else:
                 result.failed += 1
                 result.errors.append((query_id, match_type, bend_result, snow_result))
-                print(f" {colored('❌ MISMATCH', 'red')}")
+                print(f" MISMATCH")
                 print(f"        {match_type}")
         
         result.elapsed = time.time() - start_time
@@ -495,7 +540,7 @@ class CheckSB:
             snow_msg = snow_result[9:][:100] if snow_err else "OK"
             result.errors.append((query_id, "Execution Error", bend_msg, snow_msg))
             
-            print(f" {colored('❌ ERROR', 'red')}")
+            print(f" ERROR")
             if bend_err:
                 print(f"        bendsql: {bend_msg}")
             if snow_err:
@@ -511,32 +556,32 @@ class CheckSB:
         print(f"\n{'=' * 80}")
         print(f"{title.center(80)}")
         print(f"{'=' * 80}")
-        print(f"📋 Cases to run: {', '.join(cases)}")
-        print(f"🗄️  Database: {self.args.database}")
+        print(f"Cases to run: {', '.join(cases)}")
+        print(f"Database: {self.args.database}")
         
         # Extract warehouse from BENDSQL_DSN if available
         dsn_warehouse = extract_warehouse_from_dsn()
         if dsn_warehouse:
-            print(f"🏭 bendsql warehouse: {dsn_warehouse}")
+            print(f"bendsql warehouse: {dsn_warehouse}")
         
-        print(f"🏭 snowsql warehouse: {self.args.warehouse}")
+        print(f"snowsql warehouse: {self.args.warehouse}")
         # Get CLI versions
         bendsql_version, snowsql_version = get_cli_versions()
-        print(f"📊 bendsql --version: {bendsql_version}")
-        print(f"📊 snowsql --version: {snowsql_version}")
+        print(f"bendsql --version: {bendsql_version}")
+        print(f"snowsql --version: {snowsql_version}")
         
         if self.args.runbend:
-            print(f"⚡ Mode: bendsql only")
+            print(f"Mode: bendsql only")
         elif self.args.runsnow:
-            print(f"❄️  Mode: snowsql only")
+            print(f"Mode: snowsql only")
         else:
-            print(f"🔄 Mode: full comparison")
+            print(f"Mode: full comparison")
         print(f"{'=' * 80}")
     
     def _print_case_summary(self, result: TestResult):
-        status = colored("PASSED", "green") if result.success else colored("FAILED", "red")
+        status = "PASSED" if result.success else "FAILED"
         
-        print(f"\n  📊 Case Summary: {result.case}")
+        print(f"\n  Case Summary: {result.case}")
         print(f"     Status: {status}")
         print(f"     Results: {result.passed}/{result.total} passed ({result.pass_rate:.1f}%)")
         print(f"     Time: {result.elapsed:.1f}s")
@@ -559,14 +604,13 @@ class CheckSB:
         print(f"{'='*80}\n")
         
         # Individual case summaries
-        print(f"📊 Individual Case Results:\n")
+        print(f"Individual Case Results:\n")
         
         for i, (case, result) in enumerate(self.results.items(), 1):
-            status_icon = "✅" if result.success else "❌"
-            status_text = colored("PASSED", "green") if result.success else colored("FAILED", "red")
+            status_icon = "PASSED" if result.success else "FAILED"
             
             print(f"  {i}. {case}:")
-            print(f"     Status: {status_icon} {status_text}")
+            print(f"     Status: {status_icon}")
             print(f"     Queries: {result.passed}/{result.total} passed ({result.pass_rate:.1f}%)")
             print(f"     Time: {result.elapsed:.1f}s")
             
@@ -580,7 +624,7 @@ class CheckSB:
         
         # Overall statistics
         print(f"\n{'─'*80}")
-        print(f"📈 Overall Statistics:")
+        print(f"Overall Statistics:")
         
         total_cases = len(self.results)
         passed_cases = sum(1 for r in self.results.values() if r.success)
@@ -598,10 +642,10 @@ class CheckSB:
         # Final verdict
         print(f"\n{'─'*80}")
         if failed_cases == 0:
-            print(f"\n✅ {colored('ALL TESTS PASSED!', 'green', attrs=['bold'])} 🎉")
+            print(f"\nALL TESTS PASSED!")
         else:
             failed_case_names = [case for case, r in self.results.items() if not r.success]
-            print(f"\n❌ {colored(f'{failed_cases} CASE(S) FAILED', 'red', attrs=['bold'])}")
+            print(f"\n{failed_cases} CASE(S) FAILED")
             print(f"   Failed cases: {', '.join(failed_case_names)}")
 
 def extract_warehouse_from_dsn() -> Optional[str]:
@@ -651,10 +695,10 @@ def main():
     try:
         CheckSB(args).run()
     except KeyboardInterrupt:
-        print(colored("\n\n⚠️  Test interrupted by user", "yellow"))
+        print("\n\nTest interrupted by user")
         sys.exit(1)
     except Exception as e:
-        print(colored(f"\n\n💥 Fatal error: {e}", "red"))
+        print(f"\n\nFatal error: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)

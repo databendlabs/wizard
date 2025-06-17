@@ -7,5 +7,6 @@ lxml
 databend-driver
 termcolor
 statistics
+tabulate
 
 # Note: These dependencies cover all tools in the wizard repository
