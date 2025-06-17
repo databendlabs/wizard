@@ -257,55 +257,62 @@ class QueryComparator:
             
             all_data.append((db_cols, sf_cols))
         
-        # Limit to first 4 columns for readability
-        max_cols_to_show = min(4, max(len(data[0]) for data in all_data) if all_data else 0)
+        # Determine number of columns to show
+        max_cols_to_show = 4  # Default limit
         
-        # Extract query name for header
-        query_name = "Unknown"
-        if query:
-            try:
-                first_line = query.strip().split('\n')[0]
-                if '--' in first_line and ':' in first_line:
-                    query_name = first_line.split('--')[1].split(':')[0].strip()
-                else:
-                    query_name = first_line.replace('--', '').strip()[:30]
-            except:
-                query_name = "Query"
+        # First pass: check if there are differences in hidden columns
+        has_hidden_differences_preview = False
+        for db_cols, sf_cols in all_data:
+            max_cols = max(len(db_cols), len(sf_cols))
+            if max_cols > max_cols_to_show:
+                for j in range(max_cols_to_show, max_cols):
+                    db_val = db_cols[j] if j < len(db_cols) else ''
+                    sf_val = sf_cols[j] if j < len(sf_cols) else ''
+                    if db_val != sf_val:
+                        has_hidden_differences_preview = True
+                        break
+            if has_hidden_differences_preview:
+                break
         
-        # Extract column headers from query
-        headers = []
-        if query and max_cols_to_show > 0:
-            try:
-                select_clause = query.upper().split('SELECT')[1].split('FROM')[0].strip()
-                columns = []
-                for col in select_clause.split(','):
-                    col = col.strip()
-                    if ' AS ' in col.upper():
-                        columns.append(col.upper().split(' AS ')[-1].strip())
-                    else:
-                        col_name = col.split('.')[-1].strip()
-                        if '(' in col_name:
-                            col_name = col_name.split('(')[0]
-                        columns.append(col_name[:15])
-                headers = columns[:max_cols_to_show]
-            except:
-                headers = [f"Col{i+1}" for i in range(max_cols_to_show)]
-        else:
-            headers = [f"Col{i+1}" for i in range(max_cols_to_show)]
+        # If hidden differences found, show all columns
+        if has_hidden_differences_preview:
+            max_cols_to_show = max(max(len(db_cols), len(sf_cols)) for db_cols, sf_cols in all_data)
+        
+        # Generate simple numbered headers
+        headers = [f"col{i+1}" for i in range(max_cols_to_show)]
+        table_headers = ["Row", "Engine"] + headers + ["Status"]
         
         # Prepare table data
         table_data = []
         table_headers = ["Row", "Engine"] + headers + ["Status"]
         
         # Process each row
+        has_any_differences = False
+        has_hidden_differences = False
         for i, (db_cols, sf_cols) in enumerate(all_data):
-            # Find differences
+            # Find differences in displayed columns only
             differences = []
             for j in range(max_cols_to_show):
                 db_val = db_cols[j] if j < len(db_cols) else ''
                 sf_val = sf_cols[j] if j < len(sf_cols) else ''
                 if db_val != sf_val:
                     differences.append(j)
+            
+            # Check for differences in hidden columns
+            hidden_differences = False
+            max_cols = max(len(db_cols), len(sf_cols))
+            if max_cols > max_cols_to_show:
+                for j in range(max_cols_to_show, max_cols):
+                    db_val = db_cols[j] if j < len(db_cols) else ''
+                    sf_val = sf_cols[j] if j < len(sf_cols) else ''
+                    if db_val != sf_val:
+                        hidden_differences = True
+                        break
+            
+            if differences:
+                has_any_differences = True
+            if hidden_differences:
+                has_hidden_differences = True
             
             # Prepare row data
             db_row_data = [f"Row {i+1}", "Databend"]
@@ -323,19 +330,19 @@ class QueryComparator:
                     db_row_data.append(db_val)
                     sf_row_data.append(sf_val)
             
-            # Add status
-            if differences:
+            # Add status - show X for rows with differences (visible or hidden)
+            if differences or hidden_differences:
                 db_row_data.append("")
                 sf_row_data.append("X")
             else:
                 db_row_data.append("")
-                sf_row_data.append("O")
+                sf_row_data.append("")  # No status for matching rows
             
             table_data.append(db_row_data)
             table_data.append(sf_row_data)
         
         # Generate table using tabulate with prettier formatting
-        diff_output.append(f" Query: {query_name}")
+        diff_output.append(f" Query: {query}")
         diff_output.append("")
         
         # Use a more beautiful table format
@@ -348,6 +355,21 @@ class QueryComparator:
             floatfmt=".2f"
         )
         diff_output.append(table_str)
+        
+        # Add summary information
+        if has_any_differences or has_hidden_differences:
+            diff_output.append("\nSummary:")
+            if has_any_differences:
+                diff_output.append("  Differences found in displayed columns.")
+            if has_hidden_differences:
+                diff_output.append("  Differences found in hidden columns (beyond column 4).")
+        else:
+            diff_output.append("\nSummary:")
+            diff_output.append("  No differences found in the result sets.")
+        
+        if has_hidden_differences:
+            diff_output.append("\nNote:")
+            diff_output.append("  Differences found in hidden columns.")
         
         return "\n".join(diff_output)
     
