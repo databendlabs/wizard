@@ -661,6 +661,37 @@ class CheckSB:
         print(f"   Passed Queries: {passed_queries} ({passed_queries/total_queries*100:.1f}%)")
         print(f"   Total Time: {total_elapsed:.1f}s")
         
+        # Environment information
+        print(f"\n{'─'*80}")
+        print(f"Environment Information:")
+        
+        # Get CLI versions
+        bendsql_version, snowsql_version = get_cli_versions()
+        
+        # Get warehouse info
+        bend_warehouse = extract_warehouse_from_dsn() or "version-test"
+        snow_warehouse = self.args.warehouse
+        
+        # Determine mode
+        if self.args.runbend:
+            mode = "bendsql only"
+        elif self.args.runsnow:
+            mode = "snowsql only"
+        else:
+            mode = "full comparison"
+        
+        # Get cases list
+        cases_list = list(self.results.keys())
+        cases_str = ", ".join(cases_list) if len(cases_list) <= 3 else f"{', '.join(cases_list[:3])}, ..."
+        
+        print(f"   Cases to run: {cases_str}")
+        print(f"   Database: {self.args.database}")
+        print(f"   bendsql warehouse: {bend_warehouse}")
+        print(f"   snowsql warehouse: {snow_warehouse}")
+        print(f"   bendsql --version: {bendsql_version}")
+        print(f"   snowsql --version: {snowsql_version}")
+        print(f"   Mode: {mode}")
+        
         # Final verdict
         print(f"\n{'─'*80}")
         if failed_cases == 0:
@@ -669,6 +700,11 @@ class CheckSB:
             failed_case_names = [case for case, r in self.results.items() if not r.success]
             print(f"\n{failed_cases} CASE(S) FAILED")
             print(f"   Failed cases: {', '.join(failed_case_names)}")
+        
+        # Concise summary for easy copy-paste to developers
+        print()
+        for case, result in self.results.items():
+            print(f"{case} ... {result.passed} passed, {result.failed} failed")
 
 def extract_warehouse_from_dsn() -> Optional[str]:
     """Extract warehouse name from BENDSQL_DSN environment variable."""
@@ -711,6 +747,7 @@ def main():
     parser.add_argument("--runbend", action="store_true", help="Run only bendsql")
     parser.add_argument("--runsnow", action="store_true", help="Run only snowsql")
     parser.add_argument("--skip", default="", help="Cases to skip (comma-separated)")
+    parser.add_argument("--summary-only", action="store_true", help="Show only summary, suppress detailed diff tables")
     
     args = parser.parse_args()
     
