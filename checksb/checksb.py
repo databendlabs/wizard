@@ -221,12 +221,12 @@ class QueryComparator:
     
     @staticmethod
     def _generate_diff(databend_lines, snowflake_lines, query=None):
-        """Generate detailed diff output with side-by-side comparison style using tabulate"""
+        """Generate contextual diff output showing only different rows with context"""
         try:
             from tabulate import tabulate
         except ImportError:
             # Fallback to simple format if tabulate not available
-            return QueryComparator._generate_simple_diff(databend_lines, snowflake_lines, query)
+            return QueryComparator._generate_contextual_simple_diff(databend_lines, snowflake_lines, query)
         
         diff_output = []
         
@@ -244,6 +244,8 @@ class QueryComparator:
         
         # Process data and find differences
         all_data = []
+        diff_rows = []  # Track which rows have differences
+        
         for i, (db_line, sf_line) in enumerate(zip(databend_lines, snowflake_lines)):
             db_cols = QueryComparator.normalize_line(db_line).split('\t')
             sf_cols = QueryComparator.normalize_line(sf_line).split('\t')
@@ -256,12 +258,21 @@ class QueryComparator:
                 sf_cols.append('')
             
             all_data.append((db_cols, sf_cols))
+            
+            # Check if this row has differences
+            if db_cols != sf_cols:
+                diff_rows.append(i)
+        
+        # If no differences found, show summary
+        if not diff_rows:
+            diff_output.append("No differences found in the result sets.")
+            return "\n".join(diff_output)
         
         # Determine number of columns to show
         max_cols_to_show = 4  # Default limit
         
-        # First pass: check if there are differences in hidden columns
-        has_hidden_differences_preview = False
+        # Check if there are differences in hidden columns
+        has_hidden_differences = False
         for db_cols, sf_cols in all_data:
             max_cols = max(len(db_cols), len(sf_cols))
             if max_cols > max_cols_to_show:
@@ -269,107 +280,118 @@ class QueryComparator:
                     db_val = db_cols[j] if j < len(db_cols) else ''
                     sf_val = sf_cols[j] if j < len(sf_cols) else ''
                     if db_val != sf_val:
-                        has_hidden_differences_preview = True
+                        has_hidden_differences = True
                         break
-            if has_hidden_differences_preview:
+            if has_hidden_differences:
                 break
         
         # If hidden differences found, show all columns
-        if has_hidden_differences_preview:
+        if has_hidden_differences:
             max_cols_to_show = max(max(len(db_cols), len(sf_cols)) for db_cols, sf_cols in all_data)
         
-        # Generate simple numbered headers
+        # Generate contextual diff - show only different rows with context
+        context_lines = 2  # Number of context lines before and after differences
+        
+        # Find ranges of rows to display (differences + context)
+        display_ranges = []
+        for diff_row in diff_rows:
+            start = max(0, diff_row - context_lines)
+            end = min(len(all_data), diff_row + context_lines + 1)
+            display_ranges.append((start, end))
+        
+        # Merge overlapping ranges
+        merged_ranges = []
+        for start, end in sorted(display_ranges):
+            if merged_ranges and start <= merged_ranges[-1][1]:
+                merged_ranges[-1] = (merged_ranges[-1][0], max(merged_ranges[-1][1], end))
+            else:
+                merged_ranges.append((start, end))
+        
+        # Generate headers
         headers = [f"col{i+1}" for i in range(max_cols_to_show)]
         table_headers = ["Row", "Engine"] + headers + ["Status"]
         
-        # Prepare table data
-        table_data = []
-        table_headers = ["Row", "Engine"] + headers + ["Status"]
+        # Generate table data for each range
+        total_diff_rows = len(diff_rows)
+        total_rows = len(all_data)
         
-        # Process each row
-        has_any_differences = False
-        has_hidden_differences = False
-        for i, (db_cols, sf_cols) in enumerate(all_data):
-            # Find differences in displayed columns only
-            differences = []
-            for j in range(max_cols_to_show):
-                db_val = db_cols[j] if j < len(db_cols) else ''
-                sf_val = sf_cols[j] if j < len(sf_cols) else ''
-                if db_val != sf_val:
-                    differences.append(j)
+        diff_output.append(f" Contextual Diff (showing {total_diff_rows} different rows out of {total_rows} total rows):")
+        diff_output.append("")
+        
+        for range_idx, (start, end) in enumerate(merged_ranges):
+            if range_idx > 0:
+                diff_output.append("")
+                diff_output.append("..." + "─" * 50 + "...")
+                diff_output.append("")
             
-            # Check for differences in hidden columns
-            hidden_differences = False
-            max_cols = max(len(db_cols), len(sf_cols))
-            if max_cols > max_cols_to_show:
-                for j in range(max_cols_to_show, max_cols):
+            table_data = []
+            
+            for i in range(start, end):
+                db_cols, sf_cols = all_data[i]
+                
+                # Find differences in displayed columns
+                differences = []
+                for j in range(max_cols_to_show):
                     db_val = db_cols[j] if j < len(db_cols) else ''
                     sf_val = sf_cols[j] if j < len(sf_cols) else ''
                     if db_val != sf_val:
-                        hidden_differences = True
-                        break
-            
-            if differences:
-                has_any_differences = True
-            if hidden_differences:
-                has_hidden_differences = True
-            
-            # Prepare row data
-            db_row_data = [f"Row {i+1}", "Databend"]
-            sf_row_data = ["", "Snowflake"]
-            
-            # Add column values
-            for j in range(max_cols_to_show):
-                db_val = db_cols[j] if j < len(db_cols) else ''
-                sf_val = sf_cols[j] if j < len(sf_cols) else ''
+                        differences.append(j)
                 
-                if j in differences:
-                    db_row_data.append(db_val + " ←")
-                    sf_row_data.append(sf_val + " ←")
+                # Check for differences in hidden columns
+                hidden_differences = False
+                max_cols = max(len(db_cols), len(sf_cols))
+                if max_cols > max_cols_to_show:
+                    for j in range(max_cols_to_show, max_cols):
+                        db_val = db_cols[j] if j < len(db_cols) else ''
+                        sf_val = sf_cols[j] if j < len(sf_cols) else ''
+                        if db_val != sf_val:
+                            hidden_differences = True
+                            break
+                
+                # Prepare row data
+                db_row_data = [f"Row {i+1}", "Databend"]
+                sf_row_data = ["", "Snowflake"]
+                
+                # Add column values
+                for j in range(max_cols_to_show):
+                    db_val = db_cols[j] if j < len(db_cols) else ''
+                    sf_val = sf_cols[j] if j < len(sf_cols) else ''
+                    
+                    if j in differences:
+                        db_row_data.append(db_val + " ←")
+                        sf_row_data.append(sf_val + " ←")
+                    else:
+                        db_row_data.append(db_val)
+                        sf_row_data.append(sf_val)
+                
+                # Add status - show X for rows with differences (visible or hidden)
+                if differences or hidden_differences:
+                    db_row_data.append("")
+                    sf_row_data.append("X")
                 else:
-                    db_row_data.append(db_val)
-                    sf_row_data.append(sf_val)
+                    db_row_data.append("")
+                    sf_row_data.append("")  # No status for matching rows
+                
+                table_data.append(db_row_data)
+                table_data.append(sf_row_data)
             
-            # Add status - show X for rows with differences (visible or hidden)
-            if differences or hidden_differences:
-                db_row_data.append("")
-                sf_row_data.append("X")
-            else:
-                db_row_data.append("")
-                sf_row_data.append("")  # No status for matching rows
-            
-            table_data.append(db_row_data)
-            table_data.append(sf_row_data)
-        
-        # Generate table using tabulate with prettier formatting
-        diff_output.append(f" Query: {query}")
-        diff_output.append("")
-        
-        # Use a more beautiful table format
-        table_str = tabulate(
-            table_data, 
-            headers=table_headers, 
-            tablefmt="fancy_grid",  # More beautiful than "grid"
-            stralign="left",
-            numalign="right",
-            floatfmt=".2f"
-        )
-        diff_output.append(table_str)
+            # Generate table using tabulate with prettier formatting
+            table_str = tabulate(
+                table_data,
+                headers=table_headers,
+                tablefmt="fancy_grid",
+                stralign="left",
+                numalign="right",
+                floatfmt=".2f"
+            )
+            diff_output.append(table_str)
         
         # Add summary information
-        if has_any_differences or has_hidden_differences:
-            diff_output.append("\nSummary:")
-            if has_any_differences:
-                diff_output.append("  Differences found in displayed columns.")
-            if has_hidden_differences:
-                diff_output.append("  Differences found in hidden columns (beyond column 4).")
-        else:
-            diff_output.append("\nSummary:")
-            diff_output.append("  No differences found in the result sets.")
-        
+        diff_output.append(f"\nSummary:")
+        diff_output.append(f"  Found {total_diff_rows} different rows out of {total_rows} total rows.")
         if has_hidden_differences:
-            diff_output.append("\nNote:")
-            diff_output.append("  Differences found in hidden columns.")
+            diff_output.append("  Differences found in hidden columns (beyond column 4).")
+        diff_output.append(f"  Showing context of ±{context_lines} lines around differences.")
         
         return "\n".join(diff_output)
     
@@ -400,6 +422,83 @@ class QueryComparator:
                 diff_output.append("  Status: X MISMATCH")
             else:
                 diff_output.append("  Status: O MATCH")
+        
+        return "\n".join(diff_output)
+    
+    @staticmethod
+    def _generate_contextual_simple_diff(databend_lines, snowflake_lines, query=None):
+        """Fallback contextual simple diff format when tabulate is not available"""
+        diff_output = []
+        
+        if query:
+            diff_output.append(" SQL Query:")
+            diff_output.append("-" * 60)
+            diff_output.append(query)
+            diff_output.append("-" * 60)
+            diff_output.append("")
+        
+        # Find rows with differences
+        diff_rows = []
+        all_data = []
+        
+        for i, (db_line, sf_line) in enumerate(zip(databend_lines, snowflake_lines)):
+            db_cols = QueryComparator.normalize_line(db_line).split('\t')
+            sf_cols = QueryComparator.normalize_line(sf_line).split('\t')
+            all_data.append((db_cols, sf_cols))
+            
+            if db_cols != sf_cols:
+                diff_rows.append(i)
+        
+        if not diff_rows:
+            diff_output.append("No differences found in the result sets.")
+            return "\n".join(diff_output)
+        
+        # Generate contextual diff
+        context_lines = 2
+        total_diff_rows = len(diff_rows)
+        total_rows = len(all_data)
+        
+        diff_output.append(f" CONTEXTUAL COMPARISON RESULTS:")
+        diff_output.append(f" (showing {total_diff_rows} different rows out of {total_rows} total rows)")
+        diff_output.append("=" * 60)
+        
+        # Find ranges of rows to display (differences + context)
+        display_ranges = []
+        for diff_row in diff_rows:
+            start = max(0, diff_row - context_lines)
+            end = min(len(all_data), diff_row + context_lines + 1)
+            display_ranges.append((start, end))
+        
+        # Merge overlapping ranges
+        merged_ranges = []
+        for start, end in sorted(display_ranges):
+            if merged_ranges and start <= merged_ranges[-1][1]:
+                merged_ranges[-1] = (merged_ranges[-1][0], max(merged_ranges[-1][1], end))
+            else:
+                merged_ranges.append((start, end))
+        
+        # Display each range
+        for range_idx, (start, end) in enumerate(merged_ranges):
+            if range_idx > 0:
+                diff_output.append("")
+                diff_output.append("..." + "-" * 50 + "...")
+                diff_output.append("")
+            
+            for i in range(start, end):
+                db_cols, sf_cols = all_data[i]
+                
+                diff_output.append(f"\nRow {i+1}:")
+                diff_output.append(f"  Databend:  {' | '.join(db_cols[:4])}")
+                diff_output.append(f"  Snowflake: {' | '.join(sf_cols[:4])}")
+                
+                if db_cols != sf_cols:
+                    diff_output.append("  Status: X MISMATCH")
+                else:
+                    diff_output.append("  Status: O MATCH")
+        
+        diff_output.append(f"\nSummary:")
+        diff_output.append(f"  Found {total_diff_rows} different rows out of {total_rows} total rows.")
+        diff_output.append(f"  Showing context of ±{context_lines} lines around differences.")
         
         return "\n".join(diff_output)
 
@@ -449,7 +548,10 @@ class CheckSB:
     def _run_case(self, case: str) -> TestResult:
         base_dir = Path("sql") / case
         
-        self._setup_case(base_dir, case)
+        if not self.args.check_only:
+            self._setup_case(base_dir, case)
+        else:
+            print(f"\n  Skipping setup and action phases (--check-only mode)")
         
         self.progress.update(step="running comparison checks")
         return self._check_case(base_dir / "check.sql", case)
@@ -593,11 +695,16 @@ class CheckSB:
         print(f"snowsql --version: {snowsql_version}")
         
         if self.args.runbend:
-            print(f"Mode: bendsql only")
+            mode = "bendsql only"
         elif self.args.runsnow:
-            print(f"Mode: snowsql only")
+            mode = "snowsql only"
         else:
-            print(f"Mode: full comparison")
+            mode = "full comparison"
+        
+        if self.args.check_only:
+            mode += " (check-only)"
+        
+        print(f"Mode: {mode}")
         print(f"{'=' * 80}")
     
     def _print_case_summary(self, result: TestResult):
@@ -679,6 +786,9 @@ class CheckSB:
             mode = "snowsql only"
         else:
             mode = "full comparison"
+        
+        if self.args.check_only:
+            mode += " (check-only)"
         
         # Get cases list
         cases_list = list(self.results.keys())
@@ -787,6 +897,7 @@ def main():
     parser.add_argument("--runsnow", action="store_true", help="Run only snowsql")
     parser.add_argument("--skip", default="", help="Cases to skip (comma-separated)")
     parser.add_argument("--summary-only", action="store_true", help="Show only summary, suppress detailed diff tables")
+    parser.add_argument("--check-only", action="store_true", help="Only run check.sql, skip setup and action phases")
     
     args = parser.parse_args()
     
