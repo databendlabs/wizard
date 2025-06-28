@@ -642,19 +642,6 @@ def execute_sql_file(sql_file, sql_tool, database, warehouse, suspend, is_setup=
                 query_exec_start = time.time()
                 output = execute_sql(query, sql_tool, database, warehouse)
 
-                # Generate flamegraph if enabled and using bendsql
-                flamegraph_file = None
-                flamegraph_time = 0
-                if flamegraph_enabled and sql_tool == "bendsql" and flamegraph_dir and not is_setup:
-
-                    flamegraph_content, flamegraph_time = execute_bendsql_flamegraph(query, database)
-                    if flamegraph_content:
-                        logger.info(f"🔥 Flamegraph generated for Query {index+1:02d}")
-                        # Update flamegraph index immediately
-                        update_flamegraph_index_incremental(flamegraph_dir, index+1, query, flamegraph_content, flamegraph_time)
-                    else:
-                        logger.warning(f"⚠️ No flamegraph content generated for Query {index+1:02d}")
-                
                 if sql_tool == "snowsql":
                     time_elapsed = extract_snowsql_time(output)
                 else:
@@ -664,6 +651,16 @@ def execute_sql_file(sql_file, sql_tool, database, warehouse, suspend, is_setup=
                     time_elapsed_float = float(time_elapsed)
                     total_execution_time += time_elapsed_float
                     successful_queries += 1
+                    
+                    # Generate flamegraph if enabled and using bendsql (use server execution time)
+                    if flamegraph_enabled and sql_tool == "bendsql" and flamegraph_dir and not is_setup:
+                        flamegraph_content, _ = execute_bendsql_flamegraph(query, database)
+                        if flamegraph_content:
+                            logger.info(f"🔥 Flamegraph generated for Query {index+1:02d}")
+                            # Update flamegraph index immediately with server execution time
+                            update_flamegraph_index_incremental(flamegraph_dir, index+1, query, flamegraph_content, time_elapsed_float)
+                        else:
+                            logger.warning(f"⚠️ No flamegraph content generated for Query {index+1:02d}")
                     
                     # Write to CSV file
                     with open(csv_file_path, "a", newline="") as csvfile:
