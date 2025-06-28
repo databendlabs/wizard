@@ -82,10 +82,294 @@ def extract_bendsql_time(output):
 
 def execute_sql(query, sql_tool, database, warehouse=None):
     """General function to execute a SQL query using the specified tool."""
-    if sql_tool == "bendsql":
-        return execute_bendsql(query, database)
-    elif sql_tool == "snowsql":
+    if sql_tool == "snowsql":
         return execute_snowsql(query, database, warehouse)
+    elif sql_tool == "bendsql":
+        return execute_bendsql(query, database)
+    else:
+        raise ValueError(f"Unsupported SQL tool: {sql_tool}")
+
+
+def execute_bendsql_flamegraph(query, database):
+    """Execute EXPLAIN PERF query and return flamegraph SVG content."""
+    import subprocess
+    import time
+    import re
+    
+    try:
+        # Prepare EXPLAIN PERF query
+        explain_query = f"EXPLAIN PERF {query}"
+        
+        # Execute bendsql command with --quote-style never and database
+        command = ["bendsql", "--quote-style", "never", "--database", database]
+        
+        start_time = time.time()
+        process = subprocess.Popen(
+            command, 
+            stdin=subprocess.PIPE, 
+            stdout=subprocess.PIPE, 
+            stderr=subprocess.PIPE, 
+            text=True
+        )
+        stdout, stderr = process.communicate(input=explain_query)
+        end_time = time.time()
+        execution_time = end_time - start_time
+        
+        if "APIError: ResponseError" in stderr:
+            logger.error(f"Flamegraph generation failed - APIError: {stderr}")
+            return None, 0
+        elif process.returncode != 0:
+            logger.error(f"Flamegraph generation failed with return code {process.returncode}: {stderr}")
+            return None, 0
+            
+        # Debug: Log the actual output to understand what we're getting
+        logger.info(f"Bendsql output length: {len(stdout)} characters")
+        logger.info(f"Bendsql output preview: {stdout[:500]}..." if len(stdout) > 500 else f"Full bendsql output: {stdout}")
+        
+        # Since bendsql returns complete HTML with flamegraph, use the full content
+        if stdout and len(stdout) > 1000 and "flamegraph" in stdout.lower():
+            logger.info(f"Flamegraph HTML content extracted successfully (execution time: {execution_time:.2f}s)")
+            return stdout, execution_time
+        else:
+            logger.error("No flamegraph content found in bendsql output")
+            logger.error(f"Output contains: {repr(stdout[:200])}")
+            return None, 0
+        
+    except Exception as e:
+        logger.error(f"Error generating flamegraph: {e}")
+        return None, 0
+
+
+def setup_flamegraph_directory(base_dir, benchmark_case):
+    """Create organized directory structure for flamegraphs using template."""
+    from datetime import datetime
+    import os
+    
+    # Create timestamped directory
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    flamegraph_dir = os.path.join(base_dir, f"{benchmark_case}_{timestamp}")
+    os.makedirs(flamegraph_dir, exist_ok=True)
+    
+    # Load index.html template
+    template_path = os.path.join(os.path.dirname(__file__), "templates", "flamegraph_index.html")
+    try:
+        with open(template_path, 'r', encoding='utf-8') as f:
+            template_content = f.read()
+    except FileNotFoundError:
+        logger.error(f"Template file not found: {template_path}")
+        return None
+    
+    # Replace placeholders in template using string replacement
+    content = template_content.replace("{benchmark_case}", benchmark_case.upper())
+    content = content.replace("{timestamp}", timestamp)
+    content = content.replace("{generation_time}", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    
+    # Write initial flamegraph HTML file with _flame.html suffix
+    flamegraph_filename = f"{benchmark_case}_{timestamp}_flame.html"
+    index_path = os.path.join(flamegraph_dir, flamegraph_filename)
+    with open(index_path, 'w', encoding='utf-8') as f:
+        f.write(content)
+    
+    logger.info(f"Flamegraph directory created: {flamegraph_dir}")
+    logger.info(f"Flamegraph file: {index_path}")
+    return flamegraph_dir
+
+
+# Global storage for flamegraph data
+flamegraph_data_storage = []
+
+def get_flamegraph_filename(flamegraph_dir):
+    """Generate flamegraph filename with _flame.html suffix based on directory name."""
+    dir_name = os.path.basename(flamegraph_dir)
+    return f"{dir_name}_flame.html"
+
+def initialize_flamegraph_index(flamegraph_dir):
+    """Initialize empty flamegraph HTML file at the start."""
+    flamegraph_filename = get_flamegraph_filename(flamegraph_dir)
+    index_path = os.path.join(flamegraph_dir, flamegraph_filename)
+    
+    try:
+        # Read template
+        template_path = os.path.join(os.path.dirname(__file__), "templates", "flamegraph_index.html")
+
+        with open(template_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # Extract benchmark case and timestamp from directory name
+        dir_name = os.path.basename(flamegraph_dir)
+        parts = dir_name.split('_')
+        benchmark_case = parts[0].upper() if parts else 'BENCHMARK'
+        timestamp = '_'.join(parts[1:]) if len(parts) > 1 else 'UNKNOWN'
+        
+        # Replace template variables
+        from datetime import datetime
+        generation_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        content = content.replace('{benchmark_case}', benchmark_case)
+        content = content.replace('{timestamp}', timestamp)
+        content = content.replace('{generation_time}', generation_time)
+        
+        # Initialize with empty content for dynamic parts
+        content = content.replace('{{QUERY_ITEMS}}', '')
+        content = content.replace('{{FLAMEGRAPH_TEMPLATES}}', '')
+        
+        # Write initial empty index
+        with open(index_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        
+        logger.info(f"📊 Initialized flamegraph file: {index_path}")
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize flamegraph index: {e}")
+
+
+def update_flamegraph_index_incremental(flamegraph_dir, query_index, sql_query, flamegraph_content, execution_time):
+    """Update flamegraph HTML file incrementally after each query."""
+    flamegraph_filename = get_flamegraph_filename(flamegraph_dir)
+    index_path = os.path.join(flamegraph_dir, flamegraph_filename)
+    
+    try:
+        # Read current index content
+        with open(index_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # Format complete SQL query for display (including comments)
+        clean_query = sql_query.strip()
+        # Keep all lines including comments, just clean up extra whitespace
+        lines = [line.rstrip() for line in clean_query.split('\n')]
+        # Remove empty lines but keep comments
+        formatted_lines = [line for line in lines if line.strip()]
+        sql_display = '\n'.join(formatted_lines)
+        
+        # Create new query item HTML
+        query_item = f'''            <li class="query-item">
+                <div class="query-header">
+                    <div class="query-title">Query {query_index:02d}</div>
+                    <div class="query-time">{execution_time:.3f}s</div>
+                </div>
+                <div class="query-sql"><pre>{sql_display}</pre></div>
+                <button class="flamegraph-toggle" onclick="toggleFlamegraph({query_index})">
+                    🔥 View Flamegraph Analysis
+                </button>
+                <div class="flamegraph-content" id="flamegraph-{query_index}" style="display: none;">
+                    <div class="loading">Loading flamegraph...</div>
+                </div>
+            </li>'''
+        
+        # Create flamegraph template with SVG content only
+        flamegraph_template = f'''        <script type="text/html" id="flamegraph-template-{query_index}">
+{flamegraph_content}
+        </script>'''
+        
+        # Find insertion points and add new content
+        # Insert query item before the closing </ul> of query-list
+        query_list_end = content.find('</ul>', content.find('class="query-list"'))
+        if query_list_end != -1:
+            content = content[:query_list_end] + query_item + '\n        ' + content[query_list_end:]
+        
+        # Insert template before the closing </body>
+        body_end = content.rfind('</body>')
+        if body_end != -1:
+            content = content[:body_end] + flamegraph_template + '\n    ' + content[body_end:]
+        
+        # Write updated content
+        with open(index_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        
+        logger.info(f"📊 Updated flamegraph file with Query {query_index:02d}: {index_path}")
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to update flamegraph index: {e}")
+
+
+def generate_complete_flamegraph_index(flamegraph_dir):
+    """Generate complete index.html with all collected flamegraph data."""
+    global flamegraph_data_storage
+    
+    logger.info(f"🔥 Generating complete flamegraph index with {len(flamegraph_data_storage)} queries")
+    
+    if not flamegraph_data_storage:
+        logger.warning("No flamegraph data collected, creating empty index")
+        # Create empty index anyway
+        query_items_html = '<li class="query-item"><div class="query-header"><div class="query-title">No queries executed</div></div></li>'
+        templates_html = ''
+    else:
+        # Generate query items and templates
+        query_items = []
+        flamegraph_templates = []
+        
+        for data in flamegraph_data_storage:
+            query_index = data['query_index']
+            sql_preview = data.get('sql_preview', 'SQL query')
+            flamegraph_content = data['flamegraph_content']
+            execution_time = data.get('execution_time', 0)
+            
+            # Create query item HTML
+            query_item = f'''            <li class="query-item">
+                <div class="query-header">
+                    <div class="query-title">Query {query_index:02d}</div>
+                    <div class="query-time">{execution_time:.3f}s</div>
+                </div>
+                <div class="query-sql">{sql_preview}</div>
+                <button class="flamegraph-toggle" onclick="toggleFlamegraph({query_index})">
+                    🔥 View Flamegraph Analysis
+                </button>
+                <div class="flamegraph-content" id="flamegraph-{query_index}" style="display: none;">
+                    <div class="loading">Loading flamegraph...</div>
+                </div>
+            </li>'''
+            query_items.append(query_item)
+            
+            # Create flamegraph template
+            flamegraph_template = f'''        <template id="flamegraph-template-{query_index}">
+{flamegraph_content}
+        </template>'''
+            flamegraph_templates.append(flamegraph_template)
+        
+        query_items_html = '\n'.join(query_items)
+        templates_html = '\n'.join(flamegraph_templates)
+        
+    flamegraph_filename = get_flamegraph_filename(flamegraph_dir)
+    index_path = os.path.join(flamegraph_dir, flamegraph_filename)
+    
+    try:
+        # Read template
+        template_path = os.path.join(os.path.dirname(__file__), "templates", "flamegraph_index.html")
+
+        with open(template_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        
+        # Check if placeholders exist in template
+        has_query_placeholder = '{{QUERY_ITEMS}}' in content
+        has_template_placeholder = '{{FLAMEGRAPH_TEMPLATES}}' in content
+
+        
+        # Log the content we're about to replace with
+
+
+        # Replace placeholders with generated content
+        content_before = content
+        content = content.replace('{{QUERY_ITEMS}}', query_items_html)
+        content = content.replace('{{FLAMEGRAPH_TEMPLATES}}', templates_html)
+        
+        # Check if replacement actually happened
+        query_replaced = '{{QUERY_ITEMS}}' not in content
+        template_replaced = '{{FLAMEGRAPH_TEMPLATES}}' not in content
+
+        
+        # Write complete content
+        with open(index_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+
+            
+        logger.info(f"📊 Flamegraph file generated with {len(flamegraph_data_storage)} queries: {index_path}")
+        
+        # Clear the storage for next run
+        flamegraph_data_storage.clear()
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to generate flamegraph index: {e}")
 
 
 def setup_database(database_name, sql_tool, warehouse):
@@ -161,7 +445,13 @@ def create_ascii_table(data, headers, title=None):
     return '\n'.join(table)
 
 
-def execute_sql_file(sql_file, sql_tool, database, warehouse, suspend, is_setup=False):
+def execute_sql_file(sql_file, sql_tool, database, warehouse, suspend, is_setup=False, flamegraph_enabled=False, flamegraph_dir=None):
+    global flamegraph_data_storage
+
+    
+    # Initialize flamegraph index at the start if flamegraph is enabled
+    if flamegraph_enabled and flamegraph_dir and not is_setup:
+        initialize_flamegraph_index(flamegraph_dir)
     """Execute SQL queries from a file using the specified tool and write results to a file."""
     with open(sql_file, "r") as file:
         queries = [query.strip() for query in file.read().split(";") if query.strip()]
@@ -204,6 +494,19 @@ def execute_sql_file(sql_file, sql_tool, database, warehouse, suspend, is_setup=
                 query_exec_start = time.time()
                 output = execute_sql(query, sql_tool, database, warehouse)
 
+                # Generate flamegraph if enabled and using bendsql
+                flamegraph_file = None
+                flamegraph_time = 0
+                if flamegraph_enabled and sql_tool == "bendsql" and flamegraph_dir and not is_setup:
+
+                    flamegraph_content, flamegraph_time = execute_bendsql_flamegraph(query, database)
+                    if flamegraph_content:
+                        logger.info(f"🔥 Flamegraph generated for Query {index+1:02d}")
+                        # Update flamegraph index immediately
+                        update_flamegraph_index_incremental(flamegraph_dir, index+1, query, flamegraph_content, flamegraph_time)
+                    else:
+                        logger.warning(f"⚠️ No flamegraph content generated for Query {index+1:02d}")
+                
                 if sql_tool == "snowsql":
                     time_elapsed = extract_snowsql_time(output)
                 else:
@@ -288,6 +591,9 @@ Average query time (server): {(total_execution_time / successful_queries if succ
     with open(result_file_path, "a") as result_file:
         result_file.write(summary)
     
+    # Flamegraph index is now updated incrementally after each query
+    # No need for final generation step
+    
     return {
         "total_execution_time": total_execution_time,
         "total_wall_time": total_wall_time,
@@ -332,6 +638,17 @@ def parse_arguments():
         default='tpch',
         help="Specify the benchmark case: TPC-H (default) or TPC-DS",
     )
+    parser.add_argument(
+        "--flamegraph",
+        action="store_true",
+        help="Enable flamegraph generation using EXPLAIN PERF",
+    )
+    parser.add_argument(
+        "--flamegraph-dir",
+        default="./flamegraphs",
+        help="Directory to store flamegraph HTML files (default: ./flamegraphs)",
+    )
+
     return parser.parse_args()
 
 
@@ -374,6 +691,19 @@ def main():
     logger.info(f"Warehouse: {warehouse}")
     logger.info(f"Timestamp: {datetime.now()}")
     
+    # Initialize flamegraph settings
+    flamegraph_dir = None
+
+    if args.flamegraph:
+        if sql_tool != "bendsql":
+            logger.warning("⚠️  Flamegraph is only supported with bendsql (--runbend). Disabling flamegraph.")
+            args.flamegraph = False
+        else:
+            flamegraph_dir = setup_flamegraph_directory(args.flamegraph_dir, args.case)
+            logger.info(f"🔥 Flamegraph enabled - Output directory: {flamegraph_dir}")
+            
+
+    
     setup_stats = {"total_execution_time": 0, "total_wall_time": 0, "total_restart_time": 0, "successful_queries": 0, "total_queries": 0}
     db_setup_time = 0
     
@@ -382,12 +712,12 @@ def main():
         db_setup_time = setup_database(database, sql_tool, warehouse)
         # Choose between TPC-H and TPC-DS setup files
         setup_file = os.path.join(sql_dir, "tpcds_setup.sql" if args.case == 'tpcds' else "setup.sql")
-        setup_stats = execute_sql_file(setup_file, sql_tool, database, warehouse, False, is_setup=True)
+        setup_stats = execute_sql_file(setup_file, sql_tool, database, warehouse, False, is_setup=True, flamegraph_enabled=args.flamegraph, flamegraph_dir=flamegraph_dir)
         logger.info(f"Setup completed. Total execution time: {setup_stats['total_execution_time']:.2f}s, Wall time: {setup_stats['total_wall_time']:.2f}s")
 
     # Choose between TPC-H and TPC-DS queries
     queries_file = os.path.join(sql_dir, "tpcds_queries.sql" if args.case == 'tpcds' else "queries.sql")
-    queries_stats = execute_sql_file(queries_file, sql_tool, database, warehouse, args.suspend, is_setup=False)
+    queries_stats = execute_sql_file(queries_file, sql_tool, database, warehouse, args.suspend, is_setup=False, flamegraph_enabled=args.flamegraph, flamegraph_dir=flamegraph_dir)
     logger.info(f"Queries completed. Total execution time: {queries_stats['total_execution_time']:.2f}s, Wall time: {queries_stats['total_wall_time']:.2f}s")
 
     overall_time = time.time() - overall_start_time
@@ -432,6 +762,16 @@ def main():
     
     summary_table = create_ascii_table(data, headers, "Overall Benchmark Summary")
     logger.info(f"\n{summary_table}")
+    
+    # Add flamegraph summary if enabled
+    if args.flamegraph and flamegraph_dir:
+        logger.info(f"\n{'='*60}")
+        logger.info(f"🔥 FLAMEGRAPH SUMMARY")
+        logger.info(f"{'='*60}")
+        logger.info(f"  - Flamegraph directory: {flamegraph_dir}")
+        logger.info(f"  - Generated flamegraphs: {queries_stats['successful_queries']} files")
+
+        logger.info(f"{'='*60}")
     
     # Create ASCII table for query times if queries were executed
     if 'results' in queries_stats:

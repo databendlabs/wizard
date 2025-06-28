@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔥 Flamegraphs - {benchmark_case} - {timestamp}</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 40px;
+            background: #f8f9fa;
+            color: #333;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 40px;
+        }
+        h1 {
+            color: #dc3545;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+            text-align: center;
+        }
+        .subtitle {
+            text-align: center;
+            color: #6c757d;
+            margin-bottom: 40px;
+            font-size: 1.1em;
+        }
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 40px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .stat-item {
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #28a745;
+        }
+        .stat-label {
+            color: #6c757d;
+            font-size: 0.9em;
+        }
+        .query-list {
+            list-style: none;
+            padding: 0;
+        }
+        .query-item {
+            margin-bottom: 20px;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        .query-item:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .query-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .query-title {
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+        .query-time {
+            background: rgba(255,255,255,0.2);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.9em;
+        }
+        .query-content {
+            padding: 20px;
+        }
+        .query-sql {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 13px;
+            color: #495057;
+            border-left: 4px solid #007bff;
+            margin-bottom: 15px;
+            overflow-x: auto;
+        }
+        .query-sql pre {
+            margin: 0;
+            padding: 0;
+            background: transparent;
+            border: none;
+            font-family: inherit;
+            font-size: inherit;
+            color: inherit;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .flamegraph-toggle {
+            display: inline-block;
+            background: #dc3545;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 25px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border: none;
+            font-size: 0.9em;
+        }
+        .flamegraph-toggle:hover {
+            background: #c82333;
+            transform: scale(1.05);
+        }
+        .flamegraph-toggle.expanded {
+            background: #28a745;
+        }
+        .flamegraph-toggle.expanded:hover {
+            background: #218838;
+        }
+        .flamegraph-container {
+            margin-top: 20px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            overflow: hidden;
+            display: none;
+        }
+        .flamegraph-container.expanded {
+            display: block;
+        }
+        .flamegraph-content {
+            width: 100%;
+            min-height: 400px;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            background: white;
+            padding: 20px;
+            overflow: auto;
+        }
+        .flamegraph-content svg {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+            font-style: italic;
+        }
+        .error {
+            text-align: center;
+            padding: 20px;
+            color: #dc3545;
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        .flamegraph-btn.expanded {
+            background: #28a745;
+            color: white;
+        }
+        .flamegraph-btn:hover {
+            background: #0056b3;
+            transform: translateY(-1px);
+        }
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #dee2e6;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔥 Performance Flamegraphs</h1>
+        <div class="subtitle">
+            {benchmark_case} Benchmark Analysis<br>
+            Generated: {generation_time}
+        </div>
+        
+        <div class="stats">
+            <div class="stat-item">
+                <div class="stat-number" id="totalQueries">0</div>
+                <div class="stat-label">Total Queries</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="totalTime">0.00s</div>
+                <div class="stat-label">Total Execution Time</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="avgTime">0.00s</div>
+                <div class="stat-label">Average Query Time</div>
+            </div>
+        </div>
+        
+        
+        <ul class="query-list" id="queryList">
+            {{QUERY_ITEMS}}
+        </ul>
+        
+        <div class="footer">
+            <p>📊 Generated by benchsb with Databend EXPLAIN PERF</p>
+            <p>💡 Click on any flamegraph button to view detailed performance analysis inline</p>
+        </div>
+    </div>
+    
+    <script>
+        // Toggle individual flamegraph - simplified SVG display
+        function toggleFlamegraph(queryIndex) {
+            console.log(`🔥 toggleFlamegraph called with queryIndex: ${queryIndex}`);
+            
+            // Find elements using the actual HTML structure
+            const content = document.getElementById(`flamegraph-${queryIndex}`);
+            const button = document.querySelector(`button[onclick="toggleFlamegraph(${queryIndex})"]`);
+            
+            if (!content || !button) {
+                console.error('❌ Required elements not found!');
+                return;
+            }
+            
+            const isExpanded = content.style.display !== 'none';
+            
+            if (isExpanded) {
+                // Collapse
+                content.style.display = 'none';
+                button.textContent = '🔥 View Flamegraph Analysis';
+                button.classList.remove('expanded');
+                console.log('📉 Collapsed flamegraph');
+            } else {
+                // Expand
+                content.style.display = 'block';
+                button.textContent = '📊 Hide Flamegraph Analysis';
+                button.classList.add('expanded');
+                console.log('📈 Expanded flamegraph');
+                
+                // Load flamegraph content if not already loaded
+                if (content.innerHTML.trim() === '<div class="loading">Loading flamegraph...</div>' || 
+                    content.innerHTML.includes('Loading flamegraph...')) {
+                    console.log('🔄 Loading flamegraph content...');
+                    
+                    // Load flamegraph content from script template
+                    const templateId = `flamegraph-template-${queryIndex}`;
+                    const template = document.getElementById(templateId);
+                    
+                    if (template && template.innerHTML.trim()) {
+                        // Create iframe to display the complete HTML flamegraph
+                        const iframe = document.createElement('iframe');
+                        iframe.style.width = '100%';
+                        iframe.style.height = '600px';
+                        iframe.style.border = '1px solid #ddd';
+                        iframe.style.borderRadius = '4px';
+                        
+                        // Decode HTML entities and set as iframe content
+                        const tempDiv = document.createElement('div');
+                        tempDiv.innerHTML = template.innerHTML;
+                        const flamegraphHtml = tempDiv.innerHTML;
+                        
+                        iframe.srcdoc = flamegraphHtml;
+                        content.innerHTML = '';
+                        content.appendChild(iframe);
+                        
+                        console.log('✅ Flamegraph HTML content loaded successfully');
+                    } else {
+                        console.error(`❌ Template not found: ${templateId}`);
+                        content.innerHTML = '<div class="error">❌ Flamegraph data not available</div>';
+                    }
+                }
+            }
+        }
+        
+        // Update statistics
+        function updateStats() {
+            const queries = document.querySelectorAll('.query-item');
+            const totalQueries = queries.length;
+            
+            let totalTime = 0;
+            queries.forEach(query => {
+                const timeText = query.querySelector('.query-time').textContent;
+                const time = parseFloat(timeText.replace('s', ''));
+                if (!isNaN(time)) totalTime += time;
+            });
+            
+            const avgTime = totalQueries > 0 ? totalTime / totalQueries : 0;
+            
+            document.getElementById('totalQueries').textContent = totalQueries;
+            document.getElementById('totalTime').textContent = totalTime.toFixed(3) + 's';
+            document.getElementById('avgTime').textContent = avgTime.toFixed(3) + 's';
+        }
+        
+        // Initialize flamegraph data storage (now using template elements)
+        // window.flamegraphData = {}; // No longer needed
+        
+        // Call updateStats when page loads
+        updateStats();
+        
+        // Function to resize iframe based on content (called by iframe onload)
+        function resizeIframe(iframe) {
+            try {
+                // Set a reasonable default height for flamegraph iframes
+                iframe.style.height = '600px';
+                iframe.style.width = '100%';
+                console.log('📏 Iframe resized to default dimensions');
+            } catch (error) {
+                console.error('❌ Error resizing iframe:', error);
+            }
+        }
+    </script>
+    
+    {{FLAMEGRAPH_TEMPLATES}}
+</body>
+</html>

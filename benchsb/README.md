@@ -108,6 +108,24 @@ Before running, you should prepare the data and config. Below are the command ex
 | Databend  | `python3 ./benchsb.py --case tpcds --database tpcds_100 --runbend --suspend` |
 | Snowflake | `python3 ./benchsb.py --case tpcds --database tpcds_100 --runsnow --suspend` |
 
+## 🔥 Flamegraph Generation (Databend Only)
+
+Generate interactive performance flamegraphs for your queries.
+
+### Usage
+
+```bash
+# Basic flamegraph generation
+python3 ./benchsb.py --case tpch --database tpch_100 --runbend --flamegraph
+
+
+### Notes
+
+- Flamegraph generation is **only available with Databend** (`--runbend`)
+- Requires Databend version that supports `EXPLAIN PERF`
+- Flamegraphs are generated for query execution phase only (not setup)
+- All content is self-contained in a single HTML file
+- No external server or dependencies required for viewing
 
 Example output:
 
