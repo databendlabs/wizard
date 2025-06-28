@@ -57,9 +57,15 @@ def extract_snowsql_time(output):
     return match.group(1) if match else None
 
 
-def execute_bendsql(query, database):
+def execute_bendsql(query, database, get_data=False):
     """Execute an SQL query using bendsql."""
-    command = ["bendsql", "--query=" + query, "--database=" + database, "--time=server"]
+    if get_data:
+        # For data queries, don't use --time=server to get actual results
+        command = ["bendsql", "--query=" + query, "--database=" + database]
+    else:
+        # For performance queries, use --time=server
+        command = ["bendsql", "--query=" + query, "--database=" + database, "--time=server"]
+    
     result = subprocess.run(command, text=True, capture_output=True)
 
     if "APIError: ResponseError" in result.stderr:
@@ -88,6 +94,110 @@ def execute_sql(query, sql_tool, database, warehouse=None):
         return execute_bendsql(query, database)
     else:
         raise ValueError(f"Unsupported SQL tool: {sql_tool}")
+
+
+def get_databend_version(database):
+    """Get Databend server version."""
+    try:
+        query = "SELECT version();"
+        logger.info(f"🔍 Executing version query: {query}")
+        result = execute_bendsql(query, database, get_data=True)
+        logger.info(f"🔍 Version query result: {repr(result)}")
+        
+        if result and result.strip():
+            version = result.strip()
+            logger.info(f"🔍 Parsed version: {version}")
+            return version
+        
+        logger.warning("🔍 No version result returned")
+        return "Databend (version unknown)"
+    except Exception as e:
+        logger.error(f"Failed to get Databend version: {e}")
+        return "Unknown"
+
+
+def get_bendsql_version():
+    """Get BendSQL client version."""
+    try:
+        import subprocess
+        cmd = ['bendsql', '--version']
+        logger.info(f"🔍 Executing BendSQL version command: {' '.join(cmd)}")
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        logger.info(f"🔍 BendSQL command return code: {result.returncode}")
+        logger.info(f"🔍 BendSQL stdout: {repr(result.stdout)}")
+        logger.info(f"🔍 BendSQL stderr: {repr(result.stderr)}")
+        
+        if result.returncode == 0 and result.stdout:
+            version = result.stdout.strip()
+            logger.info(f"🔍 Parsed BendSQL version: {version}")
+            return version
+        
+        logger.warning("🔍 No BendSQL version result")
+        return "Unknown"
+    except Exception as e:
+        logger.error(f"Failed to get BendSQL version: {e}")
+        return "Unknown"
+
+
+def get_system_settings(database):
+    """Get non-default system settings from Databend."""
+    try:
+        # First, let's try to get all settings to see the structure
+        debug_query = """
+        SELECT name, value, default, level 
+        FROM system.settings 
+        LIMIT 5;
+        """
+        
+        debug_result = execute_bendsql(debug_query, database, get_data=True)
+        logger.info(f"🔍 Debug - Sample settings result: {repr(debug_result)}")
+        
+        # Query to get system settings that differ from defaults
+        query = """
+        SELECT name, value, default, level 
+        FROM system.settings 
+        WHERE value != default
+        ORDER BY name;
+        """
+        
+        result = execute_bendsql(query, database, get_data=True)
+        logger.info(f"🔍 Settings query result: {repr(result)}")
+        
+        if not result or not result.strip():
+            logger.info("🔍 No result from settings query")
+            return []
+        
+        settings = []
+        lines = result.strip().split('\n')
+        logger.info(f"🔍 Found {len(lines)} lines in result")
+        
+        for i, line in enumerate(lines):
+            if line.strip():
+                # Try different delimiters
+                parts = None
+                if '\t' in line:
+                    parts = line.split('\t')
+                elif '|' in line:
+                    parts = [p.strip() for p in line.split('|') if p.strip()]
+                else:
+                    parts = line.split()
+                
+                logger.info(f"🔍 Line {i}: {repr(line)} -> {len(parts) if parts else 0} parts: {parts}")
+                
+                if parts and len(parts) >= 4:
+                    settings.append({
+                        'name': parts[0].strip(),
+                        'value': parts[1].strip(),
+                        'default': parts[2].strip(),
+                        'level': parts[3].strip()
+                    })
+        
+        logger.info(f"🔍 Parsed {len(settings)} settings")
+        return settings
+        
+    except Exception as e:
+        logger.error(f"Failed to get system settings: {e}")
+        return []
 
 
 def execute_bendsql_flamegraph(query, database):
@@ -124,7 +234,6 @@ def execute_bendsql_flamegraph(query, database):
             
         # Debug: Log the actual output to understand what we're getting
         logger.info(f"Bendsql output length: {len(stdout)} characters")
-        logger.info(f"Bendsql output preview: {stdout[:500]}..." if len(stdout) > 500 else f"Full bendsql output: {stdout}")
         
         # Since bendsql returns complete HTML with flamegraph, use the full content
         if stdout and len(stdout) > 1000 and "flamegraph" in stdout.lower():
@@ -141,51 +250,56 @@ def execute_bendsql_flamegraph(query, database):
 
 
 def setup_flamegraph_directory(base_dir, benchmark_case):
-    """Create organized directory structure for flamegraphs using template."""
+    """Create flamegraph HTML file directly in base directory without subdirectory."""
     from datetime import datetime
     import os
     
-    # Create timestamped directory
+    # Create base flamegraphs directory if it doesn't exist
+    os.makedirs(base_dir, exist_ok=True)
+    
+    # Generate timestamped filename
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    flamegraph_dir = os.path.join(base_dir, f"{benchmark_case}_{timestamp}")
-    os.makedirs(flamegraph_dir, exist_ok=True)
-    
-    # Load index.html template
-    template_path = os.path.join(os.path.dirname(__file__), "templates", "flamegraph_index.html")
-    try:
-        with open(template_path, 'r', encoding='utf-8') as f:
-            template_content = f.read()
-    except FileNotFoundError:
-        logger.error(f"Template file not found: {template_path}")
-        return None
-    
-    # Replace placeholders in template using string replacement
-    content = template_content.replace("{benchmark_case}", benchmark_case.upper())
-    content = content.replace("{timestamp}", timestamp)
-    content = content.replace("{generation_time}", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-    
-    # Write initial flamegraph HTML file with _flame.html suffix
     flamegraph_filename = f"{benchmark_case}_{timestamp}_flame.html"
-    index_path = os.path.join(flamegraph_dir, flamegraph_filename)
-    with open(index_path, 'w', encoding='utf-8') as f:
-        f.write(content)
+    flamegraph_path = os.path.join(base_dir, flamegraph_filename)
     
-    logger.info(f"Flamegraph directory created: {flamegraph_dir}")
-    logger.info(f"Flamegraph file: {index_path}")
-    return flamegraph_dir
+    logger.info(f"Flamegraph file: {flamegraph_path}")
+    
+    # Return the base directory as flamegraph_dir for compatibility
+    # The actual file path will be constructed using get_flamegraph_filename
+    return base_dir
 
 
 # Global storage for flamegraph data
 flamegraph_data_storage = []
 
-def get_flamegraph_filename(flamegraph_dir):
-    """Generate flamegraph filename with _flame.html suffix based on directory name."""
-    dir_name = os.path.basename(flamegraph_dir)
-    return f"{dir_name}_flame.html"
+def get_flamegraph_filename(flamegraph_dir, benchmark_case=None):
+    """Generate flamegraph filename with _flame.html suffix."""
+    from datetime import datetime
+    
+    # If we have a benchmark_case, generate a new timestamped filename
+    if benchmark_case:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        return f"{benchmark_case}_{timestamp}_flame.html"
+    
+    # Otherwise, look for existing flame.html files in the directory
+    import glob
+    flame_files = glob.glob(os.path.join(flamegraph_dir, "*_flame.html"))
+    if flame_files:
+        # Return the most recent flame file
+        return os.path.basename(max(flame_files, key=os.path.getctime))
+    
+    # Fallback: generate a default filename
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return f"benchmark_{timestamp}_flame.html"
 
-def initialize_flamegraph_index(flamegraph_dir):
-    """Initialize empty flamegraph HTML file at the start."""
-    flamegraph_filename = get_flamegraph_filename(flamegraph_dir)
+def initialize_flamegraph_index(flamegraph_dir, database=None, warehouse=None, benchmark_case=None):
+    """Initialize empty flamegraph HTML file at the start with system info."""
+    # Generate filename with benchmark_case if provided
+    if benchmark_case:
+        flamegraph_filename = get_flamegraph_filename(flamegraph_dir, benchmark_case)
+    else:
+        flamegraph_filename = get_flamegraph_filename(flamegraph_dir)
+    
     index_path = os.path.join(flamegraph_dir, flamegraph_filename)
     
     try:
@@ -195,29 +309,68 @@ def initialize_flamegraph_index(flamegraph_dir):
         with open(template_path, 'r', encoding='utf-8') as f:
             content = f.read()
         
-        # Extract benchmark case and timestamp from directory name
-        dir_name = os.path.basename(flamegraph_dir)
-        parts = dir_name.split('_')
-        benchmark_case = parts[0].upper() if parts else 'BENCHMARK'
+        # Extract benchmark case and timestamp from filename
+        filename_base = os.path.splitext(flamegraph_filename)[0]  # Remove .html
+        if filename_base.endswith('_flame'):
+            filename_base = filename_base[:-6]  # Remove _flame suffix
+        
+        parts = filename_base.split('_')
+        benchmark_case_display = parts[0].upper() if parts else 'BENCHMARK'
         timestamp = '_'.join(parts[1:]) if len(parts) > 1 else 'UNKNOWN'
+        
+        # Get system information if database is provided
+        server_version = "Unknown"
+        bendsql_version = "Unknown"
+        system_settings = []
+        
+        if database:
+            logger.info("🔍 Fetching system information...")
+            server_version = get_databend_version(database)
+            bendsql_version = get_bendsql_version()
+            system_settings = get_system_settings(database)
+            logger.info(f"📋 Found {len(system_settings)} non-default settings")
         
         # Replace template variables
         from datetime import datetime
         generation_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
-        content = content.replace('{benchmark_case}', benchmark_case)
+        content = content.replace('{benchmark_case}', benchmark_case_display)
         content = content.replace('{timestamp}', timestamp)
         content = content.replace('{generation_time}', generation_time)
+        content = content.replace('{server_version}', server_version)
+        content = content.replace('{bendsql_version}', bendsql_version)
+        content = content.replace('{database}', database or 'Unknown')
+        content = content.replace('{warehouse}', warehouse or 'Unknown')
         
         # Initialize with empty content for dynamic parts
         content = content.replace('{{QUERY_ITEMS}}', '')
         content = content.replace('{{FLAMEGRAPH_TEMPLATES}}', '')
+        
+        # Add JavaScript to initialize system settings if available
+        if system_settings:
+            import json
+            settings_json = json.dumps(system_settings, indent=2)
+            settings_script = f"""
+    <script>
+        // Initialize system settings when page loads
+        document.addEventListener('DOMContentLoaded', function() {{
+            const settings = {settings_json};
+            initializeSystemSettings(settings);
+        }});
+    </script>"""
+            
+            # Insert before closing body tag
+            body_end = content.rfind('</body>')
+            if body_end != -1:
+                content = content[:body_end] + settings_script + '\n' + content[body_end:]
         
         # Write initial empty index
         with open(index_path, 'w', encoding='utf-8') as f:
             f.write(content)
         
         logger.info(f"📊 Initialized flamegraph file: {index_path}")
+        if system_settings:
+            logger.info(f"⚙️  Injected {len(system_settings)} system settings")
         
     except Exception as e:
         logger.error(f"❌ Failed to initialize flamegraph index: {e}")
@@ -233,13 +386,8 @@ def update_flamegraph_index_incremental(flamegraph_dir, query_index, sql_query, 
         with open(index_path, 'r', encoding='utf-8') as f:
             content = f.read()
         
-        # Format complete SQL query for display (including comments)
-        clean_query = sql_query.strip()
-        # Keep all lines including comments, just clean up extra whitespace
-        lines = [line.rstrip() for line in clean_query.split('\n')]
-        # Remove empty lines but keep comments
-        formatted_lines = [line for line in lines if line.strip()]
-        sql_display = '\n'.join(formatted_lines)
+        # Keep original SQL for JavaScript formatting
+        sql_display = sql_query.strip()
         
         # Create new query item HTML
         query_item = f'''            <li class="query-item">
@@ -445,13 +593,13 @@ def create_ascii_table(data, headers, title=None):
     return '\n'.join(table)
 
 
-def execute_sql_file(sql_file, sql_tool, database, warehouse, suspend, is_setup=False, flamegraph_enabled=False, flamegraph_dir=None):
+def execute_sql_file(sql_file, sql_tool, database, warehouse, suspend, is_setup=False, flamegraph_enabled=False, flamegraph_dir=None, benchmark_case=None):
     global flamegraph_data_storage
 
     
     # Initialize flamegraph index at the start if flamegraph is enabled
     if flamegraph_enabled and flamegraph_dir and not is_setup:
-        initialize_flamegraph_index(flamegraph_dir)
+        initialize_flamegraph_index(flamegraph_dir, database, warehouse, benchmark_case)
     """Execute SQL queries from a file using the specified tool and write results to a file."""
     with open(sql_file, "r") as file:
         queries = [query.strip() for query in file.read().split(";") if query.strip()]
@@ -712,12 +860,12 @@ def main():
         db_setup_time = setup_database(database, sql_tool, warehouse)
         # Choose between TPC-H and TPC-DS setup files
         setup_file = os.path.join(sql_dir, "tpcds_setup.sql" if args.case == 'tpcds' else "setup.sql")
-        setup_stats = execute_sql_file(setup_file, sql_tool, database, warehouse, False, is_setup=True, flamegraph_enabled=args.flamegraph, flamegraph_dir=flamegraph_dir)
+        setup_stats = execute_sql_file(setup_file, sql_tool, database, warehouse, False, is_setup=True, flamegraph_enabled=args.flamegraph, flamegraph_dir=flamegraph_dir, benchmark_case=args.case)
         logger.info(f"Setup completed. Total execution time: {setup_stats['total_execution_time']:.2f}s, Wall time: {setup_stats['total_wall_time']:.2f}s")
 
     # Choose between TPC-H and TPC-DS queries
     queries_file = os.path.join(sql_dir, "tpcds_queries.sql" if args.case == 'tpcds' else "queries.sql")
-    queries_stats = execute_sql_file(queries_file, sql_tool, database, warehouse, args.suspend, is_setup=False, flamegraph_enabled=args.flamegraph, flamegraph_dir=flamegraph_dir)
+    queries_stats = execute_sql_file(queries_file, sql_tool, database, warehouse, args.suspend, is_setup=False, flamegraph_enabled=args.flamegraph, flamegraph_dir=flamegraph_dir, benchmark_case=args.case)
     logger.info(f"Queries completed. Total execution time: {queries_stats['total_execution_time']:.2f}s, Wall time: {queries_stats['total_wall_time']:.2f}s")
 
     overall_time = time.time() - overall_start_time
