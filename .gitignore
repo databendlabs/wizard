@@ -6,6 +6,7 @@
 .dir-locals.el
 .bash_history
 .mysql_history
+*.log
 
 # Rust
 target/
@@ -19,6 +20,9 @@ target/
 # profile
 flamegraph.*
 perf.*
+*.log
+query_results.txt
+result.csv
 
 # tests
 *.stderr

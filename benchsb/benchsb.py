@@ -262,7 +262,7 @@ def setup_flamegraph_directory(base_dir, benchmark_case):
     flamegraph_filename = f"{benchmark_case}_{timestamp}_flame.html"
     flamegraph_path = os.path.join(base_dir, flamegraph_filename)
     
-    logger.info(f"Flamegraph file: {flamegraph_path}")
+    logger.info(f"Flamegraph file: {os.path.abspath(flamegraph_path)}")
     
     # Return the base directory as flamegraph_dir for compatibility
     # The actual file path will be constructed using get_flamegraph_filename
@@ -368,7 +368,7 @@ def initialize_flamegraph_index(flamegraph_dir, database=None, warehouse=None, b
         with open(index_path, 'w', encoding='utf-8') as f:
             f.write(content)
         
-        logger.info(f"📊 Initialized flamegraph file: {index_path}")
+        logger.info(f"📊 Initialized flamegraph file: {os.path.abspath(index_path)}")
         if system_settings:
             logger.info(f"⚙️  Injected {len(system_settings)} system settings")
         
@@ -424,7 +424,7 @@ def update_flamegraph_index_incremental(flamegraph_dir, query_index, sql_query, 
         with open(index_path, 'w', encoding='utf-8') as f:
             f.write(content)
         
-        logger.info(f"📊 Updated flamegraph file with Query {query_index:02d}: {index_path}")
+        logger.info(f"📊 Updated flamegraph file with Query {query_index:02d}: {os.path.abspath(index_path)}")
         
     except Exception as e:
         logger.error(f"❌ Failed to update flamegraph index: {e}")
@@ -605,11 +605,14 @@ def execute_sql_file(sql_file, sql_tool, database, warehouse, suspend, is_setup=
         queries = [query.strip() for query in file.read().split(";") if query.strip()]
 
     results = []
-    result_file_path = "query_results.txt"
+    # Create log directory if it doesn't exist
+    log_dir = "log"
+    os.makedirs(log_dir, exist_ok=True)
+    result_file_path = os.path.join(log_dir, "query_results.txt")
     mode = "a" if os.path.exists(result_file_path) else "w"
     
-    # Create CSV file for results
-    csv_file_path = "result.csv"
+    # Create CSV file for results in log directory
+    csv_file_path = os.path.join(log_dir, "result.csv")
     with open(csv_file_path, "w", newline="") as csvfile:
         csv_writer = csv.writer(csvfile)
         csv_writer.writerow(["Query", "Time(s)"])  # Header
@@ -798,8 +801,10 @@ def parse_arguments():
 
 
 def main():
-    # Setup logging
-    log_filename = f"benchsb_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+    # Setup logging - create log directory if it doesn't exist
+    log_dir = "log"
+    os.makedirs(log_dir, exist_ok=True)
+    log_filename = os.path.join(log_dir, f"benchsb_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s',
@@ -910,11 +915,18 @@ def main():
     
     # Add flamegraph summary if enabled
     if args.flamegraph and flamegraph_dir:
+        # Get the flamegraph HTML file path
+        flamegraph_filename = get_flamegraph_filename(flamegraph_dir, args.case)
+        flamegraph_html_path = os.path.abspath(os.path.join(flamegraph_dir, flamegraph_filename))
+        
         logger.info(f"\n{'='*60}")
         logger.info(f"🔥 FLAMEGRAPH SUMMARY")
         logger.info(f"{'='*60}")
         logger.info(f"  - Flamegraph directory: {flamegraph_dir}")
         logger.info(f"  - Generated flamegraphs: {queries_stats['successful_queries']} files")
+        logger.info(f"  - Flamegraph HTML file: {flamegraph_html_path}")
+        logger.info(f"\n🌐 Open the flamegraph file in your browser:")
+        logger.info(f"   file://{flamegraph_html_path}")
 
         logger.info(f"{'='*60}")
     
@@ -933,8 +945,9 @@ def main():
     else:
         query_times_table = "No query results available."
     
-    # Write summary to file
-    with open("benchmark_summary.txt", "a") as summary_file:
+    # Write summary to file in log directory
+    summary_file_path = os.path.join(log_dir, "benchmark_summary.txt")
+    with open(summary_file_path, "a") as summary_file:
         summary_file.write(f"\n{'='*60}\nBENCHMARK SUMMARY - {sql_tool.upper()} - {datetime.now()}\n{'='*60}\n")
         summary_file.write(f"Database: {database}\n")
         summary_file.write(f"Warehouse: {warehouse}\n\n")
