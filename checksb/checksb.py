@@ -162,8 +162,8 @@ class SQLExecutor:
         return ["bendsql", f"--query={query}", "-D", self.database]
     
     def _is_error(self, result: subprocess.CompletedProcess) -> bool:
-        output = result.stdout + result.stderr
-        return any(err in output.lower() for err in ["error", "unknown function"])
+        # Primary error detection: non-zero return code
+        return result.returncode != 0
 
 class QueryComparator:
     @staticmethod
@@ -633,24 +633,13 @@ class CheckSB:
         for i, query in enumerate(queries, 1):
             result = executor.execute(query, f"query {i}/{len(queries)}")
             
-            # Check for Databend error format using regex
-            import re
-            # Pattern to match Databend error format anywhere in the output
-            # Code: [errorcode], Text = [msg] - may have content before/after
-            databend_error_pattern = r'Code:\s*(\d+),\s*Text\s*=\s*([^\n\r]+)'
-            match = re.search(databend_error_pattern, result, re.MULTILINE)
-            
-            if match:
-                error_code = match.group(1)
-                error_text = match.group(2).strip()
+            # Check for errors using __ERROR__ prefix from SQLExecutor
+            if result.startswith("__ERROR__:"):
+                error_msg = result[10:]  # Remove "__ERROR__:" prefix
                 
                 print(f"      ❌ ERROR in {script_path.name} query {i}:")
                 print(f"         Query: {query[:100]}{'...' if len(query) > 100 else ''}")
-                
-                # Truncate long error messages
-                if len(error_text) > 150:
-                    error_text = error_text[:150] + "..."
-                print(f"         Error: [{error_code}] {error_text}")
+                print(f"         Error: {error_msg.strip()}")
                 # Continue execution instead of stopping
     
     def _check_case(self, check_path: Path, case: str) -> TestResult:
@@ -711,8 +700,8 @@ class CheckSB:
         if bend_err or snow_err:
             result.failed += 1
             self.progress.add_result(False)
-            bend_msg = bend_result[9:][:100] if bend_err else "OK"
-            snow_msg = snow_result[9:][:100] if snow_err else "OK"
+            bend_msg = bend_result[10:][:100] if bend_err else "OK"
+            snow_msg = snow_result[10:][:100] if snow_err else "OK"
             result.errors.append((query_id, "Execution Error", bend_msg, snow_msg))
             
             print(f" ERROR")
