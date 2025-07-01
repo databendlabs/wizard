@@ -18,7 +18,8 @@ target/
 .LSOverride
 
 # profile
-flamegraph.*
+*/flamegraphs/*
+*/log/*
 perf.*
 *.log
 query_results.txt

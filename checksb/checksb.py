@@ -54,7 +54,7 @@ class TestResult:
         return (self.passed / self.total * 100) if self.total > 0 else 0
 
 class ProgressTracker:
-    def __init__(self):
+    def __init__(self, database: str = None):
         self.start_time = time.time()
         self.current_case = ""
         self.current_step = ""
@@ -62,6 +62,9 @@ class ProgressTracker:
         self.total_cases = 0
         self.queries_tested = 0
         self.total_queries_all_cases = 0
+        self.queries_passed = 0
+        self.queries_failed = 0
+        self.database = database
     
     def update(self, case: str = None, step: str = None):
         if case:
@@ -70,18 +73,44 @@ class ProgressTracker:
             self.current_step = step
         self._print_status()
     
+    def add_result(self, passed: bool):
+        """Add a query result to the tracker"""
+        if passed:
+            self.queries_passed += 1
+        else:
+            self.queries_failed += 1
+    
     def _print_status(self):
         elapsed = time.time() - self.start_time
         eta = self._calculate_eta(elapsed)
         
+        # Build results summary
+        results_summary = ""
+        if self.queries_passed > 0 or self.queries_failed > 0:
+            total_tested = self.queries_passed + self.queries_failed
+            results_summary = f"Results: ✓{self.queries_passed} ✗{self.queries_failed} ({total_tested} total)"
+        
         status_parts = [
             f"[{datetime.now():%H:%M:%S}]",
+        ]
+        
+        # Add database info if available
+        if self.database:
+            status_parts.append(f"DB: {self.database}")
+            
+        status_parts.extend([
             f"Case: {self.current_case}",
             f"Step: {self.current_step}",
             f"Progress: {self.cases_completed}/{self.total_cases} cases",
+        ])
+        
+        if results_summary:
+            status_parts.append(results_summary)
+            
+        status_parts.extend([
             f"Elapsed: {elapsed:.1f}s",
             f"ETA: {eta}"
-        ]
+        ])
         
         print(" | ".join(status_parts))
     
@@ -508,7 +537,7 @@ class CheckSB:
         self.bend_executor = SQLExecutor("bendsql", args.database)
         self.snow_executor = SQLExecutor("snowsql", args.database, args.warehouse)
         self.results = {}
-        self.progress = ProgressTracker()
+        self.progress = ProgressTracker(args.database)
     
     def run(self):
         cases = self._get_cases()
@@ -643,9 +672,11 @@ class CheckSB:
             
             if match:
                 result.passed += 1
+                self.progress.add_result(True)
                 print(f" MATCH ({match_type})")
             else:
                 result.failed += 1
+                self.progress.add_result(False)
                 result.errors.append((query_id, match_type, bend_result, snow_result))
                 print(f" MISMATCH")
                 print(f"        {match_type}")
@@ -659,6 +690,7 @@ class CheckSB:
         
         if bend_err or snow_err:
             result.failed += 1
+            self.progress.add_result(False)
             bend_msg = bend_result[9:][:100] if bend_err else "OK"
             snow_msg = snow_result[9:][:100] if snow_err else "OK"
             result.errors.append((query_id, "Execution Error", bend_msg, snow_msg))
