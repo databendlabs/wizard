@@ -88,7 +88,7 @@ class ProgressTracker:
         results_summary = ""
         if self.queries_passed > 0 or self.queries_failed > 0:
             total_tested = self.queries_passed + self.queries_failed
-            results_summary = f"Results: ✓{self.queries_passed} ✗{self.queries_failed} ({total_tested} total)"
+            results_summary = f"Results: {self.queries_passed} passed, {self.queries_failed} failed ({total_tested} total)"
         
         status_parts = [
             f"[{datetime.now():%H:%M:%S}]",
@@ -631,7 +631,27 @@ class CheckSB:
             queries = [q.strip() for q in f.read().split(";") if q.strip()]
         
         for i, query in enumerate(queries, 1):
-            executor.execute(query, f"query {i}/{len(queries)}")
+            result = executor.execute(query, f"query {i}/{len(queries)}")
+            
+            # Check for Databend error format using regex
+            import re
+            # Pattern to match Databend error format anywhere in the output
+            # Code: [errorcode], Text = [msg] - may have content before/after
+            databend_error_pattern = r'Code:\s*(\d+),\s*Text\s*=\s*([^\n\r]+)'
+            match = re.search(databend_error_pattern, result, re.MULTILINE)
+            
+            if match:
+                error_code = match.group(1)
+                error_text = match.group(2).strip()
+                
+                print(f"      ❌ ERROR in {script_path.name} query {i}:")
+                print(f"         Query: {query[:100]}{'...' if len(query) > 100 else ''}")
+                
+                # Truncate long error messages
+                if len(error_text) > 150:
+                    error_text = error_text[:150] + "..."
+                print(f"         Error: [{error_code}] {error_text}")
+                # Continue execution instead of stopping
     
     def _check_case(self, check_path: Path, case: str) -> TestResult:
         result = TestResult(case=case)
