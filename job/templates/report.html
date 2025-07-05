@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚀 BendSQL Job Runner Report - {{ timestamp }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --background: #f8f9fa;
+            --surface: #ffffff;
+            --border: #d1d5db;
+            --text-primary: #111827;
+            --text-secondary: #374151;
+            --text-muted: #6b7280;
+            --improvement: #059669;
+            --regression: #dc2626;
+            --raw-faster: #2563eb;
+            --standard-faster: #059669;
+            --histogram-faster: #7c3aed;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: var(--background);
+            color: var(--text-secondary);
+            line-height: 1.5;
+            font-size: 14px;
+            -webkit-font-smoothing: antialiased;
+        }
+        
+        .container {
+            max-width: 1600px;
+            margin: 20px auto;
+            background: var(--surface);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 32px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            letter-spacing: -0.025em;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            font-size: 16px;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            padding: 32px;
+            background: var(--surface);
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            text-align: center;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--primary);
+        }
+        
+        .stat-card.success::before { background: var(--success); }
+        .stat-card.error::before { background: var(--error); }
+        .stat-card.warning::before { background: var(--warning); }
+        
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        }
+        
+        .stat-number {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 500;
+        }
+        
+        /* Tab Navigation */
+        .tabs {
+            display: flex;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 0 32px;
+        }
+        
+        .tab {
+            padding: 16px 24px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            color: var(--text-muted);
+            font-weight: 500;
+            font-size: 14px;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+        }
+        
+        .tab:hover {
+            color: var(--text-primary);
+            background: #f8fafc;
+        }
+        
+        .tab.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+            background: #f8fafc;
+        }
+        
+        .tab-content {
+            display: none;
+            padding: 32px;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        /* Summary section */
+        .summary {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            border: 1px solid #bae6fd;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 32px;
+        }
+        
+        .summary h2 {
+            color: var(--text-primary);
+            margin-bottom: 16px;
+            font-size: 20px;
+        }
+        
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+        }
+        
+        .summary p {
+            margin: 4px 0;
+            font-size: 14px;
+        }
+        
+        /* Comparison Table */
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: var(--surface);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .comparison-table th {
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            padding: 16px 12px;
+            text-align: left;
+            font-weight: 600;
+            color: var(--text-primary);
+            border-bottom: 2px solid var(--border);
+            font-size: 13px;
+        }
+        
+        .comparison-table td {
+            padding: 12px;
+            border-bottom: 1px solid #f3f4f6;
+            font-size: 13px;
+        }
+        
+        .comparison-table tr:hover {
+            background: #f8fafc;
+        }
+        
+        .comparison-table tr:last-child td {
+            border-bottom: none;
+        }
+        
+        /* Performance indicators */
+        .positive {
+            color: var(--regression);
+            font-weight: 600;
+        }
+        
+        .negative {
+            color: var(--improvement);
+            font-weight: 600;
+        }
+        
+        .faster {
+            font-weight: 700;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        
+        .raw-faster {
+            color: var(--raw-faster);
+            background: #dbeafe;
+        }
+        
+        .standard-faster {
+            color: var(--standard-faster);
+            background: #d1fae5;
+        }
+        
+        .histogram-faster {
+            color: var(--histogram-faster);
+            background: #e9d5ff;
+        }
+        
+        .content {
+            padding: 32px;
+        }
+        
+        .test-result {
+            margin-bottom: 24px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            background: var(--surface);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+        }
+        
+        .test-result:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        
+        .test-header {
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .test-name {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+        }
+        
+        .status-badge.success {
+            background: #dcfce7;
+            color: #166534;
+        }
+        
+        .status-badge.failed {
+            background: #fef2f2;
+            color: #991b1b;
+        }
+        
+        .test-meta {
+            font-size: 14px;
+            color: var(--text-muted);
+            display: flex;
+            gap: 16px;
+        }
+        
+        .stage {
+            padding: 20px 24px;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        
+        .stage:last-child {
+            border-bottom: none;
+        }
+        
+        .stage-header {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: var(--text-primary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .stage-duration {
+            font-size: 12px;
+            color: var(--text-muted);
+            background: #f3f4f6;
+            padding: 4px 8px;
+            border-radius: 6px;
+        }
+        
+        .query {
+            margin: 12px 0;
+            padding: 16px;
+            border-radius: 8px;
+            border-left: 4px solid var(--border);
+            background: #fafbfc;
+            transition: all 0.2s ease;
+        }
+        
+        .query.success {
+            border-left-color: var(--success);
+            background: #f0fdf4;
+        }
+        
+        .query.failed {
+            border-left-color: var(--error);
+            background: #fef2f2;
+        }
+        
+        .query:hover {
+            transform: translateX(4px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .query-name {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+        
+        .query-sql {
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+            font-size: 12px;
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 12px;
+            margin: 8px 0;
+            overflow-x: auto;
+            line-height: 1.4;
+            color: #495057;
+        }
+        
+        .query-meta {
+            font-size: 12px;
+            color: var(--text-muted);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 8px;
+        }
+        
+        .query-duration {
+            background: var(--success);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+        
+        .error {
+            color: var(--error);
+            font-size: 12px;
+            margin-top: 8px;
+            padding: 8px 12px;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 6px;
+            font-family: monospace;
+        }
+        
+        .footer {
+            text-align: center;
+            padding: 24px;
+            background: #f8fafc;
+            border-top: 1px solid var(--border);
+            color: var(--text-muted);
+        }
+        
+        .collapsible {
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        .collapsible:hover {
+            background: #f3f4f6;
+        }
+        
+        .collapsible::after {
+            content: '▼';
+            float: right;
+            transition: transform 0.3s ease;
+        }
+        
+        .collapsible.collapsed::after {
+            transform: rotate(-90deg);
+        }
+        
+        .collapsible-content {
+            max-height: 1000px;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+        
+        .collapsible-content.collapsed {
+            max-height: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 BendSQL Job Runner Report</h1>
+            <p>Generated on {{ timestamp }}</p>
+        </div>
+        
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-number">{{ total_tests }}</div>
+                <div class="stat-label">Total Tests</div>
+            </div>
+            <div class="stat-card success">
+                <div class="stat-number">{{ passed_tests }}</div>
+                <div class="stat-label">Passed</div>
+            </div>
+            <div class="stat-card error">
+                <div class="stat-number">{{ failed_tests }}</div>
+                <div class="stat-label">Failed</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ "%.2f"|format(total_duration) }}s</div>
+                <div class="stat-label">Total Duration</div>
+            </div>
+        </div>
+        
+        <!-- Tab Navigation -->
+        <div class="tabs">
+            <button class="tab active" onclick="openTab(event, 'TestResults')">Test Results</button>
+            {% if comparison_data %}
+            <button class="tab" onclick="openTab(event, 'QueryComparison')">Query Comparison</button>
+            <button class="tab" onclick="openTab(event, 'PerformanceAnalysis')">Performance Analysis</button>
+            {% endif %}
+        </div>
+        
+        <!-- Test Results Tab -->
+        <div id="TestResults" class="tab-content active">
+            <div class="content">
+                {% for result in results %}
+                <div class="test-result">
+                    <div class="test-header collapsible" onclick="toggleCollapse(this)">
+                        <div>
+                            <div class="test-name">
+                                {{ result.name }}
+                                <span class="status-badge {{ 'success' if result.success else 'failed' }}">
+                                    {{ 'PASSED' if result.success else 'FAILED' }}
+                                </span>
+                            </div>
+                            <div class="test-meta">
+                                <span>Duration: {{ "%.2f"|format(result.total_duration) }}s</span>
+                                <span>Stages: {{ result.stages|length }}</span>
+                                <span>Queries: {{ result.stages|map(attribute='queries')|map('length')|sum }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="collapsible-content">
+                        {% for stage in result.stages %}
+                        <div class="stage">
+                            <div class="stage-header">
+                                <span>📋 {{ stage.name|title }}</span>
+                                <span class="stage-duration">{{ "%.2f"|format(stage.duration) }}s</span>
+                            </div>
+                            
+                            {% for query in stage.queries %}
+                            <div class="query {{ 'success' if query.success else 'failed' }}">
+                                <div class="query-name">{{ query.name }}</div>
+                                {% if query.sql %}
+                                <div class="query-sql">{{ query.sql[:300] }}{% if query.sql|length > 300 %}...{% endif %}</div>
+                                {% endif %}
+                                <div class="query-meta">
+                                    <span class="query-duration">{{ "%.3f"|format(query.duration) }}s</span>
+                                    {% if query.output %}
+                                    <span>✅ Success</span>
+                                    {% elif query.error %}
+                                    <span>❌ Failed</span>
+                                    {% endif %}
+                                </div>
+                                {% if not query.success and query.error %}
+                                <div class="error">{{ query.error }}</div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        
+        {% if comparison_data %}
+        <!-- Query Comparison Tab -->
+        <div id="QueryComparison" class="tab-content">
+            <div class="summary">
+                <h2>Query Execution Time Comparison</h2>
+                <p>Comparison of query execution times between different execution methods.</p>
+                
+                <div class="summary-grid">
+                    <div>
+                        <p><strong>Total Queries:</strong> {{ comparison_data.total_queries }}</p>
+                        <p><strong>Raw Faster:</strong> {{ comparison_data.raw_faster }} ({{ "%.1f"|format(comparison_data.raw_faster_pct) }}%)</p>
+                    </div>
+                    <div>
+                        <p><strong>Standard Faster:</strong> {{ comparison_data.standard_faster }} ({{ "%.1f"|format(comparison_data.standard_faster_pct) }}%)</p>
+                        <p><strong>Histogram Faster:</strong> {{ comparison_data.histogram_faster }} ({{ "%.1f"|format(comparison_data.histogram_faster_pct) }}%)</p>
+                    </div>
+                </div>
+            </div>
+            
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th>Query ID</th>
+                        <th>Raw Time (s)</th>
+                        <th>Standard Time (s)</th>
+                        <th>Histogram Time (s)</th>
+                        <th>Std vs Raw (%)</th>
+                        <th>Hist vs Raw (%)</th>
+                        <th>Hist vs Std (%)</th>
+                        <th>Fastest Method</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for query in comparison_data.queries %}
+                    <tr>
+                        <td title="{{ query.sql_preview }}">{{ query.name }}</td>
+                        <td>{{ "%.3f"|format(query.raw_time) }}</td>
+                        <td>{{ "%.3f"|format(query.standard_time) }}</td>
+                        <td>{{ "%.3f"|format(query.histogram_time) }}</td>
+                        <td class="{{ 'negative' if query.std_vs_raw < 0 else 'positive' }}">
+                            {{ "%.1f"|format(query.std_vs_raw) }}%
+                        </td>
+                        <td class="{{ 'negative' if query.hist_vs_raw < 0 else 'positive' }}">
+                            {{ "%.1f"|format(query.hist_vs_raw) }}%
+                        </td>
+                        <td class="{{ 'negative' if query.hist_vs_std < 0 else 'positive' }}">
+                            {{ "%.1f"|format(query.hist_vs_std) }}%
+                        </td>
+                        <td class="faster {{ query.fastest_method.lower() }}-faster">{{ query.fastest_method }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Performance Analysis Tab -->
+        <div id="PerformanceAnalysis" class="tab-content">
+            <div class="summary">
+                <h2>Performance Analysis</h2>
+                <p>Detailed analysis of query performance patterns and optimization opportunities.</p>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                <div>
+                    <h3 style="margin-bottom: 16px; color: var(--text-primary);">Top Improvements</h3>
+                    {% for query in comparison_data.top_improvements %}
+                    <div style="padding: 12px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; margin-bottom: 8px;">
+                        <strong>{{ query.name }}</strong><br>
+                        <span style="color: var(--improvement);">{{ "%.1f"|format(query.improvement) }}% faster with {{ query.method }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                <div>
+                    <h3 style="margin-bottom: 16px; color: var(--text-primary);">Performance Regressions</h3>
+                    {% for query in comparison_data.regressions %}
+                    <div style="padding: 12px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; margin-bottom: 8px;">
+                        <strong>{{ query.name }}</strong><br>
+                        <span style="color: var(--regression);">{{ "%.1f"|format(query.regression) }}% slower with {{ query.method }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
+        <div class="footer">
+            <p>Generated by BendSQL Job Runner</p>
+            <p>Powered by Databend</p>
+        </div>
+    </div>
+    
+    <script>
+        function openTab(evt, tabName) {
+            var i, tabcontent, tablinks;
+            tabcontent = document.getElementsByClassName("tab-content");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].classList.remove("active");
+            }
+            tablinks = document.getElementsByClassName("tab");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].classList.remove("active");
+            }
+            document.getElementById(tabName).classList.add("active");
+            evt.currentTarget.classList.add("active");
+        }
+        
+        function toggleCollapse(element) {
+            const content = element.nextElementSibling;
+            const isCollapsed = content.classList.contains('collapsed');
+            
+            if (isCollapsed) {
+                content.classList.remove('collapsed');
+                element.classList.remove('collapsed');
+            } else {
+                content.classList.add('collapsed');
+                element.classList.add('collapsed');
+            }
+        }
+        
+        // Auto-expand failed tests
+        document.addEventListener('DOMContentLoaded', function() {
+            const failedTests = document.querySelectorAll('.test-result .status-badge.failed');
+            failedTests.forEach(badge => {
+                const testResult = badge.closest('.test-result');
+                const header = testResult.querySelector('.collapsible');
+                const content = testResult.querySelector('.collapsible-content');
+                // Keep failed tests expanded by default
+            });
+        });
+    </script>
+</body>
+</html>

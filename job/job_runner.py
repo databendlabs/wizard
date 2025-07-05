@@ -1,747 +1,751 @@
 #!/usr/bin/env python3
-import argparse
+
 import os
 import re
-import subprocess
 import sys
 import time
 import json
+import argparse
+import subprocess
+import threading
 from pathlib import Path
 from datetime import datetime
+from dataclasses import dataclass
+from typing import List, Dict, Optional, Tuple
 from termcolor import colored
+from jinja2 import Template
 
-
-class BendSQLRunner:
-    """Class to handle BendSQL operations."""
-
+# Global database context management
+class DatabaseContext:
     def __init__(self):
-        self.database = "imdb"
-        self.log_file = None
-        self.last_error = None
+        self.current_database = None
+        self.lock = threading.Lock()
+    
+    def set_database(self, database_name):
+        with self.lock:
+            self.current_database = database_name
+            print(f"    📍 Global database context updated to: {database_name}")
+    
+    def get_database(self):
+        with self.lock:
+            return self.current_database
 
-    def setup_logging(self, log_dir="logs"):
-        """
-        Set up logging to a file.
-        
-        Args:
-            log_dir (str): Directory to store log files
-        """
-        os.makedirs(log_dir, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_file_path = os.path.join(log_dir, f"bendsql_run_{timestamp}.log")
-        self.log_file = open(log_file_path, 'w')
-        self.log(f"Log started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        self.log(f"Database: {self.database}")
-        return log_file_path
+# Global instance
+db_context = DatabaseContext()
 
-    def log(self, message):
-        """
-        Log a message to both console and log file.
-        
-        Args:
-            message (str): Message to log
-        """
-        # Colorize only for console output
-        msg_lower = message.lower()
-        color = None
-        attrs = []
-        # Success
-        if any(w in msg_lower for w in ["completed", "success", "executed in", "all queries executed", "all tables analyzed"]):
-            color = "green"
-        # Failure
-        elif any(w in msg_lower for w in ["fail", "error", "aborting", "stopping early"]):
-            color = "red"
-        # Progress/info
-        elif any(w in msg_lower for w in ["analyzing table", "executing query", "starting", "step", "mode:", "skipping", "starting batch"]):
-            color = "cyan"
-        elif any(w in msg_lower for w in ["raw", "standard", "histogram"]):
-            color = "yellow"
-        # Percentages (positive/negative)
-        elif "%" in message:
-            if any(s in msg_lower for s in ["+", "positive"]):
-                color = "green"
-            elif any(s in msg_lower for s in ["-", "negative"]):
-                color = "red"
-        if color:
-            print(colored(message, color, attrs=attrs))
-        else:
-            print(message)
-        if self.log_file:
-            self.log_file.write(f"{message}\n")
-            self.log_file.flush()
+@dataclass
+class QueryResult:
+    """Query execution result"""
+    name: str
+    sql: str
+    success: bool
+    duration: float
+    error: str = ""
+    output: str = ""
 
-    def execute_bendsql(self, query, print_query=True):
-        """
-        Execute an SQL query using bendsql.
+@dataclass
+class StageResult:
+    """Stage execution result"""
+    name: str
+    queries: List[QueryResult]
+    duration: float
+    success: bool
+
+@dataclass
+class TestResult:
+    """Complete test result"""
+    name: str
+    stages: List[StageResult]
+    success: bool
+    total_duration: float
+
+@dataclass
+class ComparisonQueryResult:
+    """Query result for comparison analysis"""
+    name: str
+    sql_preview: str
+    raw_time: float
+    standard_time: float
+    histogram_time: float
+    std_vs_raw: float
+    hist_vs_raw: float
+    hist_vs_std: float
+    fastest_method: str
+
+@dataclass
+class ComparisonData:
+    """Complete comparison analysis data"""
+    total_queries: int
+    raw_faster: int
+    standard_faster: int
+    histogram_faster: int
+    raw_faster_pct: float
+    standard_faster_pct: float
+    histogram_faster_pct: float
+    queries: List[ComparisonQueryResult]
+    top_improvements: List[Dict]
+    regressions: List[Dict]
+
+class BendSQLExecutor:
+    """BendSQL command executor"""
+    
+    def __init__(self):
+        pass
+    
+    def execute_query(self, query: str, timeout: int = 300) -> Tuple[bool, str, float]:
+        """Execute a single SQL query"""
+        start_time = time.time()
         
-        Args:
-            query (str): SQL query to execute
-            print_query (bool): Whether to print the query before execution
+        try:
+            # Build complete SQL with database context handling
+            bendsql_cmd, final_sql = self._build_bendsql_command(query)
             
-        Returns:
-            str: Command output
+            # Log execution details
+            current_db = db_context.get_database()
+            db_info = f" [DB: {current_db}]" if current_db else ""
+            print(f"    Executing{db_info}: {final_sql[:100]}{'...' if len(final_sql) > 100 else ''}")
+            
+            env = os.environ.copy()
+            
+            result = subprocess.run(
+                bendsql_cmd,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                env=env
+            )
+            
+            duration = time.time() - start_time
+            success = result.returncode == 0
+            output = result.stdout if success else result.stderr
+            
+            status = "✅ Success" if success else "❌ Failed"
+            print(f"    {status} in {duration:.2f}s")
+            
+            # Print error details if failed
+            if not success and output:
+                print(f"    Error: {output}")
+            
+            return success, output, duration
+            
+        except subprocess.TimeoutExpired:
+            duration = time.time() - start_time
+            print(f"    ⏰ Timeout after {timeout}s")
+            return False, f"Query timeout after {timeout} seconds", duration
+        except Exception as e:
+            duration = time.time() - start_time
+            print(f"    💥 Exception in {duration:.2f}s: {str(e)}")
+            return False, str(e), duration
+    
+    def _build_bendsql_command(self, sql: str) -> Tuple[List[str], str]:
+        """Build bendsql command with database context handling"""
+        # Extract database name from USE statement
+        database_name, cleaned_sql = self._extract_database_from_use_statement(sql)
+        
+        # Update global database context if USE statement found
+        if database_name:
+            db_context.set_database(database_name)
+        
+        # Get current database context
+        current_db = database_name or db_context.get_database()
+        
+        # Build command
+        bendsql_cmd = ['bendsql']
+        if current_db:
+            bendsql_cmd.extend(['-D', current_db])
+        
+        # Use cleaned SQL if USE statement was found, otherwise use original
+        final_sql = cleaned_sql if database_name else sql
+        bendsql_cmd.append('--query=' + final_sql)
+        
+        return bendsql_cmd, final_sql
+    
+    def _extract_database_from_use_statement(self, sql: str) -> Tuple[Optional[str], str]:
         """
-        if print_query:
-            self.log(f">>>> {query}")
+        Extract the last database name from USE statements and return SQL with all USE statements removed.
+        """
+        # Regex to find all USE statements, case-insensitive
+        use_pattern = re.compile(r'USE\s+([`\'"]?[\w_]+[`\'"]?)\s*;?', re.IGNORECASE)
         
-        command = ["bendsql", "--query=" + query, "--database=" + self.database, "--time=server"]
-        result = subprocess.run(command, text=True, capture_output=True)
+        database_name = None
+        matches = list(use_pattern.finditer(sql))
         
-        if "APIError: ResponseError" in result.stderr:
-            self.log(f"'APIError: ResponseError' found in bendsql output: {result.stderr}")
-            self.log("<<<<")
-            return None
-        elif result.returncode != 0:
-            self.log(f"bendsql command failed with return code {result.returncode}: {result.stderr}")
-            self.log("<<<<")
-            return None
-        
-        if print_query:
-            self.log(result.stdout)
-            self.log("<<<<")
-        
-        return result.stdout
+        if matches:
+            # Get the last matched database name
+            last_match = matches[-1]
+            db_name = last_match.group(1)
+            
+            # Remove quotes
+            if db_name.startswith('`') and db_name.endswith('`'):
+                database_name = db_name[1:-1]
+            elif db_name.startswith('"') and db_name.endswith('"'):
+                database_name = db_name[1:-1]
+            elif db_name.startswith("'") and db_name.endswith("'"):
+                database_name = db_name[1:-1]
+            else:
+                database_name = db_name
 
-    def extract_time(self, output):
-        """
-        Extract execution time from the bendsql output.
+        # Remove all USE statements from the SQL
+        cleaned_sql = use_pattern.sub('', sql).strip()
         
-        Args:
-            output (str): Command output
-            
-        Returns:
-            float: Execution time in seconds, or None if not found
-        """
-        if not output:
-            return None
-            
-        match = re.search(r"([0-9.]+)$", output)
-        if not match:
-            self.log("Could not extract time from output.")
-            return None
-        return float(match.group(1))
-
-    def execute_sql_file(self, file_path):
-        """
-        Execute SQL queries from a file.
-        
-        Args:
-            file_path (str): Path to the SQL file
-            
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        self.log(f"Executing SQL file: {file_path}")
+        return database_name, cleaned_sql
+    
+    def execute_sql_file(self, file_path: Path) -> List[QueryResult]:
+        """Execute SQL queries from a file"""
+        results = []
         
         try:
             with open(file_path, 'r') as f:
                 sql_script = f.read()
+            
+            # Split into individual queries
+            queries = [q.strip() for q in sql_script.split(';') if q.strip()]
+            
+            for i, query in enumerate(queries):
+                query_name = f"{file_path.stem}_{i+1}"
+                success, output, duration = self.execute_query(query)
                 
-            # Split the script into individual queries
-            queries = [query.strip() for query in sql_script.split(';') if query.strip()]
-            
-            # Execute each query
-            for query in queries:
-                result = self.execute_bendsql(query)
-                if result is None:
-                    self.log(f"Failed to execute query: {query[:100]}...")
-                    return False
-            
-            return True
+                results.append(QueryResult(
+                    name=query_name,
+                    sql=query,
+                    success=success,
+                    duration=duration,
+                    error="" if success else output,
+                    output=output if success else ""
+                ))
+                
         except Exception as e:
-            self.log(f"Error executing SQL file: {e}")
-            return False
-
-    def setup_database(self):
-        """
-        Set up the database by executing setup.sql.
+            results.append(QueryResult(
+                name=file_path.stem,
+                sql="",
+                success=False,
+                duration=0.0,
+                error=str(e)
+            ))
         
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        import time
-        self.log("[SETUP] Starting database initialization ...")
-        setup_file = "setup.sql"
-        if not os.path.exists(setup_file):
-            self.log(f"[SETUP] Error: {setup_file} not found")
+        return results
+
+class SQLFileParser:
+    """SQL file parser for query discovery"""
+    
+    @staticmethod
+    def find_sql_files(directory: Path, pattern: str = "*.sql") -> List[Path]:
+        """Find SQL files in directory"""
+        if not directory.exists():
+            return []
+        return sorted(directory.glob(pattern))
+    
+    @staticmethod
+    def get_sql_files(directory: str, pattern: str = "*.sql") -> List[Path]:
+        """Get SQL files from directory path"""
+        dir_path = Path(directory)
+        if not dir_path.exists():
+            return []
+        return sorted(dir_path.glob(pattern))
+    
+    @staticmethod
+    def extract_time_from_output(output: str) -> Optional[float]:
+        """Extract execution time from bendsql output"""
+        if not output:
+            return None
+        match = re.search(r"([0-9.]+)$", output)
+        return float(match.group(1)) if match else None
+
+class ReportGenerator:
+    """HTML report generator using templates"""
+    
+    def __init__(self, template_dir: Path = None):
+        self.template_dir = template_dir or Path(__file__).parent / "templates"
+    
+    def generate_html_report(self, results: List[TestResult], output_path: Path):
+        """Generate HTML report from test results with dynamic updates"""
+        # Always reload template for dynamic updates
+        template_content = self._load_template("report.html")
+        template = Template(template_content)
+        
+        # Calculate summary statistics
+        total_tests = len(results)
+        passed_tests = sum(1 for r in results if r.success)
+        failed_tests = total_tests - passed_tests
+        total_duration = sum(r.total_duration for r in results)
+        
+        # Calculate additional metrics
+        total_queries = sum(len(stage.queries) for result in results for stage in result.stages)
+        passed_queries = sum(1 for result in results for stage in result.stages for query in stage.queries if query.success)
+        failed_queries = total_queries - passed_queries
+        
+        # Render template with comprehensive data
+        html_content = template.render(
+            results=results,
+            total_tests=total_tests,
+            passed_tests=passed_tests,
+            failed_tests=failed_tests,
+            total_duration=total_duration,
+            total_queries=total_queries,
+            passed_queries=passed_queries,
+            failed_queries=failed_queries,
+            timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            generation_time=datetime.now().isoformat(),
+            success_rate=round((passed_tests / total_tests * 100) if total_tests > 0 else 0, 1),
+            query_success_rate=round((passed_queries / total_queries * 100) if total_queries > 0 else 0, 1)
+        )
+        
+        # Write to file
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(output_path, 'w') as f:
+            f.write(html_content)
+    
+    def _load_template(self, template_name: str) -> str:
+        """Load template from file"""
+        template_path = self.template_dir / template_name
+        with open(template_path, 'r') as f:
+            return f.read()
+
+class JobRunner:
+    """Main job runner class"""
+    
+    def __init__(self):
+        self.executor = BendSQLExecutor()
+        self.parser = SQLFileParser()
+        self.reporter = ReportGenerator()
+        self.results: List[TestResult] = []
+    
+    def log(self, message: str, level: str = "info"):
+        """Log message with color coding"""
+        colors = {
+            "info": "cyan",
+            "success": "green", 
+            "error": "red",
+            "warning": "yellow"
+        }
+        color = colors.get(level, "white")
+        print(colored(f"[{level.upper()}] {message}", color))
+    
+    def setup_database(self) -> bool:
+        """Set up database from setup.sql"""
+        setup_file = Path("sql/setup.sql")
+        if not setup_file.exists():
+            self.log(f"Setup file not found: {setup_file}", "error")
             return False
+        
+        self.log("Setting up database...", "info")
         start_time = time.time()
-        success = self.execute_sql_file(setup_file)
-        elapsed = time.time() - start_time
+        
+        query_results = self.executor.execute_sql_file(setup_file)
+        duration = time.time() - start_time
+        success = all(r.success for r in query_results)
+        
+        stage = StageResult(
+            name="setup",
+            queries=query_results,
+            duration=duration,
+            success=success
+        )
+        
+        test_result = TestResult(
+            name="database_setup",
+            stages=[stage],
+            success=success,
+            total_duration=duration
+        )
+        
+        self.results.append(test_result)
+        
         if success:
-            self.log(f"[SETUP] Database initialization completed in {elapsed:.2f} seconds")
+            self.log(f"Database setup completed in {duration:.2f}s", "success")
         else:
-            self.log(f"[SETUP] Database initialization failed in {elapsed:.2f} seconds")
+            self.log(f"Database setup failed in {duration:.2f}s", "error")
+        
         return success
-
-    def analyze_tables(self, analyze_method="none"):
-        """
-        Analyze tables using the specified method.
-        
-        Args:
-            analyze_method (str): Method to use for analyzing tables (none, standard, histogram)
-            
-        Returns:
-            dict: Dictionary containing histogram data for each table, or False if analysis failed
-        """
-        import time
-        mode = analyze_method.upper()
-        if analyze_method == "none":
-            self.log("[ANALYZE] Skipping table analysis (using raw tables)...")
-            return {}
-        
-        self.log(f"[ANALYZE] Starting table analysis, mode: {analyze_method}")
+    
+    def analyze_tables(self, method: str = "standard") -> bool:
+        """Analyze tables with specified method"""
         tables = [
             "aka_name", "aka_title", "cast_info", "char_name", "comp_cast_type",
             "company_name", "company_type", "complete_cast", "info_type", "keyword",
             "kind_type", "link_type", "movie_companies", "movie_info", "movie_info_idx",
             "movie_keyword", "movie_link", "name", "person_info", "role_type", "title"
         ]
-        total = len(tables)
-        start_time = time.time()
-        histogram_data = {}
         
-        for idx, table in enumerate(tables, 1):
-            self.log(f"[ANALYZE][{idx}/{total}] Analyzing table {table} ({analyze_method}) ...")
-            if analyze_method == "histogram":
-                analyze_query = f"set enable_analyze_histogram = 1; analyze table imdb.{table}"
-            elif analyze_method == "standard":
-                analyze_query = f"analyze table imdb.{table}"
+        self.log(f"Analyzing tables with method: {method}", "info")
+        start_time = time.time()
+        query_results = []
+        
+        # Get current database from global context
+        current_db = db_context.get_database()
+        if not current_db:
+            self.log("No database context set. Please use 'USE database;' statement first.", "error")
+            return False
+        
+        for table in tables:
+            if method == "histogram":
+                query = f"set enable_analyze_histogram = 1; analyze table {current_db}.{table}"
             else:
-                self.last_error = f"Invalid analyze method: {analyze_method}"
-                self.log(f"[ANALYZE] Invalid analyze method: {analyze_method}")
-                return False
-                
-            result = self.execute_bendsql(analyze_query)
-            if result is None:
-                self.last_error = f"Failed to analyze table '{table}' with method '{analyze_method}'"
-                self.log(f"[ANALYZE][{idx}/{total}] Analysis of table {table} failed, stopping early")
-                return False
-                
-            histogram_data[table] = result
+                query = f"analyze table {current_db}.{table}"
             
-        elapsed = time.time() - start_time
-        self.log(f"[ANALYZE] Table analysis completed in {elapsed:.2f} seconds")
-        return histogram_data
-
-    def run_queries(self, analyze_method="none", collect_times=False):
-        """
-        Run SQL queries from the queries directory.
+            success, output, duration = self.executor.execute_query(query)
+            query_results.append(QueryResult(
+                name=f"analyze_{table}",
+                sql=query,
+                success=success,
+                duration=duration,
+                error="" if success else output,
+                output=output if success else ""
+            ))
         
-        Args:
-            analyze_method (str): Method used for analyzing tables (for logging)
-            collect_times (bool): Whether to collect and return execution times
-            
-        Returns:
-            dict: Dictionary of query execution times if collect_times is True, otherwise True/False for success
-        """
-        import time
-        self.log(f"[RUN][{analyze_method.upper()}] Starting batch execution of SQL queries ...")
-        dir_path = "queries/"
-        if not os.path.exists(dir_path):
-            self.log(f"[RUN][{analyze_method.upper()}] Queries directory not found: {dir_path}")
-            return False
-        query_files = sorted([f for f in os.listdir(dir_path) if f.endswith('.sql')])
-        if not query_files:
-            self.log(f"[RUN][{analyze_method.upper()}] No SQL files found in {dir_path}")
-            return False
-        query_times = {} if collect_times else None
-        total = len(query_files)
-        start_time = time.time()
-        for idx, query_file in enumerate(query_files, 1):
-            file_path = os.path.join(dir_path, query_file)
-            self.log(f"[RUN][{analyze_method.upper()}][{idx}/{total}] Executing query {query_file} ...")
-            with open(file_path, 'r') as f:
-                query = f.read()
-            # Show the full SQL being run (single line)
-            preview = query.replace('\n', ' ').replace('\r', ' ')
-            self.log(f"[RUN][{analyze_method.upper()}][{idx}/{total}] SQL: {preview}")
-            q_start = time.time()
-            output = self.execute_bendsql(query)
-            q_end = time.time()
-            time_elapsed = q_end - q_start
-            if output is None:
-                self.log(f"[RUN][{analyze_method.upper()}][{idx}/{total}] Execution of {query_file} failed, stopping early")
-                return False
-            self.log(f"[RUN][{analyze_method.upper()}][{idx}/{total}] Query {query_file} executed in {time_elapsed:.3f} seconds\n")
-            if collect_times:
-                query_times[query_file] = {
-                    "query": query,
-                    "time": time_elapsed,
-                    "analyze_method": analyze_method
-                }
-        total_elapsed = time.time() - start_time
-        self.log(f"[RUN][{analyze_method.upper()}] All queries executed in {total_elapsed:.2f} seconds")
-        return query_times if collect_times else True
-
-    def compare_analyze_methods(self):
-        """
-        Compare query performance with different analyze methods.
+        total_duration = time.time() - start_time
+        success = all(r.success for r in query_results)
         
-        This function:
-        1. Sets up the database
-        2. Runs queries with no analyze (raw)
-        3. Analyzes tables with standard analyze
-        4. Runs queries with standard analyze
-        5. Analyzes tables with histograms
-        6. Runs queries with histogram analyze
-        7. Generates a comparison report
+        stage = StageResult(
+            name=f"analyze_{method}",
+            queries=query_results,
+            duration=total_duration,
+            success=success
+        )
         
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        import time
-        log_file = self.setup_logging()
-        self.log("[COMPARE] Starting comparison of analyze methods...")
-        overall_start = time.time()
-        # Step 1: Set up database
-        self.log("\n[COMPARE] === STEP 1: Setting up database ===")
-        if not self.setup_database():
-            self.log("[COMPARE] Database setup failed. Aborting comparison.")
-            return False
-        # Step 2: Run queries with no analyze (raw)
-        self.log("\n[COMPARE] === STEP 2: Running queries with no analyze (raw) ===")
-        raw_times = self.run_queries(analyze_method="none", collect_times=True)
-        # Step 3: Analyze tables with standard analyze
-        self.log("\n[COMPARE] === STEP 3: Analyzing tables with standard analyze ===")
-        standard_histogram_data = self.analyze_tables(analyze_method="standard")
-        if not isinstance(standard_histogram_data, dict):
-            self.log("[COMPARE] Standard analyze failed. Aborting comparison.")
-            if self.last_error:
-                self.log(f"[COMPARE] Reason: {self.last_error}")
-            return False
-        # Step 4: Run queries with standard analyze
-        self.log("\n[COMPARE] === STEP 4: Running queries with standard analyze ===")
-        standard_times = self.run_queries(analyze_method="standard", collect_times=True)
-        # Step 5: Analyze tables with histograms
-        self.log("\n[COMPARE] === STEP 5: Analyzing tables with accurate histograms ===")
-        histogram_data = self.analyze_tables(analyze_method="histogram")
-        if not isinstance(histogram_data, dict):
-            self.log("[COMPARE] Histogram analyze failed. Aborting comparison.")
-            if self.last_error:
-                self.log(f"[COMPARE] Reason: {self.last_error}")
-            return False
-        # Step 6: Run queries with histogram analyze
-        self.log("\n[COMPARE] === STEP 6: Running queries with histogram analyze ===")
-        histogram_times = self.run_queries(analyze_method="histogram", collect_times=True)
-        # Step 7: Generate comparison report
-        self.log("\n[COMPARE] === STEP 7: Generating comparison report ===")
-        success = self.generate_comparison_report(raw_times, standard_times, histogram_times, 
-                                                standard_histogram_data, histogram_data)
-        overall_elapsed = time.time() - overall_start
+        test_result = TestResult(
+            name=f"table_analysis_{method}",
+            stages=[stage],
+            success=success,
+            total_duration=total_duration
+        )
+        
+        self.results.append(test_result)
+        
         if success:
-            self.log(f"[COMPARE] Comparison completed successfully. Total time: {overall_elapsed:.2f} seconds")
+            self.log(f"Table analysis completed in {total_duration:.2f}s", "success")
         else:
-            self.log(f"[COMPARE] Comparison report generation failed. Total time: {overall_elapsed:.2f} seconds")
-        if self.log_file:
-            self.log_file.close()
-            self.log(f"Log file saved to: {log_file}")
+            self.log(f"Table analysis failed in {total_duration:.2f}s", "error")
+        
         return success
-
-    def generate_comparison_report(self, raw_times, standard_times, histogram_times, 
-                                 standard_histogram_data, histogram_data):
-        """
-        Generate a comparison report between different analyze methods.
+    
+    def run_queries(self, queries_dir: str = "sql/check") -> bool:
+        """Run queries from directory"""
+        queries_path = Path(queries_dir)
+        if not queries_path.exists():
+            self.log(f"Queries directory not found: {queries_path}", "error")
+            return False
         
-        Args:
-            raw_times (dict): Dictionary of query execution times with no analyze
-            standard_times (dict): Dictionary of query execution times with standard analyze
-            histogram_times (dict): Dictionary of query execution times with histogram analyze
-            standard_histogram_data (dict): Dictionary of histogram data with standard analyze
-            histogram_data (dict): Dictionary of histogram data with histogram analyze
+        sql_files = self.parser.find_sql_files(queries_path)
+        if not sql_files:
+            self.log(f"No SQL files found in {queries_path}", "warning")
+            return True
+        
+        self.log(f"Running {len(sql_files)} query files...", "info")
+        start_time = time.time()
+        all_query_results = []
+        
+        for sql_file in sql_files:
+            self.log(f"Executing {sql_file.name}...", "info")
+            query_results = self.executor.execute_sql_file(sql_file)
+            all_query_results.extend(query_results)
+        
+        total_duration = time.time() - start_time
+        success = all(r.success for r in all_query_results)
+        
+        stage = StageResult(
+            name="queries",
+            queries=all_query_results,
+            duration=total_duration,
+            success=success
+        )
+        
+        test_result = TestResult(
+            name="query_execution",
+            stages=[stage],
+            success=success,
+            total_duration=total_duration
+        )
+        
+        self.results.append(test_result)
+        
+        if success:
+            self.log(f"Query execution completed in {total_duration:.2f}s", "success")
+        else:
+            self.log(f"Query execution failed in {total_duration:.2f}s", "error")
+        
+        return success
+    
+    def run_comparison_analysis(self) -> bool:
+        """Run comparison analysis between different analyze methods"""
+        self.log("Starting comparison analysis...", "info")
+        
+        # Get all SQL files
+        sql_files = self.parser.get_sql_files("sql/check")
+        if not sql_files:
+            self.log("No SQL files found for comparison", "error")
+            return False
+        
+        # Store results for each method
+        raw_results = {}
+        standard_results = {}
+        histogram_results = {}
+        
+        # Run queries without analyze (raw)
+        self.log("Running queries without analyze (raw)...", "info")
+        for sql_file in sql_files:
+            self.log(f"Executing {sql_file.name} (raw)...", "info")
+            query_results = self.executor.execute_sql_file(sql_file)
+            if query_results:
+                raw_results[sql_file.name] = query_results[0].duration
+        
+        # Run with standard analyze
+        self.log("Running queries with standard analyze...", "info")
+        if not self.analyze_tables("standard"):
+            self.log("Standard analyze failed", "error")
+            return False
+        
+        for sql_file in sql_files:
+            self.log(f"Executing {sql_file.name} (standard)...", "info")
+            query_results = self.executor.execute_sql_file(sql_file)
+            if query_results:
+                standard_results[sql_file.name] = query_results[0].duration
+        
+        # Run with histogram analyze
+        self.log("Running queries with histogram analyze...", "info")
+        if not self.analyze_tables("histogram"):
+            self.log("Histogram analyze failed", "error")
+            return False
+        
+        for sql_file in sql_files:
+            self.log(f"Executing {sql_file.name} (histogram)...", "info")
+            query_results = self.executor.execute_sql_file(sql_file)
+            if query_results:
+                histogram_results[sql_file.name] = query_results[0].duration
+        
+        # Generate comparison data
+        comparison_data = self._generate_comparison_data(raw_results, standard_results, histogram_results, sql_files)
+        
+        # Store comparison results
+        test_result = TestResult(
+            name="comparison_analysis",
+            stages=[],
+            success=True,
+            total_duration=0
+        )
+        self.results.append(test_result)
+        
+        # Generate comparison report
+        self._generate_comparison_report(comparison_data)
+        
+        self.log("Comparison analysis completed", "success")
+        return True
+    
+    def _generate_comparison_data(self, raw_results: Dict, standard_results: Dict,
+                                histogram_results: Dict, sql_files: List[Path]) -> ComparisonData:
+        """Generate comparison data structure"""
+        queries = []
+        raw_faster = 0
+        standard_faster = 0
+        histogram_faster = 0
+        
+        for sql_file in sql_files:
+            filename = sql_file.name
+            if filename not in raw_results or filename not in standard_results or filename not in histogram_results:
+                continue
             
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        self.log("Generating comparison report...")
-        
-        # Create results directory if it doesn't exist
-        results_dir = "results"
-        os.makedirs(results_dir, exist_ok=True)
-        
-        # Generate timestamp for filenames
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        
-        # Create comparison data
-        comparison_data = []
-        
-        # Get all unique query IDs
-        all_query_ids = sorted(set(list(raw_times.keys()) + 
-                                  list(standard_times.keys()) + 
-                                  list(histogram_times.keys())))
-        
-        for query_id in all_query_ids:
-            raw_time = raw_times.get(query_id, {}).get("time", "N/A")
-            std_time = standard_times.get(query_id, {}).get("time", "N/A")
-            hist_time = histogram_times.get(query_id, {}).get("time", "N/A")
+            raw_time = raw_results[filename]
+            standard_time = standard_results[filename]
+            histogram_time = histogram_results[filename]
             
-            # Calculate differences and determine fastest method
-            fastest = "N/A"
-            raw_vs_std = "N/A"
-            raw_vs_hist = "N/A"
-            std_vs_hist = "N/A"
-            
-            if isinstance(raw_time, (int, float)) and isinstance(std_time, (int, float)):
-                raw_vs_std = std_time - raw_time
-                raw_vs_std_percent = (raw_vs_std / raw_time) * 100 if raw_time > 0 else 0
-            else:
-                raw_vs_std_percent = "N/A"
-                
-            if isinstance(raw_time, (int, float)) and isinstance(hist_time, (int, float)):
-                raw_vs_hist = hist_time - raw_time
-                raw_vs_hist_percent = (raw_vs_hist / raw_time) * 100 if raw_time > 0 else 0
-            else:
-                raw_vs_hist_percent = "N/A"
-                
-            if isinstance(std_time, (int, float)) and isinstance(hist_time, (int, float)):
-                std_vs_hist = hist_time - std_time
-                std_vs_hist_percent = (std_vs_hist / std_time) * 100 if std_time > 0 else 0
-            else:
-                std_vs_hist_percent = "N/A"
+            # Calculate percentage differences
+            std_vs_raw = ((standard_time - raw_time) / raw_time) * 100
+            hist_vs_raw = ((histogram_time - raw_time) / raw_time) * 100
+            hist_vs_std = ((histogram_time - standard_time) / standard_time) * 100
             
             # Determine fastest method
-            times = []
-            if isinstance(raw_time, (int, float)):
-                times.append(("Raw", raw_time))
-            if isinstance(std_time, (int, float)):
-                times.append(("Standard", std_time))
-            if isinstance(hist_time, (int, float)):
-                times.append(("Histogram", hist_time))
-                
-            if times:
-                fastest = min(times, key=lambda x: x[1])[0]
+            times = {"Raw": raw_time, "Standard": standard_time, "Histogram": histogram_time}
+            fastest_method = min(times, key=times.get)
             
-            query_text = (raw_times.get(query_id, {}).get("query", "") or 
-                         standard_times.get(query_id, {}).get("query", "") or 
-                         histogram_times.get(query_id, {}).get("query", ""))
+            if fastest_method == "Raw":
+                raw_faster += 1
+            elif fastest_method == "Standard":
+                standard_faster += 1
+            else:
+                histogram_faster += 1
             
-            comparison_data.append({
-                "query_id": query_id,
-                "query": query_text[:100] + "..." if len(query_text) > 100 else query_text,
-                "raw_time": raw_time,
-                "standard_time": std_time,
-                "histogram_time": hist_time,
-                "raw_vs_std": raw_vs_std,
-                "raw_vs_std_percent": raw_vs_std_percent,
-                "raw_vs_hist": raw_vs_hist,
-                "raw_vs_hist_percent": raw_vs_hist_percent,
-                "std_vs_hist": std_vs_hist,
-                "std_vs_hist_percent": std_vs_hist_percent,
-                "fastest": fastest
-            })
+            # Get SQL preview
+            sql_preview = self._get_sql_preview(sql_file)
+            
+            query_result = ComparisonQueryResult(
+                name=filename,
+                sql_preview=sql_preview,
+                raw_time=raw_time,
+                standard_time=standard_time,
+                histogram_time=histogram_time,
+                std_vs_raw=std_vs_raw,
+                hist_vs_raw=hist_vs_raw,
+                hist_vs_std=hist_vs_std,
+                fastest_method=fastest_method
+            )
+            queries.append(query_result)
         
-        # Save raw data as JSON
-        json_file = os.path.join(results_dir, f"analyze_comparison_{timestamp}.json")
-        with open(json_file, 'w') as f:
-            json.dump({
-                "raw_times": raw_times,
-                "standard_times": standard_times,
-                "histogram_times": histogram_times,
-                "standard_histogram_data": standard_histogram_data,
-                "histogram_data": histogram_data,
-                "comparison": comparison_data
-            }, f, indent=2)
+        total_queries = len(queries)
         
-        # Generate HTML report
-        html_file = os.path.join(results_dir, f"analyze_comparison_{timestamp}.html")
-        self.generate_html_report(comparison_data, standard_histogram_data, histogram_data, html_file)
+        # Calculate top improvements and regressions
+        top_improvements = []
+        regressions = []
         
-        # Generate text report
-        text_file = os.path.join(results_dir, f"analyze_comparison_{timestamp}.txt")
-        self.generate_text_report(comparison_data, standard_histogram_data, histogram_data, text_file)
+        for query in queries:
+            # Find best improvement
+            improvements = [
+                ("Standard", -query.std_vs_raw) if query.std_vs_raw < 0 else None,
+                ("Histogram", -query.hist_vs_raw) if query.hist_vs_raw < 0 else None
+            ]
+            improvements = [imp for imp in improvements if imp is not None]
+            
+            if improvements:
+                best_improvement = max(improvements, key=lambda x: x[1])
+                if best_improvement[1] > 5:  # Only significant improvements
+                    top_improvements.append({
+                        "name": query.name,
+                        "method": best_improvement[0],
+                        "improvement": best_improvement[1]
+                    })
+            
+            # Find regressions
+            if query.std_vs_raw > 10:
+                regressions.append({
+                    "name": query.name,
+                    "method": "Standard",
+                    "regression": query.std_vs_raw
+                })
+            if query.hist_vs_raw > 10:
+                regressions.append({
+                    "name": query.name,
+                    "method": "Histogram",
+                    "regression": query.hist_vs_raw
+                })
         
-        self.log(f"Comparison reports generated:")
-        self.log(f"  - HTML: {html_file}")
-        self.log(f"  - Text: {text_file}")
-        self.log(f"  - JSON: {json_file}")
+        # Sort by improvement/regression amount
+        top_improvements.sort(key=lambda x: x["improvement"], reverse=True)
+        regressions.sort(key=lambda x: x["regression"], reverse=True)
         
-        return True
-
-    def generate_html_report(self, comparison_data, standard_histogram_data, histogram_data, output_file):
-        """
-        Generate an HTML report from comparison data.
+        return ComparisonData(
+            total_queries=total_queries,
+            raw_faster=raw_faster,
+            standard_faster=standard_faster,
+            histogram_faster=histogram_faster,
+            raw_faster_pct=(raw_faster / total_queries * 100) if total_queries > 0 else 0,
+            standard_faster_pct=(standard_faster / total_queries * 100) if total_queries > 0 else 0,
+            histogram_faster_pct=(histogram_faster / total_queries * 100) if total_queries > 0 else 0,
+            queries=queries,
+            top_improvements=top_improvements[:10],  # Top 10
+            regressions=regressions[:10]  # Top 10
+        )
+    
+    def _get_sql_preview(self, sql_file: Path) -> str:
+        """Get SQL preview for tooltip"""
+        try:
+            with open(sql_file, 'r') as f:
+                content = f.read().strip()
+                # Remove comments and clean up
+                lines = [line.strip() for line in content.split('\n') if line.strip() and not line.strip().startswith('--')]
+                preview = ' '.join(lines)
+                return preview[:200] + "..." if len(preview) > 200 else preview
+        except:
+            return "SQL preview not available"
+    
+    def _generate_comparison_report(self, comparison_data: ComparisonData):
+        """Generate comparison report"""
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_path = Path("results") / f"analyze_comparison_{timestamp}.html"
         
-        Args:
-            comparison_data (list): List of dictionaries containing comparison data
-            standard_histogram_data (dict): Dictionary of histogram data with standard analyze
-            histogram_data (dict): Dictionary of histogram data with histogram analyze
-            output_file (str): Path to output HTML file
-        """
-        html = """
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Analyze Method Comparison</title>
-            <style>
-                body { font-family: Arial, sans-serif; margin: 20px; }
-                h1, h2, h3 { color: #333; }
-                table { border-collapse: collapse; width: 100%; margin-top: 20px; margin-bottom: 40px; }
-                th, td { padding: 8px; text-align: left; border: 1px solid #ddd; }
-                th { background-color: #f2f2f2; }
-                tr:nth-child(even) { background-color: #f9f9f9; }
-                .faster { font-weight: bold; }
-                .raw-faster { color: blue; }
-                .standard-faster { color: green; }
-                .histogram-faster { color: purple; }
-                .summary { margin-top: 20px; padding: 10px; background-color: #f0f0f0; border-radius: 5px; }
-                .histogram-section { margin-top: 40px; }
-                .histogram-table { font-size: 0.9em; }
-                .positive { color: red; }
-                .negative { color: green; }
-                .tabs { display: flex; margin-bottom: 10px; }
-                .tab { padding: 10px 20px; cursor: pointer; border: 1px solid #ccc; background-color: #f1f1f1; }
-                .tab.active { background-color: #ddd; }
-                .tab-content { display: none; }
-                .tab-content.active { display: block; }
-            </style>
-            <script>
-                function openTab(evt, tabName) {
-                    var i, tabcontent, tablinks;
-                    tabcontent = document.getElementsByClassName("tab-content");
-                    for (i = 0; i < tabcontent.length; i++) {
-                        tabcontent[i].style.display = "none";
-                    }
-                    tablinks = document.getElementsByClassName("tab");
-                    for (i = 0; i < tablinks.length; i++) {
-                        tablinks[i].className = tablinks[i].className.replace(" active", "");
-                    }
-                    document.getElementById(tabName).style.display = "block";
-                    evt.currentTarget.className += " active";
-                }
-            </script>
-        </head>
-        <body>
-            <h1>Analyze Method Comparison</h1>
-            <p>Comparison of query execution times between raw (no analyze), standard analyze, and analyze with accurate histograms.</p>
-            
-            <div class="summary">
-                <h2>Summary</h2>
-        """
+        # Load comparison template
+        template_content = self._load_comparison_template()
+        template = Template(template_content)
         
-        # Calculate summary statistics
-        total_queries = len(comparison_data)
-        raw_faster = sum(1 for item in comparison_data if item["fastest"] == "Raw")
-        standard_faster = sum(1 for item in comparison_data if item["fastest"] == "Standard")
-        histogram_faster = sum(1 for item in comparison_data if item["fastest"] == "Histogram")
-        na_count = sum(1 for item in comparison_data if item["fastest"] == "N/A")
+        html_content = template.render(
+            comparison_data=comparison_data,
+            timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        )
         
-        # Add summary to HTML
-        html += f"""
-                <p>Total Queries: {total_queries}</p>
-                <p>Raw Faster: {raw_faster} ({raw_faster/total_queries*100:.1f}%)</p>
-                <p>Standard Analyze Faster: {standard_faster} ({standard_faster/total_queries*100:.1f}%)</p>
-                <p>Histogram Analyze Faster: {histogram_faster} ({histogram_faster/total_queries*100:.1f}%)</p>
-                <p>N/A: {na_count} ({na_count/total_queries*100:.1f}%)</p>
-            </div>
-            
-            <div class="tabs">
-                <button class="tab active" onclick="openTab(event, 'QueryComparison')">Query Comparison</button>
-                <button class="tab" onclick="openTab(event, 'HistogramData')">Histogram Data</button>
-            </div>
-            
-            <div id="QueryComparison" class="tab-content active">
-                <h2>Query Execution Time Comparison</h2>
-                <table>
-                    <tr>
-                        <th>Query ID</th>
-                        <th>Raw Time (s)</th>
-                        <th>Standard Time (s)</th>
-                        <th>Histogram Time (s)</th>
-                        <th>Std vs Raw (%)</th>
-                        <th>Hist vs Raw (%)</th>
-                        <th>Hist vs Std (%)</th>
-                        <th>Fastest Method</th>
-                    </tr>
-        """
+        # Write to file
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(output_path, 'w') as f:
+            f.write(html_content)
         
-        # Add rows for each query
-        for item in comparison_data:
-            faster_class = ""
-            if item["fastest"] == "Raw":
-                faster_class = "raw-faster"
-            elif item["fastest"] == "Standard":
-                faster_class = "standard-faster"
-            elif item["fastest"] == "Histogram":
-                faster_class = "histogram-faster"
-            
-            raw_time_str = f"{item['raw_time']:.3f}" if isinstance(item['raw_time'], (int, float)) else item['raw_time']
-            std_time_str = f"{item['standard_time']:.3f}" if isinstance(item['standard_time'], (int, float)) else item['standard_time']
-            hist_time_str = f"{item['histogram_time']:.3f}" if isinstance(item['histogram_time'], (int, float)) else item['histogram_time']
-            
-            # Format percentages with colors
-            raw_vs_std_class = "positive" if isinstance(item['raw_vs_std_percent'], (int, float)) and item['raw_vs_std_percent'] > 0 else "negative"
-            raw_vs_hist_class = "positive" if isinstance(item['raw_vs_hist_percent'], (int, float)) and item['raw_vs_hist_percent'] > 0 else "negative"
-            std_vs_hist_class = "positive" if isinstance(item['std_vs_hist_percent'], (int, float)) and item['std_vs_hist_percent'] > 0 else "negative"
-            
-            raw_vs_std_str = f"{item['raw_vs_std_percent']:.1f}%" if isinstance(item['raw_vs_std_percent'], (int, float)) else item['raw_vs_std_percent']
-            raw_vs_hist_str = f"{item['raw_vs_hist_percent']:.1f}%" if isinstance(item['raw_vs_hist_percent'], (int, float)) else item['raw_vs_hist_percent']
-            std_vs_hist_str = f"{item['std_vs_hist_percent']:.1f}%" if isinstance(item['std_vs_hist_percent'], (int, float)) else item['std_vs_hist_percent']
-            
-            html += f"""
-                <tr>
-                    <td title="{item['query']}">{item['query_id']}</td>
-                    <td>{raw_time_str}</td>
-                    <td>{std_time_str}</td>
-                    <td>{hist_time_str}</td>
-                    <td class="{raw_vs_std_class}">{raw_vs_std_str}</td>
-                    <td class="{raw_vs_hist_class}">{raw_vs_hist_str}</td>
-                    <td class="{std_vs_hist_class}">{std_vs_hist_str}</td>
-                    <td class="faster {faster_class}">{item['fastest']}</td>
-                </tr>
-            """
+        self.log(f"Comparison report generated: {output_path}", "success")
+    
+    def _load_comparison_template(self) -> str:
+        """Load comparison template from file"""
+        template_path = Path(__file__).parent / "templates" / "comparison.html"
+        with open(template_path, 'r') as f:
+            return f.read()
+    
+    def generate_report(self, output_dir: str = "results") -> Path:
+        """Generate HTML report with dynamic template updates"""
+        # Generate timestamp for filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_path = Path(output_dir) / f"job_report_{timestamp}.html"
         
-        html += """
-                </table>
-            </div>
-            
-            <div id="HistogramData" class="tab-content">
-                <h2>Histogram Data Comparison</h2>
-                <p>This section compares the histogram data between standard analyze and analyze with accurate histograms.</p>
-        """
+        # Also create a fixed filename based on date only
+        date_only = datetime.now().strftime("%Y%m%d")
+        fixed_output_path = Path(output_dir) / f"job_report_{date_only}.html"
         
-        # Add histogram data comparison
-        for table in sorted(set(list(standard_histogram_data.keys()) + list(histogram_data.keys()))):
-            html += f"""
-                <div class="histogram-section">
-                    <h3>Table: {table}</h3>
-                    <div class="tabs">
-                        <button class="tab active" onclick="openTab(event, '{table}_standard')">Standard Analyze</button>
-                        <button class="tab" onclick="openTab(event, '{table}_histogram')">Histogram Analyze</button>
-                    </div>
-                    
-                    <div id="{table}_standard" class="tab-content active">
-                        <h4>Standard Analyze Histogram</h4>
-                        <pre class="histogram-table">{standard_histogram_data.get(table, 'No histogram data available')}</pre>
-                    </div>
-                    
-                    <div id="{table}_histogram" class="tab-content">
-                        <h4>Accurate Histogram</h4>
-                        <pre class="histogram-table">{histogram_data.get(table, 'No histogram data available')}</pre>
-                    </div>
-                </div>
-            """
+        # Generate report with dynamic template
+        self.reporter.generate_html_report(self.results, output_path)
         
-        html += """
-            </div>
-        </body>
-        </html>
-        """
+        # Copy to fixed date-based filename (overwrite if exists)
+        import shutil
+        shutil.copy2(output_path, fixed_output_path)
         
-        with open(output_file, 'w') as f:
-            f.write(html)
-
-    def generate_text_report(self, comparison_data, standard_histogram_data, histogram_data, output_file):
-        """
-        Generate a text report from comparison data.
+        self.log(f"Report generated: {output_path}", "success")
+        self.log(f"Fixed report: {fixed_output_path}", "success")
         
-        Args:
-            comparison_data (list): List of dictionaries containing comparison data
-            standard_histogram_data (dict): Dictionary of histogram data with standard analyze
-            histogram_data (dict): Dictionary of histogram data with histogram analyze
-            output_file (str): Path to output text file
-        """
-        # Calculate summary statistics
-        total_queries = len(comparison_data)
-        raw_faster = sum(1 for item in comparison_data if item["fastest"] == "Raw")
-        standard_faster = sum(1 for item in comparison_data if item["fastest"] == "Standard")
-        histogram_faster = sum(1 for item in comparison_data if item["fastest"] == "Histogram")
-        na_count = sum(1 for item in comparison_data if item["fastest"] == "N/A")
-        
-        with open(output_file, 'w') as f:
-            f.write("=== Analyze Method Comparison ===\n\n")
-            f.write("Comparison of query execution times between raw (no analyze), standard analyze, and analyze with accurate histograms.\n\n")
-            
-            f.write("=== Summary ===\n")
-            f.write(f"Total Queries: {total_queries}\n")
-            f.write(f"Raw Faster: {raw_faster} ({raw_faster/total_queries*100:.1f}%)\n")
-            f.write(f"Standard Analyze Faster: {standard_faster} ({standard_faster/total_queries*100:.1f}%)\n")
-            f.write(f"Histogram Analyze Faster: {histogram_faster} ({histogram_faster/total_queries*100:.1f}%)\n")
-            f.write(f"N/A: {na_count} ({na_count/total_queries*100:.1f}%)\n\n")
-            
-            f.write("=== Query Execution Time Comparison ===\n\n")
-            
-            # Format header
-            f.write(f"{'Query ID':<15} {'Raw (s)':<12} {'Standard (s)':<12} {'Histogram (s)':<12} {'Std vs Raw':<12} {'Hist vs Raw':<12} {'Hist vs Std':<12} {'Fastest':<10}\n")
-            f.write("-" * 95 + "\n")
-            
-            # Add rows for each query
-            for item in comparison_data:
-                raw_time = f"{item['raw_time']:.3f}" if isinstance(item['raw_time'], (int, float)) else item['raw_time']
-                std_time = f"{item['standard_time']:.3f}" if isinstance(item['standard_time'], (int, float)) else item['standard_time']
-                hist_time = f"{item['histogram_time']:.3f}" if isinstance(item['histogram_time'], (int, float)) else item['histogram_time']
-                
-                raw_vs_std = f"{item['raw_vs_std_percent']:.1f}%" if isinstance(item['raw_vs_std_percent'], (int, float)) else item['raw_vs_std_percent']
-                raw_vs_hist = f"{item['raw_vs_hist_percent']:.1f}%" if isinstance(item['raw_vs_hist_percent'], (int, float)) else item['raw_vs_hist_percent']
-                std_vs_hist = f"{item['std_vs_hist_percent']:.1f}%" if isinstance(item['std_vs_hist_percent'], (int, float)) else item['std_vs_hist_percent']
-                
-                f.write(f"{item['query_id']:<15} {raw_time:<12} {std_time:<12} {hist_time:<12} {raw_vs_std:<12} {raw_vs_hist:<12} {std_vs_hist:<12} {item['fastest']:<10}\n")
-                
-                # Add query text on the next line, indented
-                f.write(f"  Query: {item['query']}\n\n")
-            
-            f.write("\n=== Histogram Data Comparison ===\n\n")
-            
-            # Add histogram data comparison
-            for table in sorted(set(list(standard_histogram_data.keys()) + list(histogram_data.keys()))):
-                f.write(f"Table: {table}\n")
-                f.write("=" * 80 + "\n\n")
-                
-                f.write("Standard Analyze Histogram:\n")
-                f.write("-" * 80 + "\n")
-                f.write(f"{standard_histogram_data.get(table, 'No histogram data available')}\n\n")
-                
-                f.write("Accurate Histogram:\n")
-                f.write("-" * 80 + "\n")
-                f.write(f"{histogram_data.get(table, 'No histogram data available')}\n\n")
-                
-                f.write("\n")
-
+        return fixed_output_path
 
 def main():
-    """Main function to parse arguments and execute commands."""
-    parser = argparse.ArgumentParser(
-        description="BendSQL Job Runner - Set up database and execute queries"
-    )
-    parser.add_argument("--setup", action="store_true", help="Execute setup.sql to create schema and load data")
-    parser.add_argument("--run", action="store_true", help="Run SQL queries from the queries directory")
-    parser.add_argument("--analyze", action="store_true", help="Analyze tables after setup")
-    parser.add_argument("--accurate-histograms", action="store_true", help="Use accurate histograms when analyzing tables")
-    parser.add_argument("--compare", action="store_true", help="Compare query performance with different analyze methods")
+    """Main function"""
+    parser = argparse.ArgumentParser(description="BendSQL Job Runner")
+    parser.add_argument("--setup", action="store_true", help="Setup database")
+    parser.add_argument("--analyze", choices=["standard", "histogram"], help="Analyze tables")
+    parser.add_argument("--run", action="store_true", help="Run queries")
+    parser.add_argument("--all", action="store_true", help="Run setup, analyze, and queries")
+    parser.add_argument("--compare", action="store_true", help="Run comparison analysis between different analyze methods")
     
     args = parser.parse_args()
     
-    # Create BendSQL runner
-    runner = BendSQLRunner()
-    
-    # Execute commands based on arguments
-    if args.compare:
-        # Compare analyze methods (this includes setup, analyze, and run)
-        success = runner.compare_analyze_methods()
-        if not success:
-            sys.exit(1)
-    else:
-        # Execute individual commands
-        if args.setup:
-            success = runner.setup_database()
-            if not success:
-                sys.exit(1)
-        
-        if args.analyze:
-            analyze_method = "histogram" if args.accurate_histograms else "standard"
-            success = runner.analyze_tables(analyze_method=analyze_method)
-            if success is False:  # Check for False specifically, as {} is a valid return
-                sys.exit(1)
-        
-        if args.run:
-            success = runner.run_queries()
-            if not success:
-                sys.exit(1)
-    
-    # If no arguments provided, show help
-    if not (args.setup or args.run or args.analyze or args.compare):
+    if not any([args.setup, args.analyze, args.run, args.all, args.compare]):
         parser.print_help()
+        return
+    
+    runner = JobRunner()
+    
+    try:
+        if args.compare:
+            # Run comparison analysis
+            if not runner.setup_database():
+                sys.exit(1)
+            if not runner.run_comparison_analysis():
+                sys.exit(1)
+        elif args.all:
+            # Run complete workflow
+            if not runner.setup_database():
+                sys.exit(1)
+            if not runner.analyze_tables("standard"):
+                sys.exit(1)
+            if not runner.run_queries():
+                sys.exit(1)
+        else:
+            # Run individual steps
+            if args.setup and not runner.setup_database():
+                sys.exit(1)
+            if args.analyze and not runner.analyze_tables(args.analyze):
+                sys.exit(1)
+            if args.run and not runner.run_queries():
+                sys.exit(1)
+        
+        # Always generate report if any operations were performed (except for comparison which generates its own)
+        if runner.results and not args.compare:
+            runner.generate_report()
+            
+    except KeyboardInterrupt:
+        runner.log("Operation cancelled by user", "warning")
         sys.exit(1)
-
+    except Exception as e:
+        runner.log(f"Unexpected error: {e}", "error")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
