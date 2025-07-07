@@ -44,6 +44,45 @@
             line-height: 1.5;
         }
         
+        .description {
+            margin-bottom: 20px;
+            color: var(--text-secondary);
+        }
+        
+        .method-descriptions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin: 15px 0;
+            padding: 0;
+            list-style: none;
+        }
+        
+        .method-descriptions li {
+            background-color: #f8f9fa;
+            border-left: 4px solid var(--primary-color);
+            padding: 10px 15px;
+            border-radius: 4px;
+            flex: 1;
+            min-width: 250px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .method-descriptions strong {
+            color: var(--primary-color);
+            display: block;
+            margin-bottom: 5px;
+            font-size: 1.1em;
+        }
+        
+        .method-descriptions code {
+            background-color: #f1f1f1;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        
         .app {
             display: flex;
             flex-direction: column;
@@ -148,6 +187,41 @@
         
         .faster {
             font-weight: 500;
+        }
+        
+        .positive {
+            color: #28a745;
+        }
+        
+        .negative {
+            color: #dc3545;
+        }
+        
+        .noise {
+            color: #6c757d;
+            font-style: italic;
+        }
+        
+        .noise::after {
+            content: ' (\u2248)';
+            font-size: 0.9em;
+        }
+        
+        .table-notes {
+            margin-top: 15px;
+            padding: 10px 15px;
+            background-color: #f8f9fa;
+            border-left: 4px solid #6c757d;
+            border-radius: 4px;
+            font-size: 0.9em;
+            color: #495057;
+        }
+        
+        .noise-indicator {
+            font-style: italic;
+            font-weight: bold;
+            color: #6c757d;
+            margin-right: 5px;
         }
         
         .raw-faster {
@@ -941,9 +1015,17 @@
             </div>
         </header>
         
+        <div class="description">
+            <p>Comparison of query execution times between different analyze methods:</p>
+            <ul class="method-descriptions">
+                <li><strong>Raw</strong>: <code>No ANALYZE</code></li>
+                <li><strong>Standard</strong>: <code>ANALYZE table</code></li>
+                <li><strong>Histogram</strong>: <code>SET enable_analyze_histogram = 1; ANALYZE table</code></li>
+            </ul>
+        </div>
+        
         <!-- Main Content -->
         <main class="main">
-            <p>Comparison of query execution times between raw (no analyze), standard analyze, and analyze with accurate histograms.</p>
             
             <!-- Stats Overview -->
             <div class="stats-overview">
@@ -990,9 +1072,9 @@
                 <td class="clickable explain-cell" data-query="{{ query.name }}" data-method="Raw" title="Click to view Raw execution plan">{{ "%.3f"|format(query.raw_time) }}</td>
                 <td class="clickable explain-cell" data-query="{{ query.name }}" data-method="Standard" title="Click to view Standard execution plan">{{ "%.3f"|format(query.standard_time) }}</td>
                 <td class="clickable explain-cell" data-query="{{ query.name }}" data-method="Histogram" title="Click to view Histogram execution plan">{{ "%.3f"|format(query.histogram_time) }}</td>
-                <td class="clickable explain-diff-cell {{ 'negative' if query.std_vs_raw < 0 else 'positive' }}" data-query="{{ query.name }}" data-method1="Standard" data-method2="Raw" title="Click to compare Standard vs Raw execution plans" {% if query.standard_explain == query.raw_explain %}style="background-color: #e8f5e9 !important;"{% endif %}>{{ "%.1f"|format(query.std_vs_raw) }}{% if query.standard_explain == query.raw_explain %} <span style="font-size: 0.8em; color: #2e7d32;">[identical]</span>{% endif %}</td>
-                <td class="clickable explain-diff-cell {{ 'negative' if query.hist_vs_raw < 0 else 'positive' }}" data-query="{{ query.name }}" data-method1="Histogram" data-method2="Raw" title="Click to compare Histogram vs Raw execution plans" {% if query.histogram_explain == query.raw_explain %}style="background-color: #e8f5e9 !important;"{% endif %}>{{ "%.1f"|format(query.hist_vs_raw) }}{% if query.histogram_explain == query.raw_explain %} <span style="font-size: 0.8em; color: #2e7d32;">[identical]</span>{% endif %}</td>
-                <td class="clickable explain-diff-cell {{ 'negative' if query.hist_vs_std < 0 else 'positive' }}" data-query="{{ query.name }}" data-method1="Histogram" data-method2="Standard" title="Click to compare Histogram vs Standard execution plans" {% if query.histogram_explain == query.standard_explain %}style="background-color: #e8f5e9 !important;"{% endif %}>{{ "%.1f"|format(query.hist_vs_std) }}{% if query.histogram_explain == query.standard_explain %} <span style="font-size: 0.8em; color: #2e7d32;">[identical]</span>{% endif %}</td>
+                <td class="clickable explain-diff-cell {{ 'noise' if -15 <= query.std_vs_raw <= 15 else ('negative' if query.std_vs_raw < 0 else 'positive') }}" data-query="{{ query.name }}" data-method1="Standard" data-method2="Raw" title="Click to compare Standard vs Raw execution plans{% if -15 <= query.std_vs_raw <= 15 %} (Difference within 15%, considered statistical noise){% endif %}" {% if query.standard_explain == query.raw_explain %}style="background-color: #e8f5e9 !important;"{% endif %}>{{ "%.1f"|format(query.std_vs_raw) }}{% if query.standard_explain == query.raw_explain %} <span style="font-size: 0.8em; color: #2e7d32;">[identical]</span>{% endif %}</td>
+                <td class="clickable explain-diff-cell {{ 'noise' if -15 <= query.hist_vs_raw <= 15 else ('negative' if query.hist_vs_raw < 0 else 'positive') }}" data-query="{{ query.name }}" data-method1="Histogram" data-method2="Raw" title="Click to compare Histogram vs Raw execution plans{% if -15 <= query.hist_vs_raw <= 15 %} (Difference within 15%, considered statistical noise){% endif %}" {% if query.histogram_explain == query.raw_explain %}style="background-color: #e8f5e9 !important;"{% endif %}>{{ "%.1f"|format(query.hist_vs_raw) }}{% if query.histogram_explain == query.raw_explain %} <span style="font-size: 0.8em; color: #2e7d32;">[identical]</span>{% endif %}</td>
+                <td class="clickable explain-diff-cell {{ 'noise' if -15 <= query.hist_vs_std <= 15 else ('negative' if query.hist_vs_std < 0 else 'positive') }}" data-query="{{ query.name }}" data-method1="Histogram" data-method2="Standard" title="Click to compare Histogram vs Standard execution plans{% if -15 <= query.hist_vs_std <= 15 %} (Difference within 15%, considered statistical noise){% endif %}" {% if query.histogram_explain == query.standard_explain %}style="background-color: #e8f5e9 !important;"{% endif %}>{{ "%.1f"|format(query.hist_vs_std) }}{% if query.histogram_explain == query.standard_explain %} <span style="font-size: 0.8em; color: #2e7d32;">[identical]</span>{% endif %}</td>
                 <td class="faster {{ query.fastest_method.lower() }}-faster">{{ query.fastest_method }}</td>
                 <!-- Hidden fields inside the row to stay with data during sorting -->
                 <input type="hidden" class="raw-explain" value="{{ query.raw_explain|e }}">
@@ -1002,6 +1084,10 @@
             </tr>
             {% endfor %}
                 </table>
+                
+                <div class="table-notes">
+                    <p><span class="noise-indicator">≈</span> Differences within ±15% are considered statistical noise, likely due to system load fluctuations, and do not represent significant performance differences.</p>
+                </div>
             </div>
         </main>
         
