@@ -23,15 +23,17 @@
         .tab-content.active { display: block; }
         .clickable { cursor: pointer; text-decoration: underline; color: #0066cc; }
         .clickable:hover { background-color: #e0f0ff; }
+        tr td.no-diff { background-color: #e8f5e9 !important; }
+        tr:nth-child(even) td.no-diff { background-color: #d8ebd9 !important; }
         .explain-modal { display: none; position: fixed; z-index: 1; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); }
-        .modal-content { background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-height: 70vh; overflow-y: auto; }
+        .modal-content { background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-height: 70vh; overflow: auto; }
         .close-btn { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
         .close-btn:hover { color: black; }
-        .explain-content { font-family: monospace; white-space: pre-wrap; background-color: #f5f5f5; padding: 10px; border-radius: 5px; }
-        .diff-container { display: flex; flex-direction: column; width: 100%; }
+        .explain-content { font-family: monospace; white-space: pre; background-color: #f5f5f5; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        .diff-container { display: flex; flex-direction: column; width: 100%; overflow-x: auto; }
         .diff-header { display: flex; background: #f1f1f1; border: 1px solid #ddd; border-bottom: none; }
         .diff-header-cell { flex: 1; padding: 8px; font-weight: bold; }
-        .diff-table { display: table; width: 100%; border-collapse: collapse; border: 1px solid #ddd; font-family: monospace; }
+        .diff-table { display: table; min-width: 100%; border-collapse: collapse; border: 1px solid #ddd; font-family: monospace; overflow-x: auto; }
         .diff-row { display: table-row; }
         .diff-row:nth-child(even) { background-color: #f8f8f8; }
         .diff-row:hover { background-color: #f0f7ff; }
@@ -39,7 +41,7 @@
         .diff-row:hover .diff-added-row { background-color: #e0ffe0; }
         .diff-cell { display: table-cell; padding: 0; vertical-align: top; }
         .diff-gutter { width: 50px; text-align: right; color: #999; user-select: none; padding: 0 10px; border-right: 1px solid #eee; }
-        .diff-code { padding: 0 10px; white-space: pre-wrap; width: 50%; }
+        .diff-code { padding: 0 10px; white-space: pre; width: 50%; }
         .diff-removed-row { background-color: #ffeef0; }
         .diff-removed-row .diff-gutter { background-color: #ffdce0; }
         .diff-added-row { background-color: #e6ffed; }
@@ -85,6 +87,19 @@
         function closeDiffModal() {
             var modal = document.getElementById("explainDiffModal");
             modal.style.display = "none";
+        }
+        
+        function showSql(queryName, sqlContent) {
+            // Set modal content
+            var modal = document.getElementById("explainModal");
+            var modalTitle = document.getElementById("explainTitle");
+            var modalContent = document.getElementById("explainContent");
+            
+            modalTitle.textContent = queryName + " - Full SQL";
+            modalContent.textContent = sqlContent || "SQL not available";
+            
+            // Show modal
+            modal.style.display = "block";
         }
         
         function showExplainDiff(queryName, method1, method2, plan1, plan2) {
@@ -324,6 +339,22 @@
             }
         }
         
+        // Function to check if two plans are identical
+        function arePlansIdentical(plan1, plan2) {
+            if (!plan1 || !plan2) return false;
+            
+            const lines1 = plan1.split('\n');
+            const lines2 = plan2.split('\n');
+            
+            if (lines1.length !== lines2.length) return false;
+            
+            for (let i = 0; i < lines1.length; i++) {
+                if (lines1[i] !== lines2[i]) return false;
+            }
+            
+            return true;
+        }
+        
         // Add event listeners after DOM is loaded
         document.addEventListener('DOMContentLoaded', function() {
             // For regular explain cells
@@ -341,14 +372,28 @@
             // For explain diff cells
             var explainDiffCells = document.querySelectorAll('.explain-diff-cell');
             explainDiffCells.forEach(function(cell) {
+                var plan1Id = cell.getAttribute('data-plan1-id');
+                var plan2Id = cell.getAttribute('data-plan2-id');
+                var plan1 = document.getElementById(plan1Id).value;
+                var plan2 = document.getElementById(plan2Id).value;
+                
+                // Check if plans are identical and add class if they are
+                if (arePlansIdentical(plan1, plan2)) {
+                    cell.classList.add('no-diff');
+                    cell.title += " (No differences found between plans)";
+                    
+                    // Apply background color directly to the cell
+                    cell.style.backgroundColor = '#e8f5e9';
+                    
+                    // Add a visual indicator for no differences
+                    var originalText = cell.textContent;
+                    cell.innerHTML = originalText + ' <span style="font-size: 0.8em; color: #2e7d32;">[identical]</span>';
+                }
+                
                 cell.addEventListener('click', function() {
                     var queryName = this.getAttribute('data-query');
                     var method1 = this.getAttribute('data-method1');
                     var method2 = this.getAttribute('data-method2');
-                    var plan1Id = this.getAttribute('data-plan1-id');
-                    var plan2Id = this.getAttribute('data-plan2-id');
-                    var plan1 = document.getElementById(plan1Id).value;
-                    var plan2 = document.getElementById(plan2Id).value;
                     showExplainDiff(queryName, method1, method2, plan1, plan2);
                 });
             });
@@ -367,12 +412,9 @@
         <p>Histogram Analyze Faster: {{ comparison_data.histogram_faster }} ({{ "%.1f"|format(comparison_data.histogram_faster_pct) }}%)</p>
     </div>
     
-    <div class="tabs">
-        <button class="tab active" onclick="openTab(event, 'QueryComparison')">Query Comparison</button>
-        <button class="tab" onclick="openTab(event, 'PerformanceAnalysis')">Performance Analysis</button>
-    </div>
+    <!-- Tabs removed as per requirement -->
     
-    <div id="QueryComparison" class="tab-content active">
+    <div id="QueryComparison">
         <h2>Query Execution Time Comparison</h2>
         <table>
             <tr>
@@ -387,13 +429,13 @@
             </tr>
             {% for query in comparison_data.queries %}
             <tr>
-                <td title="{{ query.sql_preview }}">{{ query.name }}</td>
+                <td class="clickable" onclick="showSql('{{ query.name }}', '{{ query.sql_preview|e }}')" title="Click to view full SQL">{{ query.name }}</td>
                 <td class="clickable explain-cell" data-query="{{ query.name }}" data-method="Raw" data-plan-id="raw-{{ loop.index }}" title="Click to view Raw execution plan">{{ "%.3f"|format(query.raw_time) }}</td>
                 <td class="clickable explain-cell" data-query="{{ query.name }}" data-method="Standard" data-plan-id="standard-{{ loop.index }}" title="Click to view Standard execution plan">{{ "%.3f"|format(query.standard_time) }}</td>
                 <td class="clickable explain-cell" data-query="{{ query.name }}" data-method="Histogram" data-plan-id="histogram-{{ loop.index }}" title="Click to view Histogram execution plan">{{ "%.3f"|format(query.histogram_time) }}</td>
-                <td class="clickable explain-diff-cell {{ 'negative' if query.std_vs_raw < 0 else 'positive' }}" data-query="{{ query.name }}" data-method1="Standard" data-method2="Raw" data-plan1-id="standard-{{ loop.index }}" data-plan2-id="raw-{{ loop.index }}" title="Click to compare Standard vs Raw execution plans">{{ "%.1f"|format(query.std_vs_raw) }}%</td>
-                <td class="clickable explain-diff-cell {{ 'negative' if query.hist_vs_raw < 0 else 'positive' }}" data-query="{{ query.name }}" data-method1="Histogram" data-method2="Raw" data-plan1-id="histogram-{{ loop.index }}" data-plan2-id="raw-{{ loop.index }}" title="Click to compare Histogram vs Raw execution plans">{{ "%.1f"|format(query.hist_vs_raw) }}%</td>
-                <td class="clickable explain-diff-cell {{ 'negative' if query.hist_vs_std < 0 else 'positive' }}" data-query="{{ query.name }}" data-method1="Histogram" data-method2="Standard" data-plan1-id="histogram-{{ loop.index }}" data-plan2-id="standard-{{ loop.index }}" title="Click to compare Histogram vs Standard execution plans">{{ "%.1f"|format(query.hist_vs_std) }}%</td>
+                <td class="clickable explain-diff-cell {{ 'negative' if query.std_vs_raw < 0 else 'positive' }}" data-query="{{ query.name }}" data-method1="Standard" data-method2="Raw" data-plan1-id="standard-{{ loop.index }}" data-plan2-id="raw-{{ loop.index }}" title="Click to compare Standard vs Raw execution plans" {% if query.standard_explain == query.raw_explain %}style="background-color: #e8f5e9 !important;"{% endif %}>{{ "%.1f"|format(query.std_vs_raw) }}{% if query.standard_explain == query.raw_explain %} <span style="font-size: 0.8em; color: #2e7d32;">[identical]</span>{% endif %}</td>
+                <td class="clickable explain-diff-cell {{ 'negative' if query.hist_vs_raw < 0 else 'positive' }}" data-query="{{ query.name }}" data-method1="Histogram" data-method2="Raw" data-plan1-id="histogram-{{ loop.index }}" data-plan2-id="raw-{{ loop.index }}" title="Click to compare Histogram vs Raw execution plans" {% if query.histogram_explain == query.raw_explain %}style="background-color: #e8f5e9 !important;"{% endif %}>{{ "%.1f"|format(query.hist_vs_raw) }}{% if query.histogram_explain == query.raw_explain %} <span style="font-size: 0.8em; color: #2e7d32;">[identical]</span>{% endif %}</td>
+                <td class="clickable explain-diff-cell {{ 'negative' if query.hist_vs_std < 0 else 'positive' }}" data-query="{{ query.name }}" data-method1="Histogram" data-method2="Standard" data-plan1-id="histogram-{{ loop.index }}" data-plan2-id="standard-{{ loop.index }}" title="Click to compare Histogram vs Standard execution plans" {% if query.histogram_explain == query.standard_explain %}style="background-color: #e8f5e9 !important;"{% endif %}>{{ "%.1f"|format(query.hist_vs_std) }}{% if query.histogram_explain == query.standard_explain %} <span style="font-size: 0.8em; color: #2e7d32;">[identical]</span>{% endif %}</td>
                 <td class="faster {{ query.fastest_method.lower() }}-faster">{{ query.fastest_method }}</td>
             </tr>
             <!-- Hidden fields to store explain plans -->
@@ -404,30 +446,7 @@
         </table>
     </div>
     
-    <div id="PerformanceAnalysis" class="tab-content">
-        <h2>Performance Analysis</h2>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
-            <div>
-                <h3>Top Improvements</h3>
-                {% for improvement in comparison_data.top_improvements %}
-                <div style="padding: 8px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 4px; margin-bottom: 4px;">
-                    <strong>{{ improvement.name }}</strong><br>
-                    <span style="color: green;">{{ "%.1f"|format(improvement.improvement) }}% faster with {{ improvement.method }}</span>
-                </div>
-                {% endfor %}
-            </div>
-            
-            <div>
-                <h3>Performance Regressions</h3>
-                {% for regression in comparison_data.regressions %}
-                <div style="padding: 8px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 4px; margin-bottom: 4px;">
-                    <strong>{{ regression.name }}</strong><br>
-                    <span style="color: red;">{{ "%.1f"|format(regression.regression) }}% slower with {{ regression.method }}</span>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-    </div>
+    <!-- Performance Analysis section removed as per requirement -->
     <!-- Explain Modal -->
     <div id="explainModal" class="explain-modal">
         <div class="modal-content">

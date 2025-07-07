@@ -346,12 +346,13 @@ class ReportGenerator:
 class JobRunner:
     """Main job runner class"""
     
-    def __init__(self):
+    def __init__(self, args=None):
         self.start_time = time.time()
         self.executor = BendSQLExecutor(job_runner=self)
         self.parser = SQLFileParser()
         self.reporter = ReportGenerator()
         self.results: List[TestResult] = []
+        self.args = args
         self.log(f"Job started at {time.strftime('%Y-%m-%d %H:%M:%S')}")
         
     def get_elapsed_time(self) -> str:
@@ -437,8 +438,8 @@ class JobRunner:
         
         return success
     
-    def analyze_tables(self, method: str = "standard") -> bool:
-        """Analyze tables with specified method"""
+    def analyze_tables(self, method: str = "standard", parallel: bool = True, num_threads: int = 8) -> bool:
+        """Analyze tables with specified method, optionally in parallel"""
         tables = [
             "aka_name", "aka_title", "cast_info", "char_name", "comp_cast_type",
             "company_name", "company_type", "complete_cast", "info_type", "keyword",
@@ -446,7 +447,7 @@ class JobRunner:
             "movie_keyword", "movie_link", "name", "person_info", "role_type", "title"
         ]
         
-        self.log(f"Analyzing tables with method: {method}", "info")
+        self.log(f"Analyzing tables with method: {method}{' (parallel)' if parallel else ''}", "info")
         start_time = time.time()
         query_results = []
         
@@ -456,47 +457,105 @@ class JobRunner:
             self.log("No database context set. Please use 'USE database;' statement first.", "error")
             return False
         
-        for table in tables:
-            if method == "histogram":
-                query = f"set enable_analyze_histogram = 1; analyze table {current_db}.{table}"
-            else:
-                query = f"analyze table {current_db}.{table}"
+        if parallel:
+            # Execute analyze statements in parallel
+            # Create a lock for thread-safe result appending
+            result_lock = threading.Lock()
             
-            success, output, duration = self.executor.execute_query(query)
-            query_results.append(QueryResult(
-                name=f"analyze_{table}",
-                sql=query,
-                success=success,
-                duration=duration,
-                error="" if success else output,
-                output=output if success else ""
-            ))
+            # Function to execute analyze query in parallel
+            def execute_analyze(table):
+                if method == "histogram":
+                    query = f"set enable_analyze_histogram = 1; analyze table {current_db}.{table}"
+                else:
+                    query = f"analyze table {current_db}.{table}"
+                    
+                self.log(f"Analyzing table: {table}", "info")
+                success, output, duration = self.executor.execute_query(query)
+                
+                query_result = QueryResult(
+                    name=f"analyze_{table}",
+                    sql=query,
+                    success=success,
+                    duration=duration,
+                    error="" if success else output,
+                    output=output if success else ""
+                )
+                
+                # Thread-safe append to results
+                with result_lock:
+                    query_results.append(query_result)
+                    
+                if not success:
+                    self.log(f"Failed to analyze table {table}: {output}", "error")
+            
+            # Create and start threads
+            threads = []
+            for table in tables:
+                thread = threading.Thread(target=execute_analyze, args=(table,))
+                threads.append(thread)
+                thread.start()
+                
+                # Limit the number of concurrent threads
+                if len(threads) >= num_threads:
+                    # Wait for all threads to complete before starting more
+                    for t in threads:
+                        t.join()
+                    threads = []
+            
+            # Wait for any remaining threads to complete
+            for thread in threads:
+                thread.join()
+        else:
+            # Execute analyze statements sequentially
+            for table in tables:
+                if method == "histogram":
+                    query = f"set enable_analyze_histogram = 1; analyze table {current_db}.{table}"
+                else:
+                    query = f"analyze table {current_db}.{table}"
+                    
+                self.log(f"Analyzing table: {table}", "info")
+                success, output, duration = self.executor.execute_query(query)
+                
+                query_results.append(QueryResult(
+                    name=f"analyze_{table}",
+                    sql=query,
+                    success=success,
+                    duration=duration,
+                    error="" if success else output,
+                    output=output if success else ""
+                ))
+                
+                if not success:
+                    self.log(f"Failed to analyze table {table}: {output}", "error")
+                    # Continue with other tables even if one fails
         
-        total_duration = time.time() - start_time
-        success = all(r.success for r in query_results)
+        # Calculate total duration
+        duration = time.time() - start_time
         
+        # Create stage result
         stage = StageResult(
-            name=f"analyze_{method}",
+            name=f"{method}_analyze",
             queries=query_results,
-            duration=total_duration,
-            success=success
+            duration=duration,
+            success=all(result.success for result in query_results)
         )
         
+        # Create test result
         test_result = TestResult(
-            name=f"table_analysis_{method}",
+            name=f"{method}_analyze",
             stages=[stage],
-            success=success,
-            total_duration=total_duration
+            success=stage.success,
+            total_duration=duration
         )
         
         self.results.append(test_result)
         
-        if success:
-            self.log(f"Table analysis completed in {total_duration:.2f}s", "success")
+        if stage.success:
+            self.log(f"All tables analyzed successfully with {method} method in {duration:.2f}s", "success")
         else:
-            self.log(f"Table analysis failed in {total_duration:.2f}s", "error")
-        
-        return success
+            self.log(f"Some tables failed to analyze with {method} method in {duration:.2f}s", "error")
+            
+        return stage.success
     
     def run_queries(self, queries_dir: str = "sql/check") -> bool:
         """Run queries from directory"""
@@ -551,11 +610,19 @@ class JobRunner:
         
         # Find SQL files
         sql_dir = Path("sql/check")
-        sql_files = self.parser.find_sql_files(sql_dir)
+        all_sql_files = self.parser.find_sql_files(sql_dir)
         
-        if not sql_files:
+        if not all_sql_files:
             self.log("No SQL files found in sql/check directory", "error")
             return False
+            
+        # Apply limit if specified
+        limit = getattr(self.args, 'limit', None)
+        if limit and limit > 0 and limit < len(all_sql_files):
+            sql_files = all_sql_files[:limit]
+            self.log(f"Limiting to first {limit} queries out of {len(all_sql_files)} total", "info")
+        else:
+            sql_files = all_sql_files
         
         # Store results
         raw_results = {}
@@ -932,10 +999,11 @@ def main():
     """Main function"""
     parser = argparse.ArgumentParser(description="BendSQL Job Runner")
     parser.add_argument("--compare", action="store_true", help="Run comparison analysis between different analyze methods")
+    parser.add_argument("--limit", type=int, help="Limit the number of queries to run from the check directory")
     
     args = parser.parse_args()
     
-    runner = JobRunner()
+    runner = JobRunner(args)
     
     try:
         # Always setup database first
