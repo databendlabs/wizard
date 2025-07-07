@@ -822,14 +822,14 @@ class JobRunner:
         )
     
     def _get_sql_preview(self, sql_file: Path) -> str:
-        """Get SQL preview for tooltip"""
+        """Get SQL content for display"""
         try:
             with open(sql_file, 'r') as f:
                 content = f.read().strip()
-                # Remove comments and clean up
-                lines = [line.strip() for line in content.split('\n') if line.strip() and not line.strip().startswith('--')]
-                preview = ' '.join(lines)
-                return preview[:200] + "..." if len(preview) > 200 else preview
+                # Remove comments but preserve structure
+                lines = [line for line in content.split('\n') if not line.strip().startswith('--')]
+                # Return the full SQL content
+                return '\n'.join(lines)
         except:
             return "SQL preview not available"
             

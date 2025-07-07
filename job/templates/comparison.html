@@ -1,52 +1,377 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Analyze Method Comparison</title>
+    <!-- SQL Formatter Library -->
+    <script src="https://cdn.jsdelivr.net/npm/sql-formatter@12.2.4/dist/sql-formatter.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        h1, h2, h3 { color: #333; }
-        table { border-collapse: collapse; width: 100%; margin-top: 20px; margin-bottom: 40px; }
-        th, td { padding: 8px; text-align: left; border: 1px solid #ddd; }
-        th { background-color: #f2f2f2; }
-        tr:nth-child(even) { background-color: #f9f9f9; }
-        .faster { font-weight: bold; }
-        .raw-faster { color: blue; }
-        .standard-faster { color: green; }
-        .histogram-faster { color: purple; }
-        .summary { margin-top: 20px; padding: 10px; background-color: #f0f0f0; border-radius: 5px; }
-        .positive { color: red; }
-        .negative { color: green; }
-        .tabs { display: flex; margin-bottom: 10px; }
-        .tab { padding: 10px 20px; cursor: pointer; border: 1px solid #ccc; background-color: #f1f1f1; }
-        .tab.active { background-color: #ddd; }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
-        .clickable { cursor: pointer; text-decoration: underline; color: #0066cc; }
-        .clickable:hover { background-color: #e0f0ff; }
-        tr td.no-diff { background-color: #e8f5e9 !important; }
-        tr:nth-child(even) td.no-diff { background-color: #d8ebd9 !important; }
-        .explain-modal { display: none; position: fixed; z-index: 1; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); }
-        .modal-content { background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-height: 70vh; overflow: auto; }
-        .close-btn { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
-        .close-btn:hover { color: black; }
-        .explain-content { font-family: monospace; white-space: pre; background-color: #f5f5f5; padding: 10px; border-radius: 5px; overflow-x: auto; }
-        .diff-container { display: flex; flex-direction: column; width: 100%; overflow-x: auto; }
+        :root {
+            --primary-color: #2196F3;
+            --success-color: #4CAF50;
+            --error-color: #F44336;
+            --warning-color: #FF9800;
+            --info-color: #2196F3;
+            --text-primary: #333;
+            --text-secondary: #666;
+            --text-light: #999;
+            --border-color: #e0e0e0;
+            --bg-light: #f8f8f8;
+            --bg-hover: #f0f7ff;
+            --bg-identical: #e8f5e9;
+            --header-height: 60px;
+            --border-radius: 4px;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.1);
+            --shadow-md: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: 0;
+            color: var(--text-primary);
+            background-color: #fff;
+            line-height: 1.5;
+        }
+        
+        .app {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        
+        .header {
+            background-color: #fff;
+            border-bottom: 1px solid var(--border-color);
+            height: var(--header-height);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: var(--shadow-sm);
+        }
+        
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 100%;
+            padding: 0 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        
+        .app-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0;
+        }
+        
+        .main {
+            flex: 1;
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+        }
+        
+        h1, h2, h3 {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+        
+        h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        
+        h2 {
+            font-size: 20px;
+            margin-bottom: 16px;
+        }
+        
+        h3 {
+            font-size: 16px;
+            margin-bottom: 12px;
+        }
+        
+        /* Table Styles */
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 16px;
+            margin-bottom: 32px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            overflow: hidden;
+        }
+        
+        th, td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+            border-right: none;
+            border-left: none;
+        }
+        
+        th {
+            background-color: var(--bg-light);
+            font-weight: 500;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+        
+        tr:nth-child(even) {
+            background-color: #fafafa;
+        }
+        
+        tr:hover {
+            background-color: var(--bg-hover);
+        }
+        
+        .faster {
+            font-weight: 500;
+        }
+        
+        .raw-faster {
+            color: #2196F3;
+        }
+        
+        .standard-faster {
+            color: #4CAF50;
+        }
+        
+        .histogram-faster {
+            color: #9C27B0;
+        }
+        
+        /* Summary Stats */
+        .summary {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        
+        .stat-item {
+            background-color: #fff;
+            border-radius: var(--border-radius);
+            padding: 16px 20px;
+            flex: 1;
+            min-width: 200px;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border-color);
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+        
+        /* Sortable Table Headers */
+        .sortable {
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        .sortable:hover {
+            background-color: #edf5ff;
+        }
+        
+        .sortable::after {
+            content: '\2195';
+            margin-left: 5px;
+            opacity: 0.5;
+            font-size: 12px;
+        }
+        
+        .sortable.asc::after {
+            content: '\2191';
+            opacity: 1;
+        }
+        
+        .sortable.desc::after {
+            content: '\2193';
+            opacity: 1;
+        }
+        
+        /* Identical Plans Highlighting */
+        tr td.no-diff {
+            background-color: var(--bg-identical) !important;
+        }
+        
+        tr:nth-child(even) td.no-diff {
+            background-color: #d8ebd9 !important;
+        }
+        
+        /* Modal Styles */
+        .explain-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5);
+            backdrop-filter: blur(2px);
+        }
+        
+        .modal-content {
+            background-color: #fff;
+            margin: 5% auto;
+            padding: 0;
+            border-radius: 8px;
+            box-shadow: var(--shadow-md);
+            width: 90%;
+            max-width: 1200px;
+            max-height: 85vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .modal-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .copy-btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 6px 12px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .copy-btn:hover {
+            background-color: #1976D2;
+        }
+        
+        .copy-success {
+            background-color: var(--success-color) !important;
+        }
+        
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin: 0;
+        }
+        
+        .modal-body {
+            padding: 20px;
+            overflow-y: auto;
+            flex: 1;
+        }
+        
+        .close-btn {
+            color: var(--text-light);
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            margin: 0;
+            line-height: 1;
+        }
+        
+        .close-btn:hover {
+            color: var(--text-primary);
+        }
+        
+        .close-btn::after {
+            content: '\00D7';
+        }
+        
+        /* Code Content Styles */
+        .explain-content {
+            font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+            white-space: pre-wrap;
+            background-color: var(--bg-light);
+            padding: 12px;
+            border-radius: var(--border-radius);
+            font-size: 13px;
+            line-height: 1.5;
+            overflow-x: auto;
+        }
+        
+        .sql-content {
+            font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+            white-space: pre;
+            background-color: transparent;
+            padding: 8px 0;
+            line-height: 1.5;
+            font-size: 13px;
+            color: var(--text-primary);
+            max-height: 60vh;
+            overflow-x: auto;
+            overflow-y: auto;
+        }
+        
+        /* Clickable Elements */
+        .clickable {
+            cursor: pointer;
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+        
+        .clickable:hover {
+            text-decoration: underline;
+            background-color: transparent;
+        }
+        .diff-container { display: flex; flex-direction: column; width: 100%; }
         .diff-header { display: flex; background: #f1f1f1; border: 1px solid #ddd; border-bottom: none; }
-        .diff-header-cell { flex: 1; padding: 8px; font-weight: bold; }
-        .diff-table { display: table; min-width: 100%; border-collapse: collapse; border: 1px solid #ddd; font-family: monospace; overflow-x: auto; }
+        .diff-header-cell { flex: 1; padding: 12px; font-weight: bold; font-size: 14px; }
+        .diff-table { display: table; width: 100%; border-collapse: collapse; border: 1px solid #ddd; font-family: monospace; }
         .diff-row { display: table-row; }
         .diff-row:nth-child(even) { background-color: #f8f8f8; }
         .diff-row:hover { background-color: #f0f7ff; }
         .diff-row:hover .diff-removed-row { background-color: #ffe8e8; }
         .diff-row:hover .diff-added-row { background-color: #e0ffe0; }
         .diff-cell { display: table-cell; padding: 0; vertical-align: top; }
-        .diff-gutter { width: 50px; text-align: right; color: #999; user-select: none; padding: 0 10px; border-right: 1px solid #eee; }
-        .diff-code { padding: 0 10px; white-space: pre; width: 50%; }
+        .diff-gutter { width: 40px; text-align: right; color: #999; user-select: none; padding: 0 10px; border-right: 1px solid #eee; }
+        .diff-code { padding: 4px 10px; white-space: pre-wrap; width: 50%; line-height: 1.5; }
         .diff-removed-row { background-color: #ffeef0; }
         .diff-removed-row .diff-gutter { background-color: #ffdce0; }
         .diff-added-row { background-color: #e6ffed; }
         .diff-added-row .diff-gutter { background-color: #cdffd8; }
-        .diff-marker { padding-right: 8px; }
+        .diff-marker { display: inline-block; width: 12px; text-align: center; font-weight: bold; padding-right: 8px; }
         .diff-marker-removed { color: #cb2431; }
         .diff-marker-added { color: #22863a; }
         .diff-marker-unchanged { color: transparent; }
@@ -80,8 +405,10 @@
         }
         
         function closeModal() {
-            var modal = document.getElementById("explainModal");
-            modal.style.display = "none";
+            var explainModal = document.getElementById("explainModal");
+            var sqlModal = document.getElementById("sqlModal");
+            explainModal.style.display = "none";
+            sqlModal.style.display = "none";
         }
         
         function closeDiffModal() {
@@ -89,17 +416,114 @@
             modal.style.display = "none";
         }
         
-        function showSql(queryName, sqlContent) {
+        function copyModalContent(elementId) {
+            var element = document.getElementById(elementId);
+            var button = event.target;
+            var originalText = button.textContent;
+            
+            if (element) {
+                // Create a temporary textarea to copy from
+                var textArea = document.createElement("textarea");
+                textArea.value = element.innerText;
+                document.body.appendChild(textArea);
+                textArea.select();
+                
+                try {
+                    // Execute copy command
+                    document.execCommand('copy');
+                    
+                    // Visual feedback
+                    button.textContent = "Copied!";
+                    button.classList.add("copy-success");
+                    
+                    // Reset button after 2 seconds
+                    setTimeout(function() {
+                        button.textContent = originalText;
+                        button.classList.remove("copy-success");
+                    }, 2000);
+                } catch (err) {
+                    console.error('Failed to copy text: ', err);
+                    button.textContent = "Failed";
+                    
+                    // Reset button after 2 seconds
+                    setTimeout(function() {
+                        button.textContent = originalText;
+                    }, 2000);
+                }
+                
+                // Remove the temporary textarea
+                document.body.removeChild(textArea);
+            }
+        }
+        
+        function showSql(queryName, sqlElementId) {
             // Set modal content
-            var modal = document.getElementById("explainModal");
-            var modalTitle = document.getElementById("explainTitle");
-            var modalContent = document.getElementById("explainContent");
+            var modal = document.getElementById("sqlModal");
+            var modalTitle = document.getElementById("sqlTitle");
+            var modalContent = document.getElementById("sqlContent");
             
             modalTitle.textContent = queryName + " - Full SQL";
-            modalContent.textContent = sqlContent || "SQL not available";
+            
+            // Get SQL content from hidden field
+            var sqlElement = document.getElementById(sqlElementId);
+            
+            if (sqlElement && sqlElement.value) {
+                var sqlContent = sqlElement.value;
+                
+                try {
+                    // Ensure we're using the global sqlFormatter object
+                    if (typeof sqlFormatter !== 'undefined') {
+                        // First, clean up any escaped characters
+                        sqlContent = sqlContent.replace(/\\n/g, '\n');
+                        
+                        // Format the SQL query with explicit formatting options
+                        var formattedSql = sqlFormatter.format(sqlContent, {
+                            language: 'sql',
+                            uppercase: true,
+                            linesBetweenQueries: 1,
+                            indentStyle: '  ',
+                            keywordCase: 'upper',
+                            tabulateAlias: true,
+                            maxColumnLength: 50
+                        });
+                        
+                        // Set the formatted SQL
+                        modalContent.textContent = formattedSql;
+                    } else {
+                        console.error('SQL Formatter library not loaded');
+                        modalContent.textContent = sqlContent; // Fallback
+                    }
+                } catch (e) {
+                    console.error('Error formatting SQL:', e);
+                    modalContent.textContent = sqlContent; // Fallback
+                }
+            } else {
+                modalContent.textContent = "SQL not available";
+            }
             
             // Show modal
             modal.style.display = "block";
+        }
+        
+        function formatSql(sql) {
+            try {
+                // Use the third-party SQL formatter library with compact settings
+                return sqlFormatter.format(sql, {
+                    language: 'sql',
+                    uppercase: true,
+                    linesBetweenQueries: 1,
+                    indentStyle: '  ',  // 2 spaces instead of 4
+                    keywordCase: 'upper',
+                    tabulateAlias: false,
+                    maxColumnLength: 50,
+                    params: {},
+                    paramTypes: {}
+                });
+            } catch (e) {
+                console.error('Error formatting SQL:', e);
+                // Fallback to the original SQL if formatting fails
+                return sql;
+            }
         }
         
         function showExplainDiff(queryName, method1, method2, plan1, plan2) {
@@ -153,9 +577,13 @@
                        '</div>' +
                        '<div class="diff-table">' +
                        '<div class="diff-row">' +
-                       '<div class="diff-cell" colspan="4" style="text-align: center; padding: 20px;">' +
-                       '<strong>No differences found between ' + label1 + ' and ' + label2 + ' plans.</strong><br>' +
-                       'Both plans are identical.' +
+                       '<div class="diff-cell" colspan="4" style="text-align: center; padding: 30px; background-color: #e8f5e9;">' +
+                       '<div style="font-size: 16px; margin-bottom: 10px;">' +
+                       '<span style="color: #2e7d32; font-weight: bold;">✓ IDENTICAL PLANS</span>' +
+                       '</div>' +
+                       '<div style="color: #555;">' +
+                       'No differences found between ' + label1 + ' and ' + label2 + ' execution plans.' +
+                       '</div>' +
                        '</div>' +
                        '</div>' +
                        '</div>';
@@ -329,15 +757,18 @@
         
         // Close modals when clicking outside of them
         window.onclick = function(event) {
-            var explainModal = document.getElementById("explainModal");
-            var diffModal = document.getElementById("explainDiffModal");
+            var explainModal = document.getElementById('explainModal');
+            var explainDiffModal = document.getElementById('explainDiffModal');
+            var sqlModal = document.getElementById('sqlModal');
             
             if (event.target == explainModal) {
                 explainModal.style.display = "none";
-            } else if (event.target == diffModal) {
-                diffModal.style.display = "none";
+            } else if (event.target == explainDiffModal) {
+                explainDiffModal.style.display = "none";
+            } else if (event.target == sqlModal) {
+                sqlModal.style.display = "none";
             }
-        }
+        };
         
         // Function to check if two plans are identical
         function arePlansIdentical(plan1, plan2) {
@@ -353,6 +784,49 @@
             }
             
             return true;
+        }
+        
+        // Table sorting function
+        function sortTable(table, column, asc) {
+            const dirModifier = asc ? 1 : -1;
+            const tBody = table.tBodies[0];
+            const rows = Array.from(tBody.querySelectorAll('tr'));
+            
+            // Sort each row
+            const sortedRows = rows.sort((a, b) => {
+                let aColText = a.querySelector(`td:nth-child(${column + 1})`).textContent.trim();
+                let bColText = b.querySelector(`td:nth-child(${column + 1})`).textContent.trim();
+                
+                // Remove the [identical] text if present for comparison
+                aColText = aColText.replace(/\s*\[identical\]\s*$/, '');
+                bColText = bColText.replace(/\s*\[identical\]\s*$/, '');
+                
+                // Remove % sign if present
+                aColText = aColText.replace('%', '');
+                bColText = bColText.replace('%', '');
+                
+                // Convert to number if possible
+                const aValue = isNaN(parseFloat(aColText)) ? aColText : parseFloat(aColText);
+                const bValue = isNaN(parseFloat(bColText)) ? bColText : parseFloat(bColText);
+                
+                if (typeof aValue === 'string' && typeof bValue === 'string') {
+                    return aValue.localeCompare(bValue) * dirModifier;
+                } else {
+                    return (aValue > bValue ? 1 : -1) * dirModifier;
+                }
+            });
+            
+            // Remove all existing rows from the table
+            while (tBody.firstChild) {
+                tBody.removeChild(tBody.firstChild);
+            }
+            
+            // Add sorted rows
+            tBody.append(...sortedRows);
+            
+            // Remember how the column is currently sorted
+            table.querySelectorAll('th').forEach(th => th.classList.remove('asc', 'desc'));
+            table.querySelector(`th:nth-child(${column + 1})`).classList.add(asc ? 'asc' : 'desc');
         }
         
         // Add event listeners after DOM is loaded
@@ -397,39 +871,75 @@
                     showExplainDiff(queryName, method1, method2, plan1, plan2);
                 });
             });
+            
+            // For sortable table headers
+            const comparisonTable = document.querySelector('#QueryComparison table');
+            document.querySelectorAll('.sortable').forEach(function(header, index) {
+                header.addEventListener('click', function() {
+                    const isAscending = !this.classList.contains('asc');
+                    sortTable(comparisonTable, index, isAscending);
+                });
+            });
         });
     </script>
 </head>
 <body>
-    <h1>Analyze Method Comparison</h1>
-    <p>Comparison of query execution times between raw (no analyze), standard analyze, and analyze with accurate histograms.</p>
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="header-left">
+                    <h1 class="app-title">Analyze Method Comparison</h1>
+                </div>
+            </div>
+        </header>
+        
+        <!-- Main Content -->
+        <main class="main">
+            <p>Comparison of query execution times between raw (no analyze), standard analyze, and analyze with accurate histograms.</p>
+            
+            <!-- Stats Overview -->
+            <div class="stats-overview">
+                <div class="stat-item">
+                    <div class="stat-value">{{ comparison_data.total_queries }}</div>
+                    <div class="stat-label">Total Queries</div>
+                </div>
+                <div class="stat-item raw-faster">
+                    <div class="stat-value">{{ comparison_data.raw_faster }} ({{ "%.1f"|format(comparison_data.raw_faster_pct) }}%)</div>
+                    <div class="stat-label">Raw Faster</div>
+                </div>
+                <div class="stat-item standard-faster">
+                    <div class="stat-value">{{ comparison_data.standard_faster }} ({{ "%.1f"|format(comparison_data.standard_faster_pct) }}%)</div>
+                    <div class="stat-label">Standard Analyze Faster</div>
+                </div>
+                <div class="stat-item histogram-faster">
+                    <div class="stat-value">{{ comparison_data.histogram_faster }} ({{ "%.1f"|format(comparison_data.histogram_faster_pct) }}%)</div>
+                    <div class="stat-label">Histogram Analyze Faster</div>
+                </div>
+            </div>
     
-    <div class="summary">
-        <h2>Summary</h2>
-        <p>Total Queries: {{ comparison_data.total_queries }}</p>
-        <p>Raw Faster: {{ comparison_data.raw_faster }} ({{ "%.1f"|format(comparison_data.raw_faster_pct) }}%)</p>
-        <p>Standard Analyze Faster: {{ comparison_data.standard_faster }} ({{ "%.1f"|format(comparison_data.standard_faster_pct) }}%)</p>
-        <p>Histogram Analyze Faster: {{ comparison_data.histogram_faster }} ({{ "%.1f"|format(comparison_data.histogram_faster_pct) }}%)</p>
-    </div>
-    
-    <!-- Tabs removed as per requirement -->
-    
-    <div id="QueryComparison">
-        <h2>Query Execution Time Comparison</h2>
-        <table>
+            <!-- Query Comparison Section -->
+            <div class="logs-container">
+                <div class="logs-header">
+                    <div class="logs-title">
+                        <h2>Query Execution Time Comparison</h2>
+                    </div>
+                </div>
+                
+                <table class="comparison-table">
             <tr>
-                <th>Query ID</th>
-                <th>Raw Time (s)</th>
-                <th>Standard Time (s)</th>
-                <th>Histogram Time (s)</th>
-                <th>Std vs Raw (%)</th>
-                <th>Hist vs Raw (%)</th>
-                <th>Hist vs Std (%)</th>
-                <th>Fastest Method</th>
+                <th class="sortable" data-sort="name">Query ID</th>
+                <th class="sortable" data-sort="raw_time">Raw Time (s)</th>
+                <th class="sortable" data-sort="standard_time">Standard Time (s)</th>
+                <th class="sortable" data-sort="histogram_time">Histogram Time (s)</th>
+                <th class="sortable" data-sort="std_vs_raw">Std vs Raw (%)</th>
+                <th class="sortable" data-sort="hist_vs_raw">Hist vs Raw (%)</th>
+                <th class="sortable" data-sort="hist_vs_std">Hist vs Std (%)</th>
+                <th class="sortable" data-sort="fastest_method">Fastest Method</th>
             </tr>
             {% for query in comparison_data.queries %}
             <tr>
-                <td class="clickable" onclick="showSql('{{ query.name }}', '{{ query.sql_preview|e }}')" title="Click to view full SQL">{{ query.name }}</td>
+                <td class="clickable" onclick="showSql('{{ query.name }}', 'sql-{{ loop.index }}')" title="Click to view full SQL">{{ query.name }}</td>
                 <td class="clickable explain-cell" data-query="{{ query.name }}" data-method="Raw" data-plan-id="raw-{{ loop.index }}" title="Click to view Raw execution plan">{{ "%.3f"|format(query.raw_time) }}</td>
                 <td class="clickable explain-cell" data-query="{{ query.name }}" data-method="Standard" data-plan-id="standard-{{ loop.index }}" title="Click to view Standard execution plan">{{ "%.3f"|format(query.standard_time) }}</td>
                 <td class="clickable explain-cell" data-query="{{ query.name }}" data-method="Histogram" data-plan-id="histogram-{{ loop.index }}" title="Click to view Histogram execution plan">{{ "%.3f"|format(query.histogram_time) }}</td>
@@ -438,31 +948,63 @@
                 <td class="clickable explain-diff-cell {{ 'negative' if query.hist_vs_std < 0 else 'positive' }}" data-query="{{ query.name }}" data-method1="Histogram" data-method2="Standard" data-plan1-id="histogram-{{ loop.index }}" data-plan2-id="standard-{{ loop.index }}" title="Click to compare Histogram vs Standard execution plans" {% if query.histogram_explain == query.standard_explain %}style="background-color: #e8f5e9 !important;"{% endif %}>{{ "%.1f"|format(query.hist_vs_std) }}{% if query.histogram_explain == query.standard_explain %} <span style="font-size: 0.8em; color: #2e7d32;">[identical]</span>{% endif %}</td>
                 <td class="faster {{ query.fastest_method.lower() }}-faster">{{ query.fastest_method }}</td>
             </tr>
-            <!-- Hidden fields to store explain plans -->
+            <!-- Hidden fields to store explain plans and SQL -->
             <input type="hidden" id="raw-{{ loop.index }}" value="{{ query.raw_explain|e }}">
             <input type="hidden" id="standard-{{ loop.index }}" value="{{ query.standard_explain|e }}">
             <input type="hidden" id="histogram-{{ loop.index }}" value="{{ query.histogram_explain|e }}">
+            <input type="hidden" id="sql-{{ loop.index }}" value="{{ query.sql_preview|e }}">
             {% endfor %}
-        </table>
-    </div>
-    
-    <!-- Performance Analysis section removed as per requirement -->
-    <!-- Explain Modal -->
-    <div id="explainModal" class="explain-modal">
-        <div class="modal-content">
-            <span class="close-btn" onclick="closeModal()">&times;</span>
-            <h3 id="explainTitle">Execution Plan</h3>
-            <div class="explain-content" id="explainContent"></div>
+                </table>
+            </div>
+        </main>
+        
+        <!-- SQL Modal -->
+        <div id="sqlModal" class="explain-modal">
+            <div class="modal-content" style="width: 80%; max-width: 1200px;">
+                <div class="modal-header">
+                    <h3 class="modal-title" id="sqlTitle">SQL Query</h3>
+                    <div class="modal-actions">
+                        <button class="copy-btn" onclick="copyModalContent('sqlContent')" title="Copy to clipboard">Copy</button>
+                        <span class="close-btn" onclick="closeModal()"></span>
+                    </div>
+                </div>
+                <div class="modal-body" style="max-height: 80vh;">
+                    <pre class="sql-content" id="sqlContent" style="white-space: pre-wrap; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 14px; line-height: 1.5; padding: 16px; overflow: auto; background-color: #f8f9fa; border-radius: 4px; margin: 0;"></pre>
+                </div>
+            </div>
         </div>
-    </div>
-    
-    <!-- Explain Diff Modal -->
-    <div id="explainDiffModal" class="explain-modal">
-        <div class="modal-content">
-            <span class="close-btn" onclick="closeDiffModal()">&times;</span>
-            <h3 id="explainDiffTitle">Execution Plan Comparison</h3>
-            <div class="diff-container">
-                <div class="explain-content" id="diffContent"></div>
+        
+        <!-- Explain Modal -->
+        <div id="explainModal" class="explain-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 class="modal-title" id="explainTitle">Execution Plan</h3>
+                    <div class="modal-actions">
+                        <button class="copy-btn" onclick="copyModalContent('explainContent')" title="Copy to clipboard">Copy</button>
+                        <span class="close-btn" onclick="closeModal()"></span>
+                    </div>
+                </div>
+                <div class="modal-body">
+                    <div class="explain-content" id="explainContent"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Explain Diff Modal -->
+        <div id="explainDiffModal" class="explain-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 class="modal-title" id="explainDiffTitle">Execution Plan Comparison</h3>
+                    <div class="modal-actions">
+                        <button class="copy-btn" onclick="copyModalContent('diffContent')" title="Copy to clipboard">Copy</button>
+                        <span class="close-btn" onclick="closeDiffModal()"></span>
+                    </div>
+                </div>
+                <div class="modal-body">
+                    <div class="diff-container">
+                        <div class="explain-content" id="diffContent"></div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
