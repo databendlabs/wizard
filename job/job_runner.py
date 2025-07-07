@@ -71,6 +71,9 @@ class ComparisonQueryResult:
     hist_vs_raw: float
     hist_vs_std: float
     fastest_method: str
+    raw_explain: str = ""
+    standard_explain: str = ""
+    histogram_explain: str = ""
 
 @dataclass
 class ComparisonData:
@@ -89,8 +92,8 @@ class ComparisonData:
 class BendSQLExecutor:
     """BendSQL command executor"""
     
-    def __init__(self):
-        pass
+    def __init__(self, job_runner=None):
+        self.job_runner = job_runner
     
     def execute_query(self, query: str, timeout: int = 300) -> Tuple[bool, str, float]:
         """Execute a single SQL query"""
@@ -121,6 +124,11 @@ class BendSQLExecutor:
             
             status = "✅ Success" if success else "❌ Failed"
             print(f"    {status} in {duration:.2f}s")
+            
+            # Print total elapsed time if job_runner is available
+            if self.job_runner:
+                total_elapsed = self.job_runner.get_elapsed_time()
+                print(f"    Total elapsed time: {total_elapsed}")
             
             # Print error details if failed
             if not success and output:
@@ -224,6 +232,40 @@ class BendSQLExecutor:
             ))
         
         return results
+        
+    def execute_explain(self, sql: str) -> str:
+        """Execute EXPLAIN on SQL, but only for SELECT statements"""
+        try:
+            # Check if the SQL contains a SELECT statement
+            # Skip USE statements and other non-query statements
+            sql_lower = sql.lower().strip()
+            
+            # Extract the first actual SQL statement (ignoring comments and USE statements)
+            lines = sql_lower.split('\n')
+            clean_lines = []
+            for line in lines:
+                line = line.strip()
+                # Skip comments and empty lines
+                if line.startswith('--') or line.startswith('#') or not line:
+                    continue
+                # Skip USE statements
+                if line.startswith('use '):
+                    continue
+                clean_lines.append(line)
+            
+            # If no SELECT statement found, return empty string (silently skip)
+            if not clean_lines or not any(line.startswith('select') for line in clean_lines):
+                return ""
+            
+            # Only run EXPLAIN on the SQL if it contains a SELECT statement
+            explain_sql = f"EXPLAIN {sql}"
+            success, output, _ = self.execute_query(explain_sql)
+            if success:
+                return output.strip()
+            else:
+                return f"Error executing EXPLAIN: {output}"
+        except Exception as e:
+            return f"Exception during EXPLAIN: {str(e)}"
 
 class SQLFileParser:
     """SQL file parser for query discovery"""
@@ -305,10 +347,19 @@ class JobRunner:
     """Main job runner class"""
     
     def __init__(self):
-        self.executor = BendSQLExecutor()
+        self.start_time = time.time()
+        self.executor = BendSQLExecutor(job_runner=self)
         self.parser = SQLFileParser()
         self.reporter = ReportGenerator()
         self.results: List[TestResult] = []
+        self.log(f"Job started at {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        
+    def get_elapsed_time(self) -> str:
+        """Get formatted elapsed time since job started"""
+        elapsed = time.time() - self.start_time
+        hours, remainder = divmod(elapsed, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        return f"{int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}"
     
     def log(self, message: str, level: str = "info"):
         """Log message with color coding"""
@@ -321,20 +372,48 @@ class JobRunner:
         color = colors.get(level, "white")
         print(colored(f"[{level.upper()}] {message}", color))
     
-    def setup_database(self) -> bool:
-        """Set up database from setup.sql"""
-        setup_file = Path("sql/setup.sql")
-        if not setup_file.exists():
-            self.log(f"Setup file not found: {setup_file}", "error")
+    def setup_database(self, parallel=True, num_threads=8) -> bool:
+        """Set up database from SQL files in the setup directory"""
+        setup_dir = Path("sql/setup")
+        if not setup_dir.exists() or not setup_dir.is_dir():
+            self.log(f"Setup directory not found: {setup_dir}", "error")
             return False
         
+        # Find all SQL files in the setup directory
+        setup_files = sorted(list(setup_dir.glob("*.sql")))
+        if not setup_files:
+            self.log("No SQL files found in setup directory", "error")
+            return False
+            
+        self.log(f"Found {len(setup_files)} setup files to execute", "info")
         self.log("Setting up database...", "info")
         start_time = time.time()
         
-        query_results = self.executor.execute_sql_file(setup_file)
-        duration = time.time() - start_time
-        success = all(r.success for r in query_results)
+        # Execute files in order, with parallel execution within each file
+        all_results = []
         
+        # Process all files in sorted order
+        for setup_file in setup_files:
+            self.log(f"Executing {setup_file.name}...", "info")
+            if parallel:
+                file_results = self._execute_sql_file_parallel(setup_file, num_threads)
+            else:
+                file_results = self.executor.execute_sql_file(setup_file)
+                
+            all_results.extend(file_results)
+            
+            # Check if this file's execution was successful
+            if not all(r.success for r in file_results):
+                self.log(f"Setup failed during {setup_file.name}", "error")
+                duration = time.time() - start_time
+                return self._finalize_setup_results(all_results, duration, False)
+        
+        duration = time.time() - start_time
+        success = all(r.success for r in all_results)
+        return self._finalize_setup_results(all_results, duration, success)
+    
+    def _finalize_setup_results(self, query_results, duration, success):
+        """Create and store test results for database setup"""
         stage = StageResult(
             name="setup",
             queries=query_results,
@@ -465,29 +544,44 @@ class JobRunner:
             self.log(f"Query execution failed in {total_duration:.2f}s", "error")
         
         return success
-    
+        
     def run_comparison_analysis(self) -> bool:
         """Run comparison analysis between different analyze methods"""
         self.log("Starting comparison analysis...", "info")
         
-        # Get all SQL files
-        sql_files = self.parser.get_sql_files("sql/check")
+        # Find SQL files
+        sql_dir = Path("sql/check")
+        sql_files = self.parser.find_sql_files(sql_dir)
+        
         if not sql_files:
-            self.log("No SQL files found for comparison", "error")
+            self.log("No SQL files found in sql/check directory", "error")
             return False
         
-        # Store results for each method
+        # Store results
         raw_results = {}
         standard_results = {}
         histogram_results = {}
+        raw_explains = {}
+        standard_explains = {}
+        histogram_explains = {}
         
-        # Run queries without analyze (raw)
-        self.log("Running queries without analyze (raw)...", "info")
+        # Run with no analyze
+        self.log("Running queries with no analyze...", "info")
+        if not self.setup_database():
+            self.log("Database setup failed", "error")
+            return False
+        
         for sql_file in sql_files:
             self.log(f"Executing {sql_file.name} (raw)...", "info")
             query_results = self.executor.execute_sql_file(sql_file)
             if query_results:
                 raw_results[sql_file.name] = query_results[0].duration
+                
+                # Get explain plan for raw execution
+                sql_content = self._get_sql_content(sql_file)
+                if sql_content:
+                    self.log(f"Getting EXPLAIN plan for {sql_file.name} (raw)...", "info")
+                    raw_explains[sql_file.name] = self.executor.execute_explain(sql_content)
         
         # Run with standard analyze
         self.log("Running queries with standard analyze...", "info")
@@ -500,6 +594,12 @@ class JobRunner:
             query_results = self.executor.execute_sql_file(sql_file)
             if query_results:
                 standard_results[sql_file.name] = query_results[0].duration
+                
+                # Get explain plan for standard execution
+                sql_content = self._get_sql_content(sql_file)
+                if sql_content:
+                    self.log(f"Getting EXPLAIN plan for {sql_file.name} (standard)...", "info")
+                    standard_explains[sql_file.name] = self.executor.execute_explain(sql_content)
         
         # Run with histogram analyze
         self.log("Running queries with histogram analyze...", "info")
@@ -512,9 +612,19 @@ class JobRunner:
             query_results = self.executor.execute_sql_file(sql_file)
             if query_results:
                 histogram_results[sql_file.name] = query_results[0].duration
+                
+                # Get explain plan for histogram execution
+                sql_content = self._get_sql_content(sql_file)
+                if sql_content:
+                    self.log(f"Getting EXPLAIN plan for {sql_file.name} (histogram)...", "info")
+                    histogram_explains[sql_file.name] = self.executor.execute_explain(sql_content)
         
         # Generate comparison data
-        comparison_data = self._generate_comparison_data(raw_results, standard_results, histogram_results, sql_files)
+        comparison_data = self._generate_comparison_data(
+            raw_results, standard_results, histogram_results, 
+            raw_explains, standard_explains, histogram_explains, 
+            sql_files
+        )
         
         # Store comparison results
         test_result = TestResult(
@@ -532,7 +642,9 @@ class JobRunner:
         return True
     
     def _generate_comparison_data(self, raw_results: Dict, standard_results: Dict,
-                                histogram_results: Dict, sql_files: List[Path]) -> ComparisonData:
+                                histogram_results: Dict, raw_explains: Dict, 
+                                standard_explains: Dict, histogram_explains: Dict,
+                                sql_files: List[Path]) -> ComparisonData:
         """Generate comparison data structure"""
         queries = []
         raw_faster = 0
@@ -567,6 +679,11 @@ class JobRunner:
             # Get SQL preview
             sql_preview = self._get_sql_preview(sql_file)
             
+            # Get explain plans if available
+            raw_explain = raw_explains.get(filename, "")
+            standard_explain = standard_explains.get(filename, "")
+            histogram_explain = histogram_explains.get(filename, "")
+            
             query_result = ComparisonQueryResult(
                 name=filename,
                 sql_preview=sql_preview,
@@ -576,7 +693,10 @@ class JobRunner:
                 std_vs_raw=std_vs_raw,
                 hist_vs_raw=hist_vs_raw,
                 hist_vs_std=hist_vs_std,
-                fastest_method=fastest_method
+                fastest_method=fastest_method,
+                raw_explain=raw_explain,
+                standard_explain=standard_explain,
+                histogram_explain=histogram_explain
             )
             queries.append(query_result)
         
@@ -645,6 +765,119 @@ class JobRunner:
                 return preview[:200] + "..." if len(preview) > 200 else preview
         except:
             return "SQL preview not available"
+            
+    def _execute_sql_file_parallel(self, file_path: Path, num_threads: int = 8) -> List[QueryResult]:
+        """Execute SQL file with parallel execution for statements with the same prefix"""
+        results = []
+        
+        try:
+            # Read the SQL file
+            with open(file_path, 'r') as f:
+                sql_script = f.read()
+            
+            # Split into individual queries
+            queries = [q.strip() for q in sql_script.split(';') if q.strip()]
+            self.log(f"Found {len(queries)} SQL statements to execute in {file_path.name}", "info")
+            
+            # Group queries by their prefix for parallel execution
+            query_groups = self._group_queries_by_prefix(queries)
+            self.log(f"Grouped into {len(query_groups)} prefix groups for parallel execution", "info")
+            
+            # Create a lock for thread-safe result appending
+            result_lock = threading.Lock()
+            
+            # Process each group of queries with the same prefix
+            group_id = 0
+            for prefix, group_queries in query_groups.items():
+                group_id += 1
+                self.log(f"Processing group {group_id} with prefix '{prefix}' ({len(group_queries)} statements)", "info")
+                
+                # Function to execute a query in parallel
+                def execute_query(query, query_id):
+                    query_name = f"{file_path.stem}_group{group_id}_{query_id}"
+                    success, output, duration = self.executor.execute_query(query)
+                    
+                    query_result = QueryResult(
+                        name=query_name,
+                        sql=query,
+                        success=success,
+                        duration=duration,
+                        error="" if success else output,
+                        output=output if success else ""
+                    )
+                    
+                    # Thread-safe append to results
+                    with result_lock:
+                        results.append(query_result)
+                
+                # Create and start threads for this group
+                threads = []
+                for i, query in enumerate(group_queries):
+                    thread = threading.Thread(target=execute_query, args=(query, i+1))
+                    threads.append(thread)
+                    thread.start()
+                    
+                    # Limit the number of concurrent threads
+                    if len(threads) >= num_threads:
+                        # Wait for all threads to complete before starting more
+                        for t in threads:
+                            t.join()
+                        threads = []
+                
+                # Wait for any remaining threads to complete
+                for thread in threads:
+                    thread.join()
+                    
+                self.log(f"Completed group {group_id} with prefix '{prefix}'", "info")
+            
+            self.log(f"All statements executed, total: {len(results)} queries", "info")
+            
+        except Exception as e:
+            self.log(f"Error in parallel execution: {str(e)}", "error")
+            results.append(QueryResult(
+                name=f"{file_path.stem}_error",
+                sql="",
+                success=False,
+                duration=0.0,
+                error=str(e),
+                output=""
+            ))
+        
+        return results
+        
+    def _group_queries_by_prefix(self, queries):
+        """Group SQL queries by their prefix (first word)"""
+        groups = {}
+        
+        for query in queries:
+            # Skip empty queries
+            if not query.strip():
+                continue
+                
+            # Extract the first word as the prefix
+            words = query.strip().split()
+            if not words:
+                continue
+                
+            prefix = words[0].upper()
+            
+            # Add to the appropriate group
+            if prefix not in groups:
+                groups[prefix] = []
+            groups[prefix].append(query)
+        
+        return groups
+        
+    def _get_sql_content(self, sql_file: Path) -> str:
+        """Get full SQL content from file"""
+        try:
+            with open(sql_file, 'r') as f:
+                content = f.read().strip()
+                # Remove comments
+                lines = [line for line in content.split('\n') if line.strip() and not line.strip().startswith('--')]
+                return '\n'.join(lines)
+        except:
+            return ""
     
     def _generate_comparison_report(self, comparison_data: ComparisonData):
         """Generate comparison report"""
@@ -698,53 +931,47 @@ class JobRunner:
 def main():
     """Main function"""
     parser = argparse.ArgumentParser(description="BendSQL Job Runner")
-    parser.add_argument("--setup", action="store_true", help="Setup database")
-    parser.add_argument("--analyze", choices=["standard", "histogram"], help="Analyze tables")
-    parser.add_argument("--run", action="store_true", help="Run queries")
-    parser.add_argument("--all", action="store_true", help="Run setup, analyze, and queries")
     parser.add_argument("--compare", action="store_true", help="Run comparison analysis between different analyze methods")
     
     args = parser.parse_args()
     
-    if not any([args.setup, args.analyze, args.run, args.all, args.compare]):
-        parser.print_help()
-        return
-    
     runner = JobRunner()
     
     try:
+        # Always setup database first
+        runner.log(f"Starting database setup... [Elapsed: {runner.get_elapsed_time()}]")
+        if not runner.setup_database():
+            sys.exit(1)
+        runner.log(f"Database setup completed. [Elapsed: {runner.get_elapsed_time()}]")
+                
         if args.compare:
             # Run comparison analysis
-            if not runner.setup_database():
-                sys.exit(1)
+            runner.log(f"Starting comparison analysis... [Elapsed: {runner.get_elapsed_time()}]")
             if not runner.run_comparison_analysis():
                 sys.exit(1)
-        elif args.all:
-            # Run complete workflow
-            if not runner.setup_database():
-                sys.exit(1)
+            runner.log(f"Comparison analysis completed. [Elapsed: {runner.get_elapsed_time()}]")
+        else:
+            # Default behavior: run standard analyze
+            runner.log(f"Starting standard analysis... [Elapsed: {runner.get_elapsed_time()}]")
             if not runner.analyze_tables("standard"):
                 sys.exit(1)
-            if not runner.run_queries():
-                sys.exit(1)
-        else:
-            # Run individual steps
-            if args.setup and not runner.setup_database():
-                sys.exit(1)
-            if args.analyze and not runner.analyze_tables(args.analyze):
-                sys.exit(1)
-            if args.run and not runner.run_queries():
-                sys.exit(1)
+            runner.log(f"Standard analysis completed. [Elapsed: {runner.get_elapsed_time()}]")
+
         
         # Always generate report if any operations were performed (except for comparison which generates its own)
         if runner.results and not args.compare:
+            runner.log(f"Generating report... [Elapsed: {runner.get_elapsed_time()}]")
             runner.generate_report()
             
+        # Print final execution time
+        total_time = runner.get_elapsed_time()
+        runner.log(f"Job completed successfully. Total execution time: {total_time}", "success")
+            
     except KeyboardInterrupt:
-        runner.log("Operation cancelled by user", "warning")
+        runner.log(f"Operation cancelled by user after {runner.get_elapsed_time()}", "warning")
         sys.exit(1)
     except Exception as e:
-        runner.log(f"Unexpected error: {e}", "error")
+        runner.log(f"Unexpected error after {runner.get_elapsed_time()}: {e}", "error")
         sys.exit(1)
 
 if __name__ == "__main__":

@@ -21,6 +21,33 @@
         .tab.active { background-color: #ddd; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
+        .clickable { cursor: pointer; text-decoration: underline; color: #0066cc; }
+        .clickable:hover { background-color: #e0f0ff; }
+        .explain-modal { display: none; position: fixed; z-index: 1; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); }
+        .modal-content { background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-height: 70vh; overflow-y: auto; }
+        .close-btn { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .close-btn:hover { color: black; }
+        .explain-content { font-family: monospace; white-space: pre-wrap; background-color: #f5f5f5; padding: 10px; border-radius: 5px; }
+        .diff-container { display: flex; flex-direction: column; width: 100%; }
+        .diff-header { display: flex; background: #f1f1f1; border: 1px solid #ddd; border-bottom: none; }
+        .diff-header-cell { flex: 1; padding: 8px; font-weight: bold; }
+        .diff-table { display: table; width: 100%; border-collapse: collapse; border: 1px solid #ddd; font-family: monospace; }
+        .diff-row { display: table-row; }
+        .diff-row:nth-child(even) { background-color: #f8f8f8; }
+        .diff-row:hover { background-color: #f0f7ff; }
+        .diff-row:hover .diff-removed-row { background-color: #ffe8e8; }
+        .diff-row:hover .diff-added-row { background-color: #e0ffe0; }
+        .diff-cell { display: table-cell; padding: 0; vertical-align: top; }
+        .diff-gutter { width: 50px; text-align: right; color: #999; user-select: none; padding: 0 10px; border-right: 1px solid #eee; }
+        .diff-code { padding: 0 10px; white-space: pre-wrap; width: 50%; }
+        .diff-removed-row { background-color: #ffeef0; }
+        .diff-removed-row .diff-gutter { background-color: #ffdce0; }
+        .diff-added-row { background-color: #e6ffed; }
+        .diff-added-row .diff-gutter { background-color: #cdffd8; }
+        .diff-marker { padding-right: 8px; }
+        .diff-marker-removed { color: #cb2431; }
+        .diff-marker-added { color: #22863a; }
+        .diff-marker-unchanged { color: transparent; }
     </style>
     <script>
         function openTab(evt, tabName) {
@@ -36,6 +63,296 @@
             document.getElementById(tabName).style.display = "block";
             evt.currentTarget.className += " active";
         }
+        
+        function showExplain(queryName, method, explainContent) {
+            // Set modal content
+            var modal = document.getElementById("explainModal");
+            var modalTitle = document.getElementById("explainTitle");
+            var modalContent = document.getElementById("explainContent");
+            
+            modalTitle.textContent = queryName + " - " + method + " Execution Plan";
+            modalContent.textContent = explainContent || "No explain plan available";
+            
+            // Show modal
+            modal.style.display = "block";
+        }
+        
+        function closeModal() {
+            var modal = document.getElementById("explainModal");
+            modal.style.display = "none";
+        }
+        
+        function closeDiffModal() {
+            var modal = document.getElementById("explainDiffModal");
+            modal.style.display = "none";
+        }
+        
+        function showExplainDiff(queryName, method1, method2, plan1, plan2) {
+            // Set modal content
+            var modal = document.getElementById("explainDiffModal");
+            var modalTitle = document.getElementById("explainDiffTitle");
+            var diffContent = document.getElementById("diffContent");
+            
+            modalTitle.textContent = queryName + " - " + method1 + " vs " + method2 + " Execution Plan";
+            
+            // Determine which method should be shown as added (+)
+            // For all comparisons, the first method should be shown as added (+)
+            // Std vs Raw: Std is +
+            // Hist vs Raw: Hist is +
+            // Hist vs Std: Hist is +
+            // So in all cases, method1 should be + and method2 should be -
+            
+            // Create a traditional diff format with + and -
+            const diffResult = createDiff(plan2, plan1, method2, method1);
+            
+            // Set the diff content safely using textContent first, then convert to HTML
+            diffContent.innerHTML = diffResult;
+            
+            // Show modal
+            modal.style.display = "block";
+        }
+        
+        function createDiff(text1, text2, label1, label2) {
+            // Split both texts into lines
+            const lines1 = (text1 || "").split('\n');
+            const lines2 = (text2 || "").split('\n');
+            
+            // Check if plans are identical
+            let identical = true;
+            if (lines1.length === lines2.length) {
+                for (let i = 0; i < lines1.length; i++) {
+                    if (lines1[i] !== lines2[i]) {
+                        identical = false;
+                        break;
+                    }
+                }
+            } else {
+                identical = false;
+            }
+            
+            // If plans are identical, show a clear message
+            if (identical) {
+                return '<div class="diff-header">' +
+                       '<div class="diff-header-cell">' + label1 + ' Plan</div>' +
+                       '<div class="diff-header-cell">' + label2 + ' Plan</div>' +
+                       '</div>' +
+                       '<div class="diff-table">' +
+                       '<div class="diff-row">' +
+                       '<div class="diff-cell" colspan="4" style="text-align: center; padding: 20px;">' +
+                       '<strong>No differences found between ' + label1 + ' and ' + label2 + ' plans.</strong><br>' +
+                       'Both plans are identical.' +
+                       '</div>' +
+                       '</div>' +
+                       '</div>';
+            }
+            
+            // Create the diff header
+            let result = '<div class="diff-header">' +
+                         '<div class="diff-header-cell">' + label1 + ' Plan</div>' +
+                         '<div class="diff-header-cell">' + label2 + ' Plan</div>' +
+                         '</div>' +
+                         '<div class="diff-table">';
+            
+            // Find common lines and differences using a simple LCS algorithm
+            const diff = computeDiff(lines1, lines2);
+            
+            // Generate the side-by-side diff view
+            let leftLineNum = 1;
+            let rightLineNum = 1;
+            
+            for (const part of diff) {
+                if (part.type === 'common') {
+                    // Common lines - show on both sides
+                    for (const line of part.lines) {
+                        result += '<div class="diff-row">' +
+                                  '<div class="diff-cell diff-gutter">' + leftLineNum++ + '</div>' +
+                                  '<div class="diff-cell diff-code"><span class="diff-marker diff-marker-unchanged"> </span>' + escapeHtml(line) + '</div>' +
+                                  '<div class="diff-cell diff-gutter">' + rightLineNum++ + '</div>' +
+                                  '<div class="diff-cell diff-code"><span class="diff-marker diff-marker-unchanged"> </span>' + escapeHtml(line) + '</div>' +
+                                  '</div>';
+                    }
+                } else if (part.type === 'removed') {
+                    // Lines only in the left side
+                    for (const line of part.lines) {
+                        result += '<div class="diff-row diff-removed-row">' +
+                                  '<div class="diff-cell diff-gutter">' + leftLineNum++ + '</div>' +
+                                  '<div class="diff-cell diff-code"><span class="diff-marker diff-marker-removed">-</span>' + escapeHtml(line) + '</div>' +
+                                  '<div class="diff-cell diff-gutter"></div>' +
+                                  '<div class="diff-cell diff-code"></div>' +
+                                  '</div>';
+                    }
+                } else if (part.type === 'added') {
+                    // Lines only in the right side
+                    for (const line of part.lines) {
+                        result += '<div class="diff-row diff-added-row">' +
+                                  '<div class="diff-cell diff-gutter"></div>' +
+                                  '<div class="diff-cell diff-code"></div>' +
+                                  '<div class="diff-cell diff-gutter">' + rightLineNum++ + '</div>' +
+                                  '<div class="diff-cell diff-code"><span class="diff-marker diff-marker-added">+</span>' + escapeHtml(line) + '</div>' +
+                                  '</div>';
+                    }
+                } else if (part.type === 'modified') {
+                    // Modified lines - show on both sides with highlighting
+                    for (let i = 0; i < Math.max(part.left.length, part.right.length); i++) {
+                        const leftLine = i < part.left.length ? part.left[i] : '';
+                        const rightLine = i < part.right.length ? part.right[i] : '';
+                        
+                        result += '<div class="diff-row">' +
+                                  '<div class="diff-cell diff-gutter">' + (leftLine ? leftLineNum++ : '') + '</div>' +
+                                  '<div class="diff-cell diff-code' + (leftLine ? ' diff-removed-row' : '') + '">' + 
+                                  (leftLine ? '<span class="diff-marker diff-marker-removed">-</span>' + escapeHtml(leftLine) : '') + '</div>' +
+                                  '<div class="diff-cell diff-gutter">' + (rightLine ? rightLineNum++ : '') + '</div>' +
+                                  '<div class="diff-cell diff-code' + (rightLine ? ' diff-added-row' : '') + '">' + 
+                                  (rightLine ? '<span class="diff-marker diff-marker-added">+</span>' + escapeHtml(rightLine) : '') + '</div>' +
+                                  '</div>';
+                    }
+                }
+            }
+            
+            result += '</div>'; // Close diff-table
+            
+            return result;
+        }
+        
+        function computeDiff(lines1, lines2) {
+            const result = [];
+            let i = 0, j = 0;
+            
+            while (i < lines1.length || j < lines2.length) {
+                // Find a block of common lines
+                let commonStart = i;
+                let commonLength = 0;
+                
+                while (i < lines1.length && j < lines2.length && lines1[i] === lines2[j]) {
+                    i++;
+                    j++;
+                    commonLength++;
+                }
+                
+                if (commonLength > 0) {
+                    result.push({
+                        type: 'common',
+                        lines: lines1.slice(commonStart, commonStart + commonLength)
+                    });
+                }
+                
+                // Find blocks of removed and added lines
+                const removedStart = i;
+                const addedStart = j;
+                
+                // Look ahead to find the next common line
+                let nextCommonI = -1;
+                let nextCommonJ = -1;
+                
+                for (let ii = i; ii < lines1.length; ii++) {
+                    for (let jj = j; jj < lines2.length; jj++) {
+                        if (lines1[ii] === lines2[jj]) {
+                            nextCommonI = ii;
+                            nextCommonJ = jj;
+                            break;
+                        }
+                    }
+                    if (nextCommonI !== -1) break;
+                }
+                
+                if (nextCommonI !== -1) {
+                    // We found a common line ahead
+                    const removedLines = lines1.slice(i, nextCommonI);
+                    const addedLines = lines2.slice(j, nextCommonJ);
+                    
+                    if (removedLines.length > 0 && addedLines.length > 0) {
+                        // Both sides have changes - treat as modified
+                        result.push({
+                            type: 'modified',
+                            left: removedLines,
+                            right: addedLines
+                        });
+                    } else if (removedLines.length > 0) {
+                        // Only left side has changes
+                        result.push({
+                            type: 'removed',
+                            lines: removedLines
+                        });
+                    } else if (addedLines.length > 0) {
+                        // Only right side has changes
+                        result.push({
+                            type: 'added',
+                            lines: addedLines
+                        });
+                    }
+                    
+                    i = nextCommonI;
+                    j = nextCommonJ;
+                } else {
+                    // No more common lines
+                    if (i < lines1.length) {
+                        result.push({
+                            type: 'removed',
+                            lines: lines1.slice(i)
+                        });
+                    }
+                    
+                    if (j < lines2.length) {
+                        result.push({
+                            type: 'added',
+                            lines: lines2.slice(j)
+                        });
+                    }
+                    
+                    break;
+                }
+            }
+            
+            return result;
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Close modals when clicking outside of them
+        window.onclick = function(event) {
+            var explainModal = document.getElementById("explainModal");
+            var diffModal = document.getElementById("explainDiffModal");
+            
+            if (event.target == explainModal) {
+                explainModal.style.display = "none";
+            } else if (event.target == diffModal) {
+                diffModal.style.display = "none";
+            }
+        }
+        
+        // Add event listeners after DOM is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            // For regular explain cells
+            var explainCells = document.querySelectorAll('.explain-cell');
+            explainCells.forEach(function(cell) {
+                cell.addEventListener('click', function() {
+                    var queryName = this.getAttribute('data-query');
+                    var method = this.getAttribute('data-method');
+                    var planId = this.getAttribute('data-plan-id');
+                    var plan = document.getElementById(planId).value;
+                    showExplain(queryName, method, plan);
+                });
+            });
+            
+            // For explain diff cells
+            var explainDiffCells = document.querySelectorAll('.explain-diff-cell');
+            explainDiffCells.forEach(function(cell) {
+                cell.addEventListener('click', function() {
+                    var queryName = this.getAttribute('data-query');
+                    var method1 = this.getAttribute('data-method1');
+                    var method2 = this.getAttribute('data-method2');
+                    var plan1Id = this.getAttribute('data-plan1-id');
+                    var plan2Id = this.getAttribute('data-plan2-id');
+                    var plan1 = document.getElementById(plan1Id).value;
+                    var plan2 = document.getElementById(plan2Id).value;
+                    showExplainDiff(queryName, method1, method2, plan1, plan2);
+                });
+            });
+        });
     </script>
 </head>
 <body>
@@ -71,14 +388,18 @@
             {% for query in comparison_data.queries %}
             <tr>
                 <td title="{{ query.sql_preview }}">{{ query.name }}</td>
-                <td>{{ "%.3f"|format(query.raw_time) }}</td>
-                <td>{{ "%.3f"|format(query.standard_time) }}</td>
-                <td>{{ "%.3f"|format(query.histogram_time) }}</td>
-                <td class="{{ 'negative' if query.std_vs_raw < 0 else 'positive' }}">{{ "%.1f"|format(query.std_vs_raw) }}%</td>
-                <td class="{{ 'negative' if query.hist_vs_raw < 0 else 'positive' }}">{{ "%.1f"|format(query.hist_vs_raw) }}%</td>
-                <td class="{{ 'negative' if query.hist_vs_std < 0 else 'positive' }}">{{ "%.1f"|format(query.hist_vs_std) }}%</td>
+                <td class="clickable explain-cell" data-query="{{ query.name }}" data-method="Raw" data-plan-id="raw-{{ loop.index }}" title="Click to view Raw execution plan">{{ "%.3f"|format(query.raw_time) }}</td>
+                <td class="clickable explain-cell" data-query="{{ query.name }}" data-method="Standard" data-plan-id="standard-{{ loop.index }}" title="Click to view Standard execution plan">{{ "%.3f"|format(query.standard_time) }}</td>
+                <td class="clickable explain-cell" data-query="{{ query.name }}" data-method="Histogram" data-plan-id="histogram-{{ loop.index }}" title="Click to view Histogram execution plan">{{ "%.3f"|format(query.histogram_time) }}</td>
+                <td class="clickable explain-diff-cell {{ 'negative' if query.std_vs_raw < 0 else 'positive' }}" data-query="{{ query.name }}" data-method1="Standard" data-method2="Raw" data-plan1-id="standard-{{ loop.index }}" data-plan2-id="raw-{{ loop.index }}" title="Click to compare Standard vs Raw execution plans">{{ "%.1f"|format(query.std_vs_raw) }}%</td>
+                <td class="clickable explain-diff-cell {{ 'negative' if query.hist_vs_raw < 0 else 'positive' }}" data-query="{{ query.name }}" data-method1="Histogram" data-method2="Raw" data-plan1-id="histogram-{{ loop.index }}" data-plan2-id="raw-{{ loop.index }}" title="Click to compare Histogram vs Raw execution plans">{{ "%.1f"|format(query.hist_vs_raw) }}%</td>
+                <td class="clickable explain-diff-cell {{ 'negative' if query.hist_vs_std < 0 else 'positive' }}" data-query="{{ query.name }}" data-method1="Histogram" data-method2="Standard" data-plan1-id="histogram-{{ loop.index }}" data-plan2-id="standard-{{ loop.index }}" title="Click to compare Histogram vs Standard execution plans">{{ "%.1f"|format(query.hist_vs_std) }}%</td>
                 <td class="faster {{ query.fastest_method.lower() }}-faster">{{ query.fastest_method }}</td>
             </tr>
+            <!-- Hidden fields to store explain plans -->
+            <input type="hidden" id="raw-{{ loop.index }}" value="{{ query.raw_explain|e }}">
+            <input type="hidden" id="standard-{{ loop.index }}" value="{{ query.standard_explain|e }}">
+            <input type="hidden" id="histogram-{{ loop.index }}" value="{{ query.histogram_explain|e }}">
             {% endfor %}
         </table>
     </div>
@@ -104,6 +425,25 @@
                     <span style="color: red;">{{ "%.1f"|format(regression.regression) }}% slower with {{ regression.method }}</span>
                 </div>
                 {% endfor %}
+            </div>
+        </div>
+    </div>
+    <!-- Explain Modal -->
+    <div id="explainModal" class="explain-modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeModal()">&times;</span>
+            <h3 id="explainTitle">Execution Plan</h3>
+            <div class="explain-content" id="explainContent"></div>
+        </div>
+    </div>
+    
+    <!-- Explain Diff Modal -->
+    <div id="explainDiffModal" class="explain-modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeDiffModal()">&times;</span>
+            <h3 id="explainDiffTitle">Execution Plan Comparison</h3>
+            <div class="diff-container">
+                <div class="explain-content" id="diffContent"></div>
             </div>
         </div>
     </div>

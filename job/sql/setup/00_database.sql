@@ -1,0 +1,2 @@
+CREATE OR REPLACE DATABASE imdb;
+USE imdb;
