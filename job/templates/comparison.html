@@ -456,7 +456,7 @@
             }
         }
         
-        function showSql(queryName, sqlElementId) {
+        function showSql(queryName, sqlContent) {
             // Set modal content
             var modal = document.getElementById("sqlModal");
             var modalTitle = document.getElementById("sqlTitle");
@@ -464,12 +464,7 @@
             
             modalTitle.textContent = queryName + " - Full SQL";
             
-            // Get SQL content from hidden field
-            var sqlElement = document.getElementById(sqlElementId);
-            
-            if (sqlElement && sqlElement.value) {
-                var sqlContent = sqlElement.value;
-                
+            if (sqlContent) {
                 try {
                     // Ensure we're using the global sqlFormatter object
                     if (typeof sqlFormatter !== 'undefined') {
@@ -786,16 +781,39 @@
             return true;
         }
         
-        // Table sorting function
+        // Table sorting function with comprehensive error handling
         function sortTable(table, column, asc) {
+            // Validate table and its structure
+            if (!table || !table.tBodies || table.tBodies.length === 0) {
+                console.error('Invalid table element or missing tbody');
+                return;
+            }
+            
             const dirModifier = asc ? 1 : -1;
             const tBody = table.tBodies[0];
             const rows = Array.from(tBody.querySelectorAll('tr'));
             
+            // If no rows to sort, exit early
+            if (rows.length === 0) {
+                console.warn('No rows to sort');
+                return;
+            }
+            
             // Sort each row
             const sortedRows = rows.sort((a, b) => {
-                let aColText = a.querySelector(`td:nth-child(${column + 1})`).textContent.trim();
-                let bColText = b.querySelector(`td:nth-child(${column + 1})`).textContent.trim();
+                // Safely get cell elements
+                const aCell = a.querySelector(`td:nth-child(${column + 1})`);
+                const bCell = b.querySelector(`td:nth-child(${column + 1})`);
+                
+                // Handle missing cells
+                if (!aCell || !bCell) {
+                    console.warn('Missing cell for sorting', { row: a, column });
+                    return 0;
+                }
+                
+                // Get text content safely
+                let aColText = aCell.textContent ? aCell.textContent.trim() : '';
+                let bColText = bCell.textContent ? bCell.textContent.trim() : '';
                 
                 // Remove the [identical] text if present for comparison
                 aColText = aColText.replace(/\s*\[identical\]\s*$/, '');
@@ -809,6 +827,7 @@
                 const aValue = isNaN(parseFloat(aColText)) ? aColText : parseFloat(aColText);
                 const bValue = isNaN(parseFloat(bColText)) ? bColText : parseFloat(bColText);
                 
+                // Compare values based on their types
                 if (typeof aValue === 'string' && typeof bValue === 'string') {
                     return aValue.localeCompare(bValue) * dirModifier;
                 } else {
@@ -816,17 +835,28 @@
                 }
             });
             
-            // Remove all existing rows from the table
-            while (tBody.firstChild) {
-                tBody.removeChild(tBody.firstChild);
+            try {
+                // Remove all existing rows from the table
+                while (tBody.firstChild) {
+                    tBody.removeChild(tBody.firstChild);
+                }
+                
+                // Add sorted rows
+                tBody.append(...sortedRows);
+                
+                // Update sorting indicators
+                const headers = table.querySelectorAll('th');
+                if (headers) {
+                    headers.forEach(th => th.classList.remove('asc', 'desc'));
+                    
+                    const targetHeader = table.querySelector(`th:nth-child(${column + 1})`);
+                    if (targetHeader) {
+                        targetHeader.classList.add(asc ? 'asc' : 'desc');
+                    }
+                }
+            } catch (error) {
+                console.error('Error updating table after sorting:', error);
             }
-            
-            // Add sorted rows
-            tBody.append(...sortedRows);
-            
-            // Remember how the column is currently sorted
-            table.querySelectorAll('th').forEach(th => th.classList.remove('asc', 'desc'));
-            table.querySelector(`th:nth-child(${column + 1})`).classList.add(asc ? 'asc' : 'desc');
         }
         
         // Add event listeners after DOM is loaded
@@ -835,10 +865,20 @@
             var explainCells = document.querySelectorAll('.explain-cell');
             explainCells.forEach(function(cell) {
                 cell.addEventListener('click', function() {
+                    var row = this.closest('tr');
                     var queryName = this.getAttribute('data-query');
                     var method = this.getAttribute('data-method');
-                    var planId = this.getAttribute('data-plan-id');
-                    var plan = document.getElementById(planId).value;
+                    var plan;
+                    
+                    // Get the plan based on the method
+                    if (method === 'Raw') {
+                        plan = row.querySelector('.raw-explain').value;
+                    } else if (method === 'Standard') {
+                        plan = row.querySelector('.standard-explain').value;
+                    } else if (method === 'Histogram') {
+                        plan = row.querySelector('.histogram-explain').value;
+                    }
+                    
                     showExplain(queryName, method, plan);
                 });
             });
@@ -846,38 +886,45 @@
             // For explain diff cells
             var explainDiffCells = document.querySelectorAll('.explain-diff-cell');
             explainDiffCells.forEach(function(cell) {
-                var plan1Id = cell.getAttribute('data-plan1-id');
-                var plan2Id = cell.getAttribute('data-plan2-id');
-                var plan1 = document.getElementById(plan1Id).value;
-                var plan2 = document.getElementById(plan2Id).value;
-                
-                // Check if plans are identical and add class if they are
-                if (arePlansIdentical(plan1, plan2)) {
-                    cell.classList.add('no-diff');
-                    cell.title += " (No differences found between plans)";
-                    
-                    // Apply background color directly to the cell
-                    cell.style.backgroundColor = '#e8f5e9';
-                    
-                    // Add a visual indicator for no differences
-                    var originalText = cell.textContent;
-                    cell.innerHTML = originalText + ' <span style="font-size: 0.8em; color: #2e7d32;">[identical]</span>';
-                }
                 
                 cell.addEventListener('click', function() {
+                    var row = this.closest('tr');
                     var queryName = this.getAttribute('data-query');
                     var method1 = this.getAttribute('data-method1');
                     var method2 = this.getAttribute('data-method2');
+                    var plan1, plan2;
+                    
+                    // Get the plans based on the methods
+                    if (method1 === 'Raw') {
+                        plan1 = row.querySelector('.raw-explain').value;
+                    } else if (method1 === 'Standard') {
+                        plan1 = row.querySelector('.standard-explain').value;
+                    } else if (method1 === 'Histogram') {
+                        plan1 = row.querySelector('.histogram-explain').value;
+                    }
+                    
+                    if (method2 === 'Raw') {
+                        plan2 = row.querySelector('.raw-explain').value;
+                    } else if (method2 === 'Standard') {
+                        plan2 = row.querySelector('.standard-explain').value;
+                    } else if (method2 === 'Histogram') {
+                        plan2 = row.querySelector('.histogram-explain').value;
+                    }
+                    
                     showExplainDiff(queryName, method1, method2, plan1, plan2);
                 });
             });
             
             // For sortable table headers
-            const comparisonTable = document.querySelector('#QueryComparison table');
             document.querySelectorAll('.sortable').forEach(function(header, index) {
                 header.addEventListener('click', function() {
                     const isAscending = !this.classList.contains('asc');
-                    sortTable(comparisonTable, index, isAscending);
+                    const tableElement = this.closest('table');
+                    if (tableElement) {
+                        sortTable(tableElement, index, isAscending);
+                    } else {
+                        console.error('Could not find table element');
+                    }
                 });
             });
         });
@@ -939,20 +986,20 @@
             </tr>
             {% for query in comparison_data.queries %}
             <tr>
-                <td class="clickable" onclick="showSql('{{ query.name }}', 'sql-{{ loop.index }}')" title="Click to view full SQL">{{ query.name }}</td>
-                <td class="clickable explain-cell" data-query="{{ query.name }}" data-method="Raw" data-plan-id="raw-{{ loop.index }}" title="Click to view Raw execution plan">{{ "%.3f"|format(query.raw_time) }}</td>
-                <td class="clickable explain-cell" data-query="{{ query.name }}" data-method="Standard" data-plan-id="standard-{{ loop.index }}" title="Click to view Standard execution plan">{{ "%.3f"|format(query.standard_time) }}</td>
-                <td class="clickable explain-cell" data-query="{{ query.name }}" data-method="Histogram" data-plan-id="histogram-{{ loop.index }}" title="Click to view Histogram execution plan">{{ "%.3f"|format(query.histogram_time) }}</td>
-                <td class="clickable explain-diff-cell {{ 'negative' if query.std_vs_raw < 0 else 'positive' }}" data-query="{{ query.name }}" data-method1="Standard" data-method2="Raw" data-plan1-id="standard-{{ loop.index }}" data-plan2-id="raw-{{ loop.index }}" title="Click to compare Standard vs Raw execution plans" {% if query.standard_explain == query.raw_explain %}style="background-color: #e8f5e9 !important;"{% endif %}>{{ "%.1f"|format(query.std_vs_raw) }}{% if query.standard_explain == query.raw_explain %} <span style="font-size: 0.8em; color: #2e7d32;">[identical]</span>{% endif %}</td>
-                <td class="clickable explain-diff-cell {{ 'negative' if query.hist_vs_raw < 0 else 'positive' }}" data-query="{{ query.name }}" data-method1="Histogram" data-method2="Raw" data-plan1-id="histogram-{{ loop.index }}" data-plan2-id="raw-{{ loop.index }}" title="Click to compare Histogram vs Raw execution plans" {% if query.histogram_explain == query.raw_explain %}style="background-color: #e8f5e9 !important;"{% endif %}>{{ "%.1f"|format(query.hist_vs_raw) }}{% if query.histogram_explain == query.raw_explain %} <span style="font-size: 0.8em; color: #2e7d32;">[identical]</span>{% endif %}</td>
-                <td class="clickable explain-diff-cell {{ 'negative' if query.hist_vs_std < 0 else 'positive' }}" data-query="{{ query.name }}" data-method1="Histogram" data-method2="Standard" data-plan1-id="histogram-{{ loop.index }}" data-plan2-id="standard-{{ loop.index }}" title="Click to compare Histogram vs Standard execution plans" {% if query.histogram_explain == query.standard_explain %}style="background-color: #e8f5e9 !important;"{% endif %}>{{ "%.1f"|format(query.hist_vs_std) }}{% if query.histogram_explain == query.standard_explain %} <span style="font-size: 0.8em; color: #2e7d32;">[identical]</span>{% endif %}</td>
+                <td class="clickable" onclick="showSql('{{ query.name }}', this.parentNode.querySelector('.sql-data').value)" title="Click to view full SQL">{{ query.name }}</td>
+                <td class="clickable explain-cell" data-query="{{ query.name }}" data-method="Raw" title="Click to view Raw execution plan">{{ "%.3f"|format(query.raw_time) }}</td>
+                <td class="clickable explain-cell" data-query="{{ query.name }}" data-method="Standard" title="Click to view Standard execution plan">{{ "%.3f"|format(query.standard_time) }}</td>
+                <td class="clickable explain-cell" data-query="{{ query.name }}" data-method="Histogram" title="Click to view Histogram execution plan">{{ "%.3f"|format(query.histogram_time) }}</td>
+                <td class="clickable explain-diff-cell {{ 'negative' if query.std_vs_raw < 0 else 'positive' }}" data-query="{{ query.name }}" data-method1="Standard" data-method2="Raw" title="Click to compare Standard vs Raw execution plans" {% if query.standard_explain == query.raw_explain %}style="background-color: #e8f5e9 !important;"{% endif %}>{{ "%.1f"|format(query.std_vs_raw) }}{% if query.standard_explain == query.raw_explain %} <span style="font-size: 0.8em; color: #2e7d32;">[identical]</span>{% endif %}</td>
+                <td class="clickable explain-diff-cell {{ 'negative' if query.hist_vs_raw < 0 else 'positive' }}" data-query="{{ query.name }}" data-method1="Histogram" data-method2="Raw" title="Click to compare Histogram vs Raw execution plans" {% if query.histogram_explain == query.raw_explain %}style="background-color: #e8f5e9 !important;"{% endif %}>{{ "%.1f"|format(query.hist_vs_raw) }}{% if query.histogram_explain == query.raw_explain %} <span style="font-size: 0.8em; color: #2e7d32;">[identical]</span>{% endif %}</td>
+                <td class="clickable explain-diff-cell {{ 'negative' if query.hist_vs_std < 0 else 'positive' }}" data-query="{{ query.name }}" data-method1="Histogram" data-method2="Standard" title="Click to compare Histogram vs Standard execution plans" {% if query.histogram_explain == query.standard_explain %}style="background-color: #e8f5e9 !important;"{% endif %}>{{ "%.1f"|format(query.hist_vs_std) }}{% if query.histogram_explain == query.standard_explain %} <span style="font-size: 0.8em; color: #2e7d32;">[identical]</span>{% endif %}</td>
                 <td class="faster {{ query.fastest_method.lower() }}-faster">{{ query.fastest_method }}</td>
+                <!-- Hidden fields inside the row to stay with data during sorting -->
+                <input type="hidden" class="raw-explain" value="{{ query.raw_explain|e }}">
+                <input type="hidden" class="standard-explain" value="{{ query.standard_explain|e }}">
+                <input type="hidden" class="histogram-explain" value="{{ query.histogram_explain|e }}">
+                <input type="hidden" class="sql-data" value="{{ query.sql_preview|e }}">
             </tr>
-            <!-- Hidden fields to store explain plans and SQL -->
-            <input type="hidden" id="raw-{{ loop.index }}" value="{{ query.raw_explain|e }}">
-            <input type="hidden" id="standard-{{ loop.index }}" value="{{ query.standard_explain|e }}">
-            <input type="hidden" id="histogram-{{ loop.index }}" value="{{ query.histogram_explain|e }}">
-            <input type="hidden" id="sql-{{ loop.index }}" value="{{ query.sql_preview|e }}">
             {% endfor %}
                 </table>
             </div>
