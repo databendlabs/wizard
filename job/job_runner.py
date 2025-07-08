@@ -240,12 +240,17 @@ class BendSQLExecutor:
             parts = sql.split(';')
             use_statement = ""
             select_statement = ""
+            current_db = "imdb"
             
             # Find USE statement and SELECT statement
             for part in parts:
                 part = part.strip()
                 if part and part.lower().startswith('use '):
                     use_statement = part + ";"
+                    # Extract database name for normalization later
+                    db_name = part.lower().replace('use ', '').strip()
+                    if db_name in ["imdb_raw", "imdb_std", "imdb_hist"]:
+                        current_db = db_name
                 elif part and part.lower().startswith('select'):
                     select_statement = part
             
@@ -262,7 +267,13 @@ class BendSQLExecutor:
             # Execute EXPLAIN query
             success, output, _ = self.execute_query(explain_sql)
             if success:
-                return output.strip()
+                # Normalize database names in the output to imdb_[x] format
+                normalized_output = output.strip()
+                # Replace actual database names with imdb_[x]
+                normalized_output = normalized_output.replace("imdb_raw", "imdb_[x]")
+                normalized_output = normalized_output.replace("imdb_std", "imdb_[x]")
+                normalized_output = normalized_output.replace("imdb_hist", "imdb_[x]")
+                return normalized_output
             else:
                 return f"Error executing EXPLAIN: {output}"
         except Exception as e:
