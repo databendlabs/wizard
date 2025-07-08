@@ -203,7 +203,7 @@
         }
         
         .noise::after {
-            content: ' (\u2248)';
+            content: ' (≈)';
             font-size: 0.9em;
         }
         
@@ -838,6 +838,19 @@
                 sqlModal.style.display = "none";
             }
         };
+        
+        // Close modals when pressing ESC key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                var explainModal = document.getElementById('explainModal');
+                var explainDiffModal = document.getElementById('explainDiffModal');
+                var sqlModal = document.getElementById('sqlModal');
+                
+                explainModal.style.display = "none";
+                explainDiffModal.style.display = "none";
+                sqlModal.style.display = "none";
+            }
+        });
         
         // Function to check if two plans are identical
         function arePlansIdentical(plan1, plan2) {
