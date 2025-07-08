@@ -1,0 +1,2 @@
+CREATE OR REPLACE DATABASE imdb_raw;
+USE imdb_raw;

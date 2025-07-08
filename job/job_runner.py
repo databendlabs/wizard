@@ -236,29 +236,30 @@ class BendSQLExecutor:
     def execute_explain(self, sql: str) -> str:
         """Execute EXPLAIN on SQL, but only for SELECT statements"""
         try:
-            # Check if the SQL contains a SELECT statement
-            # Skip USE statements and other non-query statements
-            sql_lower = sql.lower().strip()
+            # Extract the SQL statement after USE statement if present
+            parts = sql.split(';')
+            use_statement = ""
+            select_statement = ""
             
-            # Extract the first actual SQL statement (ignoring comments and USE statements)
-            lines = sql_lower.split('\n')
-            clean_lines = []
-            for line in lines:
-                line = line.strip()
-                # Skip comments and empty lines
-                if line.startswith('--') or line.startswith('#') or not line:
-                    continue
-                # Skip USE statements
-                if line.startswith('use '):
-                    continue
-                clean_lines.append(line)
+            # Find USE statement and SELECT statement
+            for part in parts:
+                part = part.strip()
+                if part and part.lower().startswith('use '):
+                    use_statement = part + ";"
+                elif part and part.lower().startswith('select'):
+                    select_statement = part
             
-            # If no SELECT statement found, return empty string (silently skip)
-            if not clean_lines or not any(line.startswith('select') for line in clean_lines):
+            # If no SELECT statement found, return empty string
+            if not select_statement:
                 return ""
             
-            # Only run EXPLAIN on the SQL if it contains a SELECT statement
-            explain_sql = f"EXPLAIN {sql}"
+            # Build EXPLAIN query, preserving USE statement for correct database context
+            if use_statement:
+                explain_sql = f"{use_statement} EXPLAIN {select_statement}"
+            else:
+                explain_sql = f"EXPLAIN {select_statement}"
+                
+            # Execute EXPLAIN query
             success, output, _ = self.execute_query(explain_sql)
             if success:
                 return output.strip()
@@ -373,46 +374,59 @@ class JobRunner:
         color = colors.get(level, "white")
         print(colored(f"[{level.upper()}] {message}", color))
     
-    def setup_database(self, parallel=True, num_threads=8) -> bool:
-        """Set up database from SQL files in the setup directory"""
-        setup_dir = Path("sql/setup")
-        if not setup_dir.exists() or not setup_dir.is_dir():
-            self.log(f"Setup directory not found: {setup_dir}", "error")
-            return False
-        
-        # Find all SQL files in the setup directory
-        setup_files = sorted(list(setup_dir.glob("*.sql")))
-        if not setup_files:
-            self.log("No SQL files found in setup directory", "error")
-            return False
-            
-        self.log(f"Found {len(setup_files)} setup files to execute", "info")
-        self.log("Setting up database...", "info")
+    def setup_all_databases(self) -> bool:
+        """Set up all three databases sequentially, with parallel execution within each SQL file"""
+        self.log("Setting up all three databases: imdb_raw, imdb_std, imdb_hist", "info")
         start_time = time.time()
         
-        # Execute files in order, with parallel execution within each file
-        all_results = []
+        # Define setup directories for each database type
+        db_setups = [
+            {"name": "imdb_raw", "dir": Path("sql/setup/raw")},
+            {"name": "imdb_std", "dir": Path("sql/setup/std")},
+            {"name": "imdb_hist", "dir": Path("sql/setup/hist")}
+        ]
         
-        # Process all files in sorted order
-        for setup_file in setup_files:
-            self.log(f"Executing {setup_file.name}...", "info")
-            if parallel:
-                file_results = self._execute_sql_file_parallel(setup_file, num_threads)
-            else:
-                file_results = self.executor.execute_sql_file(setup_file)
-                
-            all_results.extend(file_results)
+        # Execute setup for each database sequentially
+        self.log("Setting up databases sequentially...", "info")
+        
+        for db_config in db_setups:
+            db_name = db_config["name"]
+            setup_dir = db_config["dir"]
             
-            # Check if this file's execution was successful
-            if not all(r.success for r in file_results):
-                self.log(f"Setup failed during {setup_file.name}", "error")
-                duration = time.time() - start_time
-                return self._finalize_setup_results(all_results, duration, False)
+            self.log(f"Setting up {db_name}...", "info")
+            
+            # Find all SQL files in the setup directory
+            if not setup_dir.exists():
+                self.log(f"Setup directory not found: {setup_dir}", "error")
+                return False
+                
+            # Get all SQL files and sort them by name to ensure correct execution order
+            # This will execute files in order: 01_setup.sql, 02_table.sql, 03_copy.sql, 04_analyze.sql
+            setup_files = sorted(list(setup_dir.glob("*.sql")))
+            if not setup_files:
+                self.log(f"No SQL files found in {setup_dir}", "warning")
+                continue
+                
+            self.log(f"Found {len(setup_files)} SQL files for {db_name}: {[f.name for f in setup_files]}", "info")
+                
+            # Execute each setup file in order, with parallel execution within each file
+            for setup_file in setup_files:
+                self.log(f"Executing {db_name}/{setup_file.name}...", "info")
+                # Use parallel execution for statements within the file
+                file_results = self._execute_sql_file_parallel(setup_file)
+                
+                # Check if this file's execution was successful
+                if not all(r.success for r in file_results):
+                    self.log(f"Setup failed for {db_name} during {setup_file.name}", "error")
+                    return False
+            
+            # All files for this database executed successfully
+            self.log(f"Setup completed for {db_name}", "success")
         
         duration = time.time() - start_time
-        success = all(r.success for r in all_results)
-        return self._finalize_setup_results(all_results, duration, success)
-    
+        self.log(f"All three databases set up successfully in {duration:.2f}s", "success")
+        return True
+        
     def _finalize_setup_results(self, query_results, duration, success):
         """Create and store test results for database setup"""
         stage = StageResult(
@@ -438,175 +452,104 @@ class JobRunner:
         
         return success
     
-    def analyze_tables(self, method: str = "standard", parallel: bool = True, num_threads: int = 8) -> bool:
-        """Analyze tables with specified method, optionally in parallel"""
-        tables = [
-            "aka_name", "aka_title", "cast_info", "char_name", "comp_cast_type",
-            "company_name", "company_type", "complete_cast", "info_type", "keyword",
-            "kind_type", "link_type", "movie_companies", "movie_info", "movie_info_idx",
-            "movie_keyword", "movie_link", "name", "person_info", "role_type", "title"
-        ]
-        
-        self.log(f"Analyzing tables with method: {method}{' (parallel)' if parallel else ''}", "info")
-        start_time = time.time()
-        query_results = []
-        
-        # Get current database from global context
-        current_db = db_context.get_database()
-        if not current_db:
-            self.log("No database context set. Please use 'USE database;' statement first.", "error")
+    def run_queries(self, queries_dir: str = "sql/check", database: str = None) -> bool:
+        """Run queries from directory, optionally specifying a database context"""
+        queries_path = Path(queries_dir)
+        if not queries_path.exists():
+            self.log(f"Queries directory not found: {queries_path}", "error")
             return False
-        
-        if parallel:
-            # Execute analyze statements in parallel
-            # Create a lock for thread-safe result appending
-            result_lock = threading.Lock()
             
-            # Function to execute analyze query in parallel
-            def execute_analyze(table):
-                if method == "histogram":
-                    query = f"set enable_analyze_histogram = 1; analyze table {current_db}.{table}"
-                else:
-                    query = f"analyze table {current_db}.{table}"
-                    
-                self.log(f"Analyzing table: {table}", "info")
-                success, output, duration = self.executor.execute_query(query)
+        self.log(f"Running queries from {queries_dir}{f' on database {database}' if database else ''}", "info")
+        start_time = time.time()
+        
+        # Find all SQL files
+        sql_files = self.parser.find_sql_files(queries_path)
+        if not sql_files:
+            self.log(f"No SQL files found in {queries_path}", "warning")
+            return True
+            
+        # Apply limit if specified
+        limit = getattr(self.args, 'limit', None)
+        if limit and limit < len(sql_files):
+            sql_files = sql_files[:limit]
+            self.log(f"Limiting to first {limit} queries out of {len(sql_files)} total", "info")
+            
+        # Execute each SQL file
+        query_results = []
+        for sql_file in sql_files:
+            self.log(f"Executing {sql_file.name}...", "info")
+            
+            # If database is specified, prepend USE statement to ensure correct database context
+            if database:
+                # Read the SQL content
+                with open(sql_file, 'r') as f:
+                    sql_content = f.read()
+                # Prepend USE statement
+                sql_with_db = f"USE {database}; {sql_content}"
+                # Execute the query with database context
+                success, output, duration = self.executor.execute_query(sql_with_db)
                 
                 query_result = QueryResult(
-                    name=f"analyze_{table}",
-                    sql=query,
+                    name=sql_file.name,
+                    sql=sql_with_db,
                     success=success,
                     duration=duration,
                     error="" if success else output,
                     output=output if success else ""
                 )
-                
-                # Thread-safe append to results
-                with result_lock:
-                    query_results.append(query_result)
-                    
-                if not success:
-                    self.log(f"Failed to analyze table {table}: {output}", "error")
-            
-            # Create and start threads
-            threads = []
-            for table in tables:
-                thread = threading.Thread(target=execute_analyze, args=(table,))
-                threads.append(thread)
-                thread.start()
-                
-                # Limit the number of concurrent threads
-                if len(threads) >= num_threads:
-                    # Wait for all threads to complete before starting more
-                    for t in threads:
-                        t.join()
-                    threads = []
-            
-            # Wait for any remaining threads to complete
-            for thread in threads:
-                thread.join()
-        else:
-            # Execute analyze statements sequentially
-            for table in tables:
-                if method == "histogram":
-                    query = f"set enable_analyze_histogram = 1; analyze table {current_db}.{table}"
-                else:
-                    query = f"analyze table {current_db}.{table}"
-                    
-                self.log(f"Analyzing table: {table}", "info")
-                success, output, duration = self.executor.execute_query(query)
-                
-                query_results.append(QueryResult(
-                    name=f"analyze_{table}",
-                    sql=query,
-                    success=success,
-                    duration=duration,
-                    error="" if success else output,
-                    output=output if success else ""
-                ))
+                query_results.append(query_result)
                 
                 if not success:
-                    self.log(f"Failed to analyze table {table}: {output}", "error")
-                    # Continue with other tables even if one fails
-        
-        # Calculate total duration
+                    self.log(f"Query execution failed for {sql_file.name}: {output}", "error")
+            else:
+                # Execute the SQL file normally
+                file_results = self.executor.execute_sql_file(sql_file)
+                query_results.extend(file_results)
+                
+                # Check if this file's execution was successful
+                if not all(r.success for r in file_results):
+                    self.log(f"Query execution failed for {sql_file.name}", "error")
+                
+        # Calculate overall success and duration
         duration = time.time() - start_time
+        success = all(r.success for r in query_results)
         
-        # Create stage result
-        stage = StageResult(
-            name=f"{method}_analyze",
-            queries=query_results,
-            duration=duration,
-            success=all(result.success for result in query_results)
-        )
-        
-        # Create test result
+        # Create and store test results
         test_result = TestResult(
-            name=f"{method}_analyze",
-            stages=[stage],
-            success=stage.success,
+            name=f"check_queries{f'_{database}' if database else ''}",
+            stages=[StageResult(
+                name=f"check_queries{f'_{database}' if database else ''}",
+                queries=query_results,
+                duration=duration,
+                success=success
+            )],
+            success=success,
             total_duration=duration
         )
         
         self.results.append(test_result)
         
-        if stage.success:
-            self.log(f"All tables analyzed successfully with {method} method in {duration:.2f}s", "success")
-        else:
-            self.log(f"Some tables failed to analyze with {method} method in {duration:.2f}s", "error")
-            
-        return stage.success
-    
-    def run_queries(self, queries_dir: str = "sql/check") -> bool:
-        """Run queries from directory"""
-        queries_path = Path(queries_dir)
-        if not queries_path.exists():
-            self.log(f"Queries directory not found: {queries_path}", "error")
-            return False
-        
-        sql_files = self.parser.find_sql_files(queries_path)
-        if not sql_files:
-            self.log(f"No SQL files found in {queries_path}", "warning")
-            return True
-        
-        self.log(f"Running {len(sql_files)} query files...", "info")
-        start_time = time.time()
-        all_query_results = []
-        
-        for sql_file in sql_files:
-            self.log(f"Executing {sql_file.name}...", "info")
-            query_results = self.executor.execute_sql_file(sql_file)
-            all_query_results.extend(query_results)
-        
-        total_duration = time.time() - start_time
-        success = all(r.success for r in all_query_results)
-        
-        stage = StageResult(
-            name="queries",
-            queries=all_query_results,
-            duration=total_duration,
-            success=success
-        )
-        
-        test_result = TestResult(
-            name="query_execution",
-            stages=[stage],
-            success=success,
-            total_duration=total_duration
-        )
-        
-        self.results.append(test_result)
-        
         if success:
-            self.log(f"Query execution completed in {total_duration:.2f}s", "success")
+            self.log(f"All queries executed successfully in {duration:.2f}s", "success")
         else:
-            self.log(f"Query execution failed in {total_duration:.2f}s", "error")
-        
+            self.log(f"Some queries failed in {duration:.2f}s", "error")
+            
         return success
         
     def run_comparison_analysis(self) -> bool:
-        """Run comparison analysis between different analyze methods"""
+        """Run comparison analysis between different database configurations"""
         self.log("Starting comparison analysis...", "info")
+        start_time = time.time()
+        
+        # Check if setup is required
+        setup_required = getattr(self.args, 'setup', False)
+        if setup_required:
+            self.log("Setup flag detected, setting up all three databases...", "info")
+            if not self.setup_all_databases():
+                self.log("Failed to set up databases", "error")
+                return False
+        else:
+            self.log("Using existing databases for comparison", "info")
         
         # Find SQL files
         sql_dir = Path("sql/check")
@@ -624,7 +567,7 @@ class JobRunner:
         else:
             sql_files = all_sql_files
         
-        # Store results
+        # Store results for each database
         raw_results = {}
         standard_results = {}
         histogram_results = {}
@@ -632,59 +575,40 @@ class JobRunner:
         standard_explains = {}
         histogram_explains = {}
         
-        # Run with no analyze
-        self.log("Running queries with no analyze...", "info")
-        if not self.setup_database():
-            self.log("Database setup failed", "error")
-            return False
-        
-        for sql_file in sql_files:
-            self.log(f"Executing {sql_file.name} (raw)...", "info")
-            query_results = self.executor.execute_sql_file(sql_file)
-            if query_results:
-                raw_results[sql_file.name] = query_results[0].duration
+        # Create a function to run queries and collect results for a specific database
+        def run_and_collect_results(database_name, results_dict, explains_dict):
+            self.log(f"Running queries on {database_name} database...", "info")
+            db_context.set_database(database_name)
+            
+            # Execute each query file with the database context
+            for sql_file in sql_files:
+                self.log(f"Executing {sql_file.name} on {database_name}...", "info")
                 
-                # Get explain plan for raw execution
-                sql_content = self._get_sql_content(sql_file)
-                if sql_content:
-                    self.log(f"Getting EXPLAIN plan for {sql_file.name} (raw)...", "info")
-                    raw_explains[sql_file.name] = self.executor.execute_explain(sql_content)
-        
-        # Run with standard analyze
-        self.log("Running queries with standard analyze...", "info")
-        if not self.analyze_tables("standard"):
-            self.log("Standard analyze failed", "error")
-            return False
-        
-        for sql_file in sql_files:
-            self.log(f"Executing {sql_file.name} (standard)...", "info")
-            query_results = self.executor.execute_sql_file(sql_file)
-            if query_results:
-                standard_results[sql_file.name] = query_results[0].duration
+                # Read the SQL content
+                with open(sql_file, 'r') as f:
+                    sql_content = f.read()
                 
-                # Get explain plan for standard execution
-                sql_content = self._get_sql_content(sql_file)
-                if sql_content:
-                    self.log(f"Getting EXPLAIN plan for {sql_file.name} (standard)...", "info")
-                    standard_explains[sql_file.name] = self.executor.execute_explain(sql_content)
-        
-        # Run with histogram analyze
-        self.log("Running queries with histogram analyze...", "info")
-        if not self.analyze_tables("histogram"):
-            self.log("Histogram analyze failed", "error")
-            return False
-        
-        for sql_file in sql_files:
-            self.log(f"Executing {sql_file.name} (histogram)...", "info")
-            query_results = self.executor.execute_sql_file(sql_file)
-            if query_results:
-                histogram_results[sql_file.name] = query_results[0].duration
+                # Prepend USE statement to ensure correct database context
+                sql_with_db = f"USE {database_name}; {sql_content}"
+                success, output, duration = self.executor.execute_query(sql_with_db)
                 
-                # Get explain plan for histogram execution
-                sql_content = self._get_sql_content(sql_file)
-                if sql_content:
-                    self.log(f"Getting EXPLAIN plan for {sql_file.name} (histogram)...", "info")
-                    histogram_explains[sql_file.name] = self.executor.execute_explain(sql_content)
+                if success:
+                    results_dict[sql_file.name] = duration
+                    
+                    # Get explain plan
+                    self.log(f"Getting EXPLAIN plan for {sql_file.name} on {database_name}...", "info")
+                    explains_dict[sql_file.name] = self.executor.execute_explain(sql_with_db)
+                else:
+                    self.log(f"Failed to execute {sql_file.name} on {database_name}: {output}", "error")
+        
+        # Run queries on imdb_raw database
+        run_and_collect_results("imdb_raw", raw_results, raw_explains)
+        
+        # Run queries on imdb_std database
+        run_and_collect_results("imdb_std", standard_results, standard_explains)
+        
+        # Run queries on imdb_hist database
+        run_and_collect_results("imdb_hist", histogram_results, histogram_explains)
         
         # Generate comparison data
         comparison_data = self._generate_comparison_data(
@@ -694,18 +618,19 @@ class JobRunner:
         )
         
         # Store comparison results
+        total_duration = time.time() - start_time
         test_result = TestResult(
             name="comparison_analysis",
             stages=[],
             success=True,
-            total_duration=0
+            total_duration=total_duration
         )
         self.results.append(test_result)
         
         # Generate comparison report
         self._generate_comparison_report(comparison_data)
         
-        self.log("Comparison analysis completed", "success")
+        self.log(f"Comparison analysis completed in {total_duration:.2f}s", "success")
         return True
     
     def _generate_comparison_data(self, raw_results: Dict, standard_results: Dict,
@@ -833,7 +758,7 @@ class JobRunner:
         except:
             return "SQL preview not available"
             
-    def _execute_sql_file_parallel(self, file_path: Path, num_threads: int = 8) -> List[QueryResult]:
+    def _execute_sql_file_parallel(self, file_path: Path, num_threads: int = 11) -> List[QueryResult]:
         """Execute SQL file with parallel execution for statements with the same prefix"""
         results = []
         
@@ -999,6 +924,7 @@ def main():
     """Main function"""
     parser = argparse.ArgumentParser(description="BendSQL Job Runner")
     parser.add_argument("--compare", action="store_true", help="Run comparison analysis between different analyze methods")
+    parser.add_argument("--setup", action="store_true", help="Set up databases before running analysis")
     parser.add_argument("--limit", type=int, help="Limit the number of queries to run from the check directory")
     
     args = parser.parse_args()
@@ -1006,11 +932,12 @@ def main():
     runner = JobRunner(args)
     
     try:
-        # Always setup database first
-        runner.log(f"Starting database setup... [Elapsed: {runner.get_elapsed_time()}]")
-        if not runner.setup_database():
-            sys.exit(1)
-        runner.log(f"Database setup completed. [Elapsed: {runner.get_elapsed_time()}]")
+        # Only setup database if --setup flag is provided
+        if args.setup:
+            runner.log(f"Setup flag detected, setting up databases... [Elapsed: {runner.get_elapsed_time()}]")
+            if not runner.setup_all_databases():
+                sys.exit(1)
+            runner.log(f"Database setup completed. [Elapsed: {runner.get_elapsed_time()}]")
                 
         if args.compare:
             # Run comparison analysis
@@ -1018,12 +945,12 @@ def main():
             if not runner.run_comparison_analysis():
                 sys.exit(1)
             runner.log(f"Comparison analysis completed. [Elapsed: {runner.get_elapsed_time()}]")
-        else:
-            # Default behavior: run standard analyze
-            runner.log(f"Starting standard analysis... [Elapsed: {runner.get_elapsed_time()}]")
-            if not runner.analyze_tables("standard"):
+        elif not args.setup:  # Only run default behavior if neither --setup nor --compare is specified
+            # Default behavior: run queries from check directory
+            runner.log(f"Starting query execution... [Elapsed: {runner.get_elapsed_time()}]")
+            if not runner.run_queries("sql/check"):
                 sys.exit(1)
-            runner.log(f"Standard analysis completed. [Elapsed: {runner.get_elapsed_time()}]")
+            runner.log(f"Query execution completed. [Elapsed: {runner.get_elapsed_time()}]")
 
         
         # Always generate report if any operations were performed (except for comparison which generates its own)

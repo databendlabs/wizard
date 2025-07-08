@@ -1,0 +1,2 @@
+CREATE OR REPLACE DATABASE imdb_std;
+USE imdb_std;

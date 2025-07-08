@@ -1,9 +1,3 @@
-
--- Create stage pointing to public AWS bucket
-CREATE OR REPLACE STAGE wizardbend
-    URL = 's3://wizardbend/';
-
--- Load data from the public AWS bucket
 COPY INTO aka_name
     FROM @wizardbend/job/aka_name.csv
     FILE_FORMAT = (TYPE = CSV, ESCAPE='\\');
