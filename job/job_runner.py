@@ -94,14 +94,19 @@ class BendSQLExecutor:
     
     def __init__(self, job_runner=None):
         self.job_runner = job_runner
+        
+    def _extract_time_from_output(self, output):
+        """Extract execution time from the bendsql output."""
+        match = re.search(r"([0-9.]+)$", output)
+        return match.group(1) if match else None
     
-    def execute_query(self, query: str, timeout: int = 300) -> Tuple[bool, str, float]:
+    def execute_query(self, query: str, timeout: int = 300, use_server_time: bool = True) -> Tuple[bool, str, float]:
         """Execute a single SQL query"""
         start_time = time.time()
         
         try:
             # Build complete SQL with database context handling
-            bendsql_cmd, final_sql = self._build_bendsql_command(query)
+            bendsql_cmd, final_sql = self._build_bendsql_command(query, use_server_time)
             
             # Log execution details
             current_db = db_context.get_database()
@@ -121,6 +126,12 @@ class BendSQLExecutor:
             duration = time.time() - start_time
             success = result.returncode == 0
             output = result.stdout if success else result.stderr
+            
+            # If using server time and successful, extract the time from output
+            if use_server_time and success:
+                server_time = self._extract_time_from_output(output)
+                if server_time is not None:
+                    duration = float(server_time)
             
             status = "✅ Success" if success else "❌ Failed"
             print(f"    {status} in {duration:.2f}s")
@@ -145,7 +156,7 @@ class BendSQLExecutor:
             print(f"    💥 Exception in {duration:.2f}s: {str(e)}")
             return False, str(e), duration
     
-    def _build_bendsql_command(self, sql: str) -> Tuple[List[str], str]:
+    def _build_bendsql_command(self, sql: str, use_server_time: bool = True) -> Tuple[List[str], str]:
         """Build bendsql command with database context handling"""
         # Extract database name from USE statement
         database_name, cleaned_sql = self._extract_database_from_use_statement(sql)
@@ -165,6 +176,10 @@ class BendSQLExecutor:
         # Use cleaned SQL if USE statement was found, otherwise use original
         final_sql = cleaned_sql if database_name else sql
         bendsql_cmd.append('--query=' + final_sql)
+        
+        # Add --time=server flag for more accurate timing
+        if use_server_time:
+            bendsql_cmd.append('--time=server')
         
         return bendsql_cmd, final_sql
     
@@ -264,8 +279,9 @@ class BendSQLExecutor:
             else:
                 explain_sql = f"EXPLAIN {select_statement}"
                 
-            # Execute EXPLAIN query
-            success, output, _ = self.execute_query(explain_sql)
+            # Execute EXPLAIN query without using server time flag
+            # as --time=server with EXPLAIN doesn't return the actual plan
+            success, output, _ = self.execute_query(explain_sql, use_server_time=False)
             if success:
                 # Normalize database names in the output to imdb_[x] format
                 normalized_output = output.strip()
@@ -365,6 +381,8 @@ class JobRunner:
         self.reporter = ReportGenerator()
         self.results: List[TestResult] = []
         self.args = args
+        # Default number of check runs for comparison analysis
+        self.check_runs = getattr(self.args, 'check_runs', 3)
         self.log(f"Job started at {time.strftime('%Y-%m-%d %H:%M:%S')}")
         
     def get_elapsed_time(self) -> str:
@@ -586,40 +604,64 @@ class JobRunner:
         standard_explains = {}
         histogram_explains = {}
         
-        # Create a function to run queries and collect results for a specific database
-        def run_and_collect_results(database_name, results_dict, explains_dict):
-            self.log(f"Running queries on {database_name} database...", "info")
+        # Define database configurations
+        databases = [
+            {"name": "imdb_raw", "results": raw_results, "explains": raw_explains},
+            {"name": "imdb_std", "results": standard_results, "explains": standard_explains},
+            {"name": "imdb_hist", "results": histogram_results, "explains": histogram_explains}
+        ]
+        
+        # Function to run a single SQL file on a specific database
+        def run_sql_on_database(sql_file, database_config):
+            database_name = database_config["name"]
+            results_dict = database_config["results"]
+            explains_dict = database_config["explains"]
+            
+            self.log(f"Executing {sql_file.name} on {database_name}...", "info")
             db_context.set_database(database_name)
             
-            # Execute each query file with the database context
-            for sql_file in sql_files:
-                self.log(f"Executing {sql_file.name} on {database_name}...", "info")
+            # Read the SQL content
+            with open(sql_file, 'r') as f:
+                sql_content = f.read()
+            
+            # Prepend USE statement to ensure correct database context
+            sql_with_db = f"USE {database_name}; {sql_content}"
+            
+            # Run the query multiple times and take the shortest duration
+            num_runs = self.check_runs
+            durations = []
+            success = False
+            output = ""
+            
+            for run in range(num_runs):
+                self.log(f"Run {run+1}/{num_runs} for {sql_file.name} on {database_name}...", "info")
+                run_success, run_output, run_duration = self.executor.execute_query(sql_with_db, use_server_time=True)
                 
-                # Read the SQL content
-                with open(sql_file, 'r') as f:
-                    sql_content = f.read()
-                
-                # Prepend USE statement to ensure correct database context
-                sql_with_db = f"USE {database_name}; {sql_content}"
-                success, output, duration = self.executor.execute_query(sql_with_db)
-                
-                if success:
-                    results_dict[sql_file.name] = duration
-                    
-                    # Get explain plan
-                    self.log(f"Getting EXPLAIN plan for {sql_file.name} on {database_name}...", "info")
-                    explains_dict[sql_file.name] = self.executor.execute_explain(sql_with_db)
+                if run_success:
+                    durations.append(run_duration)
+                    success = True
+                    output = run_output
                 else:
-                    self.log(f"Failed to execute {sql_file.name} on {database_name}: {output}", "error")
+                    self.log(f"Run {run+1} failed for {sql_file.name} on {database_name}: {run_output}", "error")
+                    output = run_output
+            
+            if success and durations:
+                # Use the shortest duration from all successful runs
+                min_duration = min(durations)
+                self.log(f"Best time for {sql_file.name} on {database_name}: {min_duration:.2f}s (from {len(durations)} successful runs)", "success")
+                results_dict[sql_file.name] = min_duration
+                
+                # Get explain plan
+                self.log(f"Getting EXPLAIN plan for {sql_file.name} on {database_name}...", "info")
+                explains_dict[sql_file.name] = self.executor.execute_explain(sql_with_db)
+            else:
+                self.log(f"All runs failed for {sql_file.name} on {database_name}: {output}", "error")
         
-        # Run queries on imdb_raw database
-        run_and_collect_results("imdb_raw", raw_results, raw_explains)
-        
-        # Run queries on imdb_std database
-        run_and_collect_results("imdb_std", standard_results, standard_explains)
-        
-        # Run queries on imdb_hist database
-        run_and_collect_results("imdb_hist", histogram_results, histogram_explains)
+        # Execute each SQL file on all databases before moving to the next SQL file
+        for sql_file in sql_files:
+            self.log(f"Processing SQL file: {sql_file.name}", "info")
+            for database_config in databases:
+                run_sql_on_database(sql_file, database_config)
         
         # Generate comparison data
         comparison_data = self._generate_comparison_data(
@@ -937,6 +979,7 @@ def main():
     parser.add_argument("--compare", action="store_true", help="Run comparison analysis between different analyze methods")
     parser.add_argument("--setup", action="store_true", help="Set up databases before running analysis")
     parser.add_argument("--limit", type=int, help="Limit the number of queries to run from the check directory")
+    parser.add_argument("--check-runs", type=int, default=3, help="Number of times to run each check statement (default: 3)")
     
     args = parser.parse_args()
     
