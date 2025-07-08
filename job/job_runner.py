@@ -251,33 +251,23 @@ class BendSQLExecutor:
     def execute_explain(self, sql: str) -> str:
         """Execute EXPLAIN on SQL, but only for SELECT statements"""
         try:
-            # Extract the SQL statement after USE statement if present
+            # Process the SQL to find SELECT statements
             parts = sql.split(';')
-            use_statement = ""
             select_statement = ""
-            current_db = "imdb"
             
-            # Find USE statement and SELECT statement
+            # Find SELECT statement
             for part in parts:
                 part = part.strip()
-                if part and part.lower().startswith('use '):
-                    use_statement = part + ";"
-                    # Extract database name for normalization later
-                    db_name = part.lower().replace('use ', '').strip()
-                    if db_name in ["imdb_raw", "imdb_std", "imdb_hist"]:
-                        current_db = db_name
-                elif part and part.lower().startswith('select'):
+                if part and part.lower().startswith('select'):
                     select_statement = part
+                    break
             
             # If no SELECT statement found, return empty string
             if not select_statement:
                 return ""
             
-            # Build EXPLAIN query, preserving USE statement for correct database context
-            if use_statement:
-                explain_sql = f"{use_statement} EXPLAIN {select_statement}"
-            else:
-                explain_sql = f"EXPLAIN {select_statement}"
+            # Build EXPLAIN query
+            explain_sql = f"EXPLAIN {select_statement}"
                 
             # Execute EXPLAIN query without using server time flag
             # as --time=server with EXPLAIN doesn't return the actual plan
@@ -624,8 +614,8 @@ class JobRunner:
             with open(sql_file, 'r') as f:
                 sql_content = f.read()
             
-            # Prepend USE statement to ensure correct database context
-            sql_with_db = f"USE {database_name}; {sql_content}"
+            # Use the database as a parameter instead of prepending USE statement
+            # The database will be passed via the db_context which is used by execute_query
             
             # Run the query multiple times and take the shortest duration
             num_runs = self.check_runs
@@ -635,7 +625,7 @@ class JobRunner:
             
             for run in range(num_runs):
                 self.log(f"Run {run+1}/{num_runs} for {sql_file.name} on {database_name}...", "info")
-                run_success, run_output, run_duration = self.executor.execute_query(sql_with_db, use_server_time=True)
+                run_success, run_output, run_duration = self.executor.execute_query(sql_content, use_server_time=True)
                 
                 if run_success:
                     durations.append(run_duration)
@@ -653,7 +643,7 @@ class JobRunner:
                 
                 # Get explain plan
                 self.log(f"Getting EXPLAIN plan for {sql_file.name} on {database_name}...", "info")
-                explains_dict[sql_file.name] = self.executor.execute_explain(sql_with_db)
+                explains_dict[sql_file.name] = self.executor.execute_explain(sql_content)
             else:
                 self.log(f"All runs failed for {sql_file.name} on {database_name}: {output}", "error")
         
