@@ -630,17 +630,95 @@ class CheckSB:
         with open(script_path) as f:
             queries = [q.strip() for q in f.read().split(";") if q.strip()]
         
+        # Group queries by prefix and extract concurrency settings
+        groups = self._group_queries_by_prefix(queries)
+        
+        for group_name, group_queries in groups.items():
+            print(f"      📋 Executing {group_name} group ({len(group_queries)} queries)")
+            
+            # Extract concurrency setting for this group
+            concurrency = self._extract_group_concurrency(group_queries)
+            
+            if concurrency > 1:
+                print(f"         🔄 Using {concurrency} concurrent workers")
+                self._execute_queries_parallel(group_queries, executor, script_path.name, concurrency)
+            else:
+                print(f"         ➡️  Sequential execution")
+                self._execute_queries_sequential(group_queries, executor, script_path.name)
+    
+    def _group_queries_by_prefix(self, queries: List[str]) -> Dict[str, List[Tuple[int, str]]]:
+        """Group queries by their SQL command prefix (first word)"""
+        groups = {}
+        
         for i, query in enumerate(queries, 1):
-            result = executor.execute(query, f"query {i}/{len(queries)}")
+            # Extract the first word (command) from the query
+            first_word = query.split()[0].upper() if query.split() else "UNKNOWN"
+            
+            if first_word not in groups:
+                groups[first_word] = []
+            groups[first_word].append((i, query))
+        
+        return groups
+    
+    def _extract_group_concurrency(self, group_queries: List[Tuple[int, str]]) -> int:
+        """Get concurrency setting for the group"""
+        # Default concurrency is 4 (parallel)
+        return 4
+    
+    def _execute_queries_sequential(self, group_queries: List[Tuple[int, str]], executor: SQLExecutor, script_name: str):
+        """Execute queries sequentially"""
+        for query_num, query in group_queries:
+            result = executor.execute(query, f"query {query_num}")
             
             # Check for errors using __ERROR__ prefix from SQLExecutor
             if result.startswith("__ERROR__:"):
                 error_msg = result[10:]  # Remove "__ERROR__:" prefix
                 
-                print(f"      ❌ ERROR in {script_path.name} query {i}:")
-                print(f"         Query: {query[:100]}{'...' if len(query) > 100 else ''}")
-                print(f"         Error: {error_msg.strip()}")
+                print(f"         ❌ ERROR in {script_name} query {query_num}:")
+                print(f"            Query: {query[:100]}{'...' if len(query) > 100 else ''}")
+                print(f"            Error: {error_msg.strip()}")
                 # Continue execution instead of stopping
+            else:
+                print(f"         ✅ Query {query_num} completed")
+    
+    def _execute_queries_parallel(self, group_queries: List[Tuple[int, str]], executor: SQLExecutor, script_name: str, concurrency: int):
+        """Execute queries in parallel using ThreadPoolExecutor"""
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        import threading
+        
+        def execute_single_query(query_data):
+            query_num, query = query_data
+            thread_id = threading.current_thread().ident
+            
+            # Create a new executor instance for thread safety
+            thread_executor = SQLExecutor(executor.tool, executor.database, executor.warehouse)
+            
+            try:
+                result = thread_executor.execute(query, f"query {query_num} (thread {thread_id})")
+                return query_num, query, result, None
+            except Exception as e:
+                return query_num, query, None, str(e)
+        
+        # Execute queries in parallel
+        with ThreadPoolExecutor(max_workers=concurrency) as pool:
+            # Submit all queries
+            future_to_query = {pool.submit(execute_single_query, query_data): query_data for query_data in group_queries}
+            
+            # Process completed queries
+            for future in as_completed(future_to_query):
+                query_num, query, result, error = future.result()
+                
+                if error:
+                    print(f"         ❌ ERROR in {script_name} query {query_num} (thread error):")
+                    print(f"            Query: {query[:100]}{'...' if len(query) > 100 else ''}")
+                    print(f"            Error: {error}")
+                elif result and result.startswith("__ERROR__:"):
+                    error_msg = result[10:]  # Remove "__ERROR__:" prefix
+                    print(f"         ❌ ERROR in {script_name} query {query_num}:")
+                    print(f"            Query: {query[:100]}{'...' if len(query) > 100 else ''}")
+                    print(f"            Error: {error_msg.strip()}")
+                else:
+                    print(f"         ✅ Query {query_num} completed")
     
     def _check_case(self, check_path: Path, case: str) -> TestResult:
         result = TestResult(case=case)
