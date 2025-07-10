@@ -4313,8 +4313,9 @@ GROUP BY i_brand,
          t_minute
 ORDER BY ext_price DESC NULLS FIRST,
          i_brand_id NULLS FIRST,
-         t_hour NULLS FIRST
-         LIMIT 20;
+         t_hour NULLS FIRST,
+         t_minute NULLS FIRST        -- Add this line for deterministic sorting
+LIMIT 20;
 
 -- Query 72
 SELECT i_item_desc,
