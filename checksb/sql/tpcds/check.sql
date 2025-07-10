@@ -3855,8 +3855,15 @@ WHERE sb.ss_store_sk = sc.ss_store_sk
   AND s_store_sk = sc.ss_store_sk
   AND i_item_sk = sc.ss_item_sk
 ORDER BY s_store_name NULLS FIRST,
-         i_item_desc NULLS FIRST
+         i_item_desc NULLS FIRST,
+         sc.ss_store_sk,           -- Add store key for stable sorting
+         sc.ss_item_sk,            -- Add item key for stable sorting  
+         sc.revenue,               -- Add revenue for further ordering
+         i_current_price NULLS LAST,  -- Add current price
+         i_wholesale_cost NULLS LAST, -- Add wholesale cost
+         i_brand NULLS LAST        -- Add brand as final tie-breaker
 LIMIT 20;
+
 
 -- Query 66
 select
