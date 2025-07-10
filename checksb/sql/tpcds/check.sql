@@ -21,7 +21,7 @@ WHERE ctr1.ctr_total_return >
   AND s_state = 'TN'
   AND ctr1.ctr_customer_sk = c_customer_sk
 ORDER BY c_customer_id
-LIMIT 100;
+LIMIT 10;
 
 -- Query 2
 WITH wscs AS
@@ -122,7 +122,7 @@ GROUP BY dt.d_year,
 ORDER BY dt.d_year,
          sum_agg DESC,
          brand_id
-LIMIT 100;
+LIMIT 10;
 
 -- Query 4
 WITH year_total AS
@@ -243,7 +243,7 @@ ORDER BY t_s_secyear.customer_id NULLS FIRST,
          t_s_secyear.customer_first_name NULLS FIRST,
          t_s_secyear.customer_last_name NULLS FIRST,
          t_s_secyear.customer_preferred_cust_flag NULLS FIRST
-LIMIT 100;
+LIMIT 10;
 
 -- Query 5
 WITH ssr AS
@@ -357,7 +357,7 @@ GROUP BY ROLLUP (channel,
                  id)
 ORDER BY channel NULLS FIRST,
          id NULLS FIRST
-LIMIT 100;
+LIMIT 10;
 
 -- Query 6
 SELECT a.ca_state state,
@@ -384,7 +384,7 @@ GROUP BY a.ca_state
 HAVING count(*) >= 10
 ORDER BY cnt NULLS FIRST,
          a.ca_state NULLS FIRST
-LIMIT 100;
+LIMIT 10;
 
 -- Query 7
 SELECT i_item_id,
@@ -409,7 +409,7 @@ WHERE ss_sold_date_sk = d_date_sk
   AND d_year = 2000
 GROUP BY i_item_id
 ORDER BY i_item_id
-LIMIT 100;
+LIMIT 10;
 
 -- Query 8
 SELECT s_store_name,
@@ -838,7 +838,7 @@ WHERE ss_store_sk = s_store_sk
   AND (SUBSTRING(s_zip, 1, 2) = SUBSTRING(V1.ca_zip, 1, 2))
 GROUP BY s_store_name
 ORDER BY s_store_name
-LIMIT 100;
+LIMIT 10;
 
 -- Query 9
 SELECT CASE
@@ -974,7 +974,7 @@ ORDER BY cd_gender,
          cd_dep_count,
          cd_dep_employed_count,
          cd_dep_college_count
-LIMIT 100;
+LIMIT 10;
 
 -- Query 11
 WITH year_total AS
@@ -1056,7 +1056,7 @@ ORDER BY t_s_secyear.customer_id NULLS FIRST,
          t_s_secyear.customer_first_name NULLS FIRST,
          t_s_secyear.customer_last_name NULLS FIRST,
          t_s_secyear.customer_preferred_cust_flag NULLS FIRST
-LIMIT 100;
+LIMIT 10;
 
 -- Query 12
 SELECT i_item_id,
@@ -1085,7 +1085,7 @@ ORDER BY i_category,
          i_item_id,
          i_item_desc,
          revenueratio
-LIMIT 100;
+LIMIT 00;
 
 -- Query 13
 SELECT avg(ss_quantity) avg1,
@@ -1264,7 +1264,7 @@ ORDER BY channel NULLS FIRST,
          i_brand_id NULLS FIRST,
          i_class_id NULLS FIRST,
          i_category_id NULLS FIRST
-LIMIT 100;
+LIMIT 10;
 
 -- Query 15
 SELECT ca_zip,
@@ -1293,7 +1293,7 @@ WHERE cs_bill_customer_sk = c_customer_sk
   AND d_year = 2001
 GROUP BY ca_zip
 ORDER BY ca_zip NULLS FIRST
-LIMIT 100;
+LIMIT 10;
 
 -- Query 16
 SELECT count(DISTINCT cs_order_number) AS "order count",
@@ -1319,7 +1319,7 @@ WHERE d_date BETWEEN '2002-02-01' AND cast('2002-04-02' AS date)
      FROM catalog_returns cr1
      WHERE cs1.cs_order_number = cr1.cr_order_number)
 ORDER BY count(DISTINCT cs_order_number)
-LIMIT 100;
+LIMIT 10;
 
 -- Query 17
 SELECT i_item_id,
@@ -1368,7 +1368,7 @@ GROUP BY i_item_id,
 ORDER BY i_item_id NULLS FIRST,
          i_item_desc NULLS FIRST,
          s_state NULLS FIRST
-LIMIT 100;
+LIMIT 10;
 
 -- Query 18
 SELECT i_item_id,
@@ -1419,7 +1419,7 @@ ORDER BY ca_country NULLS FIRST,
     ca_state NULLS FIRST,
     ca_county NULLS FIRST,
     i_item_id NULLS FIRST
-LIMIT 100;
+LIMIT 10;
 
 -- Query 19
 SELECT i_brand_id brand_id,
@@ -1451,7 +1451,7 @@ ORDER BY ext_price DESC,
          i_brand_id,
          i_manufact_id,
          i_manufact
-LIMIT 100 ;
+LIMIT 10 ;
 
 -- Query 20
 SELECT i_item_id ,
@@ -1480,7 +1480,7 @@ ORDER BY i_category NULLS FIRST,
          i_item_id NULLS FIRST,
          i_item_desc NULLS FIRST,
          revenueratio NULLS FIRST
-LIMIT 100;
+LIMIT 10;
 
 -- Query 21
 SELECT *
@@ -1512,7 +1512,7 @@ WHERE (CASE
        END) BETWEEN 2.000/3.000 AND 3.000/2.000
 ORDER BY w_warehouse_name NULLS FIRST,
          i_item_id NULLS FIRST
-LIMIT 100;
+LIMIT 10;
 
 -- Query 22
 SELECT i_product_name ,
@@ -1532,7 +1532,7 @@ ORDER BY qoh NULLS FIRST,
          i_brand NULLS FIRST,
          i_class NULLS FIRST,
          i_category NULLS FIRST
-LIMIT 100;
+LIMIT 10;
 
 -- Query 23
 WITH frequent_ss_items AS
@@ -1618,7 +1618,7 @@ FROM
 ORDER BY c_last_name NULLS FIRST,
          c_first_name NULLS FIRST,
          sales NULLS FIRST
-LIMIT 100;
+LIMIT 10;
 
 -- Query 24
 WITH ssales AS
@@ -1714,7 +1714,7 @@ ORDER BY i_item_id ,
          i_item_desc ,
          s_store_id ,
          s_store_name
-LIMIT 100;
+LIMIT 10;
 
 -- Query 26
 SELECT i_item_id,
@@ -1739,7 +1739,7 @@ WHERE cs_sold_date_sk = d_date_sk
   AND d_year = 2000
 GROUP BY i_item_id
 ORDER BY i_item_id
-LIMIT 100;
+LIMIT 10;
 
 -- Query 27
 WITH results AS
@@ -1801,7 +1801,7 @@ FROM
    FROM results ) foo
 ORDER BY i_item_id NULLS FIRST,
          s_state NULLS FIRST
-LIMIT 100;
+LIMIT 10;
 
 -- Query 28
 SELECT *
@@ -1854,7 +1854,7 @@ FROM
      AND (ss_list_price BETWEEN 154 AND 154+10
           OR ss_coupon_amt BETWEEN 7326 AND 7326+1000
           OR ss_wholesale_cost BETWEEN 7 AND 7+20)) B6
-LIMIT 100;
+LIMIT 10;
 
 -- Query 29
 SELECT i_item_id,
@@ -1897,7 +1897,7 @@ ORDER BY i_item_id,
          i_item_desc,
          s_store_id,
          s_store_name
-LIMIT 100;
+LIMIT 10;
 
 -- Query 30
 WITH customer_total_return AS
@@ -1948,7 +1948,7 @@ ORDER BY c_customer_id NULLS FIRST,
          c_email_address NULLS FIRST,
          c_last_review_date_sk NULLS FIRST,
          ctr_total_return NULLS FIRST
-LIMIT 100;
+LIMIT 10;
 
 -- Query 31
 WITH ss AS
@@ -2038,7 +2038,7 @@ WHERE i_manufact_id = 977
      WHERE cs_item_sk = i_item_sk
        AND d_date BETWEEN '2000-01-27' AND cast('2000-04-26' AS date)
        AND d_date_sk = cs_sold_date_sk )
-LIMIT 100;
+LIMIT 10;
 
 -- Query 33
 WITH ss AS
@@ -2106,7 +2106,7 @@ FROM
    FROM ws) tmp1
 GROUP BY i_manufact_id
 ORDER BY total_sales
-LIMIT 100;
+LIMIT 10;
 
 -- Query 34
 SELECT c_last_name ,
@@ -2210,7 +2210,7 @@ ORDER BY ca_state NULLS FIRST,
          cd_dep_count NULLS FIRST,
          cd_dep_employed_count NULLS FIRST,
          cd_dep_college_count NULLS FIRST
-LIMIT 100;
+LIMIT 10;
 
 -- Query 36
 WITH results AS
@@ -2270,7 +2270,7 @@ ORDER BY lochierarchy DESC NULLS FIRST,
              WHEN lochierarchy = 0 THEN i_category
          END NULLS FIRST,
          rank_within_parent NULLS FIRST
-LIMIT 100;
+LIMIT 10;
 
 -- Query 37
 SELECT i_item_id,
@@ -2294,7 +2294,7 @@ GROUP BY i_item_id,
          i_item_desc,
          i_current_price
 ORDER BY i_item_id
-LIMIT 100;
+LIMIT 10;
 
 -- Query 38
 SELECT count(*)
@@ -2324,7 +2324,7 @@ FROM
           customer WHERE web_sales.ws_sold_date_sk = date_dim.d_date_sk
      AND web_sales.ws_bill_customer_sk = customer.c_customer_sk
      AND d_month_seq BETWEEN 1200 AND 1200 + 11 ) hot_cust
-LIMIT 100;
+LIMIT 10;
 
 -- Query 39
 WITH inv AS
@@ -2411,7 +2411,7 @@ GROUP BY w_state,
          i_item_id
 ORDER BY w_state,
          i_item_id
-LIMIT 100;
+LIMIT 10;
 
 -- Query 41
 SELECT distinct(i_product_name)
@@ -2479,7 +2479,7 @@ WHERE i_manufact_id BETWEEN 738 AND 738+40
                     AND (i_size = 'medium'
                          OR i_size = 'extra large'))))) > 0
 ORDER BY i_product_name
-LIMIT 100;
+LIMIT 10;
 
 -- Query 42
 SELECT dt.d_year,
@@ -2500,7 +2500,7 @@ GROUP BY dt.d_year,
 ORDER BY sum(ss_ext_sales_price) DESC,dt.d_year,
                                       item.i_category_id,
                                       item.i_category
-LIMIT 100 ;
+LIMIT 10 ;
 
 -- Query 43
 SELECT s_store_name,
@@ -2551,7 +2551,7 @@ ORDER BY s_store_name,
          thu_sales,
          fri_sales,
          sat_sales
-LIMIT 100;
+LIMIT 10;
 
 -- Query 44
 SELECT asceding.rnk,
@@ -2600,7 +2600,7 @@ WHERE asceding.rnk = descending.rnk
   AND i1.i_item_sk=asceding.item_sk
   AND i2.i_item_sk=descending.item_sk
 ORDER BY asceding.rnk
-LIMIT 100;
+LIMIT 10;
 
 -- Query 45
 SELECT ca_zip,
@@ -2643,7 +2643,7 @@ GROUP BY ca_zip,
          ca_city
 ORDER BY ca_zip,
          ca_city
-LIMIT 100;
+LIMIT 10;
 
 -- Query 46
 SELECT c_last_name,
@@ -2691,7 +2691,7 @@ ORDER BY c_last_name NULLS FIRST,
          ca_city NULLS FIRST,
          bought_city NULLS FIRST,
          ss_ticket_number NULLS FIRST
-LIMIT 100;
+LIMIT 10;
 
 -- Query 47
 WITH v1 AS
@@ -2764,7 +2764,7 @@ WHERE d_year = 1999
           ELSE NULL
       END > 0.1
 ORDER BY sum_sales - avg_monthly_sales, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
-LIMIT 100;
+LIMIT 10;
 
 -- Query 48
 SELECT SUM (ss_quantity)
@@ -2908,7 +2908,7 @@ ORDER BY 1 NULLS FIRST,
          4 NULLS FIRST,
          5 NULLS FIRST,
          2 NULLS FIRST
-LIMIT 100;
+LIMIT 10;
 
 -- Query 50
 SELECT s_store_name,
@@ -2977,7 +2977,7 @@ ORDER BY s_store_name,
          s_county,
          s_state,
          s_zip
-LIMIT 100;
+LIMIT 10;
 
 -- Query 51
 WITH web_v1 AS
@@ -3031,7 +3031,7 @@ FROM
 WHERE web_cumulative > store_cumulative
 ORDER BY item_sk NULLS FIRST,
          d_date NULLS FIRST
-LIMIT 100;
+LIMIT 10;
 
 -- Query 52
 SELECT dt.d_year,
@@ -3052,7 +3052,7 @@ GROUP BY dt.d_year,
 ORDER BY dt.d_year,
          ext_price DESC,
          brand_id
-LIMIT 100 ;
+LIMIT 10 ;
 
 -- Query 53
 SELECT *
@@ -3101,7 +3101,7 @@ WHERE CASE
 ORDER BY avg_quarterly_sales,
          sum_sales,
          i_manufact_id
-LIMIT 100;
+LIMIT 10;
 
 -- Query 54
 WITH my_customers AS
@@ -3160,7 +3160,7 @@ GROUP BY SEGMENT
 ORDER BY SEGMENT NULLS FIRST,
          num_customers NULLS FIRST,
          segment_base
-LIMIT 100;
+LIMIT 10;
 
 -- Query 55
 SELECT i_brand_id brand_id,
@@ -3178,7 +3178,7 @@ GROUP BY i_brand,
          i_brand_id
 ORDER BY ext_price DESC,
          i_brand_id
-LIMIT 100 ;
+LIMIT 10 ;
 
 -- Query 56
 WITH ss AS
@@ -3253,7 +3253,7 @@ FROM
 GROUP BY i_item_id
 ORDER BY total_sales  NULLS FIRST,
          i_item_id NULLS FIRST
-LIMIT 100;
+LIMIT 10;
 
 -- Query 57
 WITH v1 AS
@@ -3319,7 +3319,7 @@ WHERE d_year = 1999
           ELSE NULL
       END > 0.1
 ORDER BY sum_sales - avg_monthly_sales NULLS FIRST, 1, 2, 3, 4, 5, 6, 7, 8, 9
-LIMIT 100;
+LIMIT 10;
 
 -- Query 58
 WITH ss_items AS
@@ -3391,7 +3391,7 @@ WHERE ss_items.item_id=cs_items.item_id
   AND ws_item_rev BETWEEN 0.9 * cs_item_rev AND 1.1 * cs_item_rev
 ORDER BY ss_items.item_id NULLS FIRST,
          ss_item_rev NULLS FIRST
-LIMIT 100;
+LIMIT 10;
 
 -- Query 59
 WITH wss AS
@@ -3478,7 +3478,7 @@ WHERE s_store_id1=s_store_id2
 ORDER BY s_store_name1 NULLS FIRST,
          s_store_id1 NULLS FIRST,
          d_week_seq1 NULLS FIRST
-LIMIT 100;
+LIMIT 10;
 
 -- Query 60
 WITH ss AS
@@ -3547,7 +3547,7 @@ FROM
 GROUP BY i_item_id
 ORDER BY i_item_id,
          total_sales
-LIMIT 100;
+LIMIT 10;
 
 -- Query 61
 SELECT promotions,
@@ -3595,7 +3595,7 @@ FROM
      AND d_moy = 11) all_sales
 ORDER BY promotions,
          total
-LIMIT 100;
+LIMIT 10;
 
 -- Query 62
 SELECT w_substr,
@@ -3642,7 +3642,7 @@ GROUP BY w_substr,
 ORDER BY 1 NULLS FIRST,
          2 NULLS FIRST,
          3 NULLS FIRST
-LIMIT 100;
+LIMIT 10;
 
 -- Query 63
 SELECT *
@@ -3691,7 +3691,7 @@ WHERE CASE
 ORDER BY i_manager_id,
          avg_monthly_sales,
          sum_sales
-LIMIT 100;
+LIMIT 10;
 
 -- Query 64
 WITH cs_ui AS
@@ -4121,7 +4121,7 @@ ORDER BY i_category NULLS FIRST,
          s_store_id NULLS FIRST,
          sumsales NULLS FIRST,
          rk NULLS FIRST
-LIMIT 100;
+LIMIT 10;
 
 -- Query 68
 SELECT c_last_name,
@@ -4167,7 +4167,7 @@ WHERE ss_customer_sk = c_customer_sk
   AND current_addr.ca_city <> bought_city
 ORDER BY c_last_name NULLS FIRST,
          ss_ticket_number NULLS FIRST
-LIMIT 100;
+LIMIT 10;
 
 -- Query 69
 SELECT cd_gender,
@@ -4220,7 +4220,7 @@ ORDER BY cd_gender,
          cd_education_status,
          cd_purchase_estimate,
          cd_credit_rating
-LIMIT 100;
+LIMIT 10;
 
 -- Query 70
 SELECT sum(ss_net_profit) AS total_sum,
@@ -4258,7 +4258,7 @@ ORDER BY lochierarchy DESC ,
              WHEN grouping(s_state)+grouping(s_county) = 0 THEN s_state
          END ,
          rank_within_parent
-LIMIT 100;
+LIMIT 10;
 
 -- Query 71
 SELECT i_brand_id brand_id,
@@ -4347,7 +4347,7 @@ ORDER BY total_cnt DESC NULLS FIRST,
          i_item_desc NULLS FIRST,
          w_warehouse_name NULLS FIRST,
          d1.d_week_seq NULLS FIRST
-LIMIT 100;
+LIMIT 10;
 
 -- Query 73
 SELECT c_last_name,
@@ -4454,7 +4454,7 @@ WHERE t_s_secyear.customer_id = t_s_firstyear.customer_id
                 ELSE NULL
             END
 ORDER BY 1 NULLS FIRST
-LIMIT 100;
+LIMIT 10;
 
 -- Query 75
 WITH all_sales AS
@@ -4531,7 +4531,7 @@ WHERE curr_yr.i_brand_id=prev_yr.i_brand_id
   AND CAST(curr_yr.sales_cnt AS DECIMAL(17,2))/CAST(prev_yr.sales_cnt AS DECIMAL(17,2))<0.9
 ORDER BY sales_cnt_diff,
          sales_amt_diff
-LIMIT 100;
+LIMIT 10;
 
 -- Query 76
 SELECT channel,
@@ -4588,7 +4588,7 @@ ORDER BY channel NULLS FIRST,
          d_year NULLS FIRST,
          d_qoy NULLS FIRST,
          i_category NULLS FIRST
-LIMIT 100;
+LIMIT 10;
 
 -- Query 77
 WITH ss AS
@@ -4685,7 +4685,7 @@ GROUP BY ROLLUP (channel,
 ORDER BY channel NULLS FIRST,
          id NULLS FIRST,
          returns_ DESC
-LIMIT 100;
+LIMIT 10;
 
 -- Query 78
 WITH ws AS
@@ -4763,7 +4763,7 @@ ORDER BY ss_sold_year,
          other_chan_wholesale_cost,
          other_chan_sales_price,
          ratio
-LIMIT 100;
+LIMIT 10;
 
 -- Query 79
 SELECT c_last_name,
@@ -4803,7 +4803,7 @@ ORDER BY c_last_name  NULLS FIRST,
          SUBSTRING(s_city,1,30)  NULLS FIRST,
          profit NULLS FIRST,
          ss_ticket_number
-LIMIT 100;
+LIMIT 10;
 
 -- Query 80
 WITH ssr AS
@@ -4891,7 +4891,7 @@ GROUP BY ROLLUP (channel,
                  id)
 ORDER BY channel NULLS FIRST,
          id NULLS FIRST
-LIMIT 100;
+LIMIT 10;
 
 -- Query 81
 WITH customer_total_return AS
@@ -4948,7 +4948,7 @@ ORDER BY c_customer_id,
          ca_gmt_offset ,
          ca_location_type,
          ctr_total_return
-LIMIT 100;
+LIMIT 10;
 
 -- Query 82
 SELECT i_item_id ,
@@ -4972,7 +4972,7 @@ GROUP BY i_item_id,
          i_item_desc,
          i_current_price
 ORDER BY i_item_id
-LIMIT 100;
+LIMIT 10;
 
 -- Query 83
 WITH sr_items AS
@@ -5044,7 +5044,7 @@ WHERE sr_items.item_id=cr_items.item_id
   AND sr_items.item_id=wr_items.item_id
 ORDER BY sr_items.item_id NULLS FIRST,
          sr_item_qty NULLS FIRST
-LIMIT 100;
+LIMIT 10;
 
 -- Query 84
 SELECT c_customer_id AS customer_id ,
@@ -5064,7 +5064,7 @@ WHERE ca_city = 'Edgewood'
   AND hd_demo_sk = c_current_hdemo_sk
   AND sr_cdemo_sk = cd_demo_sk
 ORDER BY c_customer_id NULLS FIRST
-LIMIT 100;
+LIMIT 10;
 
 -- Query 85
 SELECT SUBSTRING(r_reason_desc,1,20) ,
@@ -5123,7 +5123,7 @@ ORDER BY SUBSTRING(r_reason_desc,1,20) ,
          avg(ws_quantity) ,
          avg(wr_refunded_cash) ,
          avg(wr_fee)
-LIMIT 100;
+LIMIT 10;
 
 -- Query 86
 SELECT sum(ws_net_paid) AS total_sum ,
@@ -5147,7 +5147,7 @@ ORDER BY lochierarchy DESC NULLS FIRST,
              WHEN grouping(i_category)+grouping(i_class) = 0 THEN i_category
          END NULLS FIRST,
          rank_within_parent NULLS FIRST
-LIMIT 100;
+LIMIT 10;
 
 -- Query 87
 SELECT count(*)
@@ -5340,7 +5340,7 @@ WHERE CASE
       END > 0.1
 ORDER BY sum_sales - avg_monthly_sales,
          s_store_name, 1, 2, 3, 5, 6, 7, 8
-LIMIT 100;
+LIMIT 10;
 
 -- Query 90
 SELECT case when pmc=0 then null else cast(amc AS decimal(15,4))/cast(pmc AS decimal(15,4)) end am_pm_ratio
@@ -5368,7 +5368,7 @@ FROM
      AND household_demographics.hd_dep_count = 6
      AND web_page.wp_char_count BETWEEN 5000 AND 5200) pt
 ORDER BY am_pm_ratio
-LIMIT 100;
+LIMIT 10;
 
 -- Query 91
 SELECT cc_call_center_id Call_Center,
@@ -5419,7 +5419,7 @@ WHERE i_manufact_id = 350
        AND d_date BETWEEN '2000-01-27' AND cast('2000-04-26' AS date)
        AND d_date_sk = ws_sold_date_sk )
 ORDER BY sum(ws_ext_discount_amt)
-LIMIT 100;
+LIMIT 10;
 
 -- Query 93
 SELECT ss_customer_sk,
@@ -5440,7 +5440,7 @@ FROM
 GROUP BY ss_customer_sk
 ORDER BY sumsales NULLS FIRST,
          ss_customer_sk NULLS FIRST
-LIMIT 100;
+LIMIT 10;
 
 -- Query 94
 SELECT count(DISTINCT ws_order_number) AS "order count" ,
@@ -5466,7 +5466,7 @@ WHERE d_date BETWEEN '1999-02-01' AND cast('1999-04-02' AS date)
      FROM web_returns wr1
      WHERE ws1.ws_order_number = wr1.wr_order_number)
 ORDER BY count(DISTINCT ws_order_number)
-LIMIT 100;
+LIMIT 10;
 
 -- Query 95
 WITH ws_wh AS
@@ -5499,7 +5499,7 @@ WHERE d_date BETWEEN '1999-02-01' AND cast('1999-04-02' AS date)
           ws_wh
      WHERE wr_order_number = ws_wh.ws_order_number)
 ORDER BY count(DISTINCT ws_order_number)
-LIMIT 100;
+LIMIT 10;
 
 -- Query 96
 SELECT count(*)
@@ -5515,7 +5515,7 @@ WHERE ss_sold_time_sk = time_dim.t_time_sk
   AND household_demographics.hd_dep_count = 7
   AND store.s_store_name = 'ese'
 ORDER BY count(*)
-LIMIT 100;
+LIMIT 10;
 
 -- Query 97
 WITH ssci AS
@@ -5551,7 +5551,7 @@ SELECT sum(CASE
 FROM ssci
 FULL OUTER JOIN csci ON (ssci.customer_sk=csci.customer_sk
                          AND ssci.item_sk = csci.item_sk)
-LIMIT 100;
+LIMIT 10;
 
 -- Query 98
 SELECT i_item_id ,
@@ -5626,4 +5626,4 @@ GROUP BY w_substr ,
 ORDER BY w_substr  NULLS FIRST,
          sm_type  NULLS FIRST,
         cc_name_lower NULLS FIRST
-LIMIT 100;
+LIMIT 10;
