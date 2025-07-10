@@ -3856,7 +3856,7 @@ WHERE sb.ss_store_sk = sc.ss_store_sk
   AND i_item_sk = sc.ss_item_sk
 ORDER BY s_store_name NULLS FIRST,
          i_item_desc NULLS FIRST
-LIMIT 100;
+LIMIT 20;
 
 -- Query 66
 select
@@ -4075,7 +4075,7 @@ select
   ,ship_carriers
        ,year_
  order by w_warehouse_name NULLS FIRST
-LIMIT 100;
+LIMIT 20;
 
 -- Query 67
 SELECT *
@@ -4306,7 +4306,8 @@ GROUP BY i_brand,
          t_minute
 ORDER BY ext_price DESC NULLS FIRST,
          i_brand_id NULLS FIRST,
-         t_hour NULLS FIRST;
+         t_hour NULLS FIRST
+         LIMIT 20;
 
 -- Query 72
 SELECT i_item_desc,
