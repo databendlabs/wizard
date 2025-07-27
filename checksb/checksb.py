@@ -12,27 +12,122 @@ from typing import Dict, List, Tuple, Optional, Any
 from dataclasses import dataclass, field
 from collections import defaultdict
 
-# Configure logging to capture all output
-class DualLogger:
-    def __init__(self, filename):
+# Enhanced logging system for real-time test monitoring
+class EnhancedLogger:
+    def __init__(self, log_dir: str = "logs"):
+        # Create log directory
+        os.makedirs(log_dir, exist_ok=True)
+        
+        # Set up log files
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        self.log_file = os.path.join(log_dir, f"checksb_{timestamp}.log")
+        self.detailed_log = os.path.join(log_dir, f"checksb_detailed_{timestamp}.log")
+        
+        # Open log files
+        self.log_handle = open(self.log_file, 'w', encoding='utf-8')
+        self.detailed_handle = open(self.detailed_log, 'w', encoding='utf-8')
+        
+        # Terminal output
         self.terminal = sys.stdout
-        self.log = open(filename, 'w')
+        
+        print(f"📋 Logs will be saved to: {log_dir}/")
+        print(f"   - Main log: {os.path.basename(self.log_file)}")
+        print(f"   - Detailed log: {os.path.basename(self.detailed_log)}")
     
-    def write(self, message):
-        self.terminal.write(message)
-        self.log.write(message)
-        self.log.flush()
+    def log_test_start(self, case: str, database: str, total_queries: int):
+        """Log test case start"""
+        msg = f"\n🚀 STARTING TEST CASE: {case} | DB: {database} | Queries: {total_queries}"
+        self._write_all(msg)
     
-    def flush(self):
-        self.terminal.flush()
-        self.log.flush()
+    def log_query_execution(self, query_id: str, query: str, engine: str, status: str = "RUNNING"):
+        """Log individual query execution"""
+        # Truncate long queries for readability
+        query_preview = query.replace('\n', ' ').strip()[:80]
+        if len(query_preview) < len(query.replace('\n', ' ').strip()):
+            query_preview += "..."
+        
+        if status == "RUNNING":
+            msg = f"  🔄 [{engine}] {query_id}: {query_preview}"
+        elif status == "SUCCESS":
+            msg = f"  ✅ [{engine}] {query_id}: COMPLETED"
+        elif status == "ERROR":
+            msg = f"  OOPS ❌ [{engine}] {query_id}: FAILED"
+        else:
+            msg = f"  📝 [{engine}] {query_id}: {status}"
+        
+        self._write_all(msg)
+        
+        # Write full query to detailed log
+        self.detailed_handle.write(f"\n--- {query_id} on {engine} ---\n")
+        self.detailed_handle.write(query)
+        self.detailed_handle.write("\n--- End Query ---\n")
+        self.detailed_handle.flush()
+    
+    def log_comparison_result(self, query_id: str, passed: bool, match_type: str = ""):
+        """Log query comparison result"""
+        if passed:
+            msg = f"  ✅ COMPARE {query_id}: MATCH ({match_type})"
+        else:
+            msg = f"  OOPS ❌ COMPARE {query_id}: MISMATCH ({match_type})"
+        self._write_all(msg)
+    
+    def log_progress(self, current: int, total: int, passed: int, failed: int, case: str = ""):
+        """Log current progress"""
+        total_tested = passed + failed
+        success_rate = (passed / total_tested * 100) if total_tested > 0 else 0
+        
+        case_info = f" | Case: {case}" if case else ""
+        msg = f"📊 PROGRESS: {current}/{total} queries{case_info} | ✅{passed} ❌{failed} | Success: {success_rate:.1f}%"
+        self._write_all(msg)
+    
+    def log_case_summary(self, case: str, passed: int, failed: int, elapsed: float):
+        """Log test case summary"""
+        total = passed + failed
+        success_rate = (passed / total * 100) if total > 0 else 0
+        
+        if failed == 0:
+            msg = f"🎉 CASE COMPLETED: {case} | ✅{passed}/{total} ({success_rate:.1f}%) | Time: {elapsed:.1f}s"
+        else:
+            msg = f"OOPS 🚨 CASE FAILED: {case} | ✅{passed} ❌{failed}/{total} ({success_rate:.1f}%) | Time: {elapsed:.1f}s"
+        
+        self._write_all(msg)
+    
+    def log_error(self, context: str, error_msg: str):
+        """Log error with OOPS prefix"""
+        msg = f"OOPS ❌ ERROR in {context}: {error_msg}"
+        self._write_all(msg)
+    
+    def _write_all(self, message: str):
+        """Write message to both terminal and log files"""
+        timestamp = datetime.now().strftime('%H:%M:%S')
+        formatted_msg = f"[{timestamp}] {message}"
+        
+        # Write to terminal
+        print(formatted_msg)
+        
+        # Write to log files
+        self.log_handle.write(formatted_msg + "\n")
+        self.log_handle.flush()
+        
+        self.detailed_handle.write(formatted_msg + "\n")
+        self.detailed_handle.flush()
     
     def close(self):
-        self.log.close()
+        """Close log files"""
+        if hasattr(self, 'log_handle'):
+            self.log_handle.close()
+        if hasattr(self, 'detailed_handle'):
+            self.detailed_handle.close()
 
-# Set up dual output
-log_filename = f"checksb_{datetime.now():%Y%m%d_%H%M%S}.log"
-sys.stdout = DualLogger(log_filename)
+# Global logger instance
+logger_instance = None
+
+def get_logger():
+    """Get global logger instance"""
+    global logger_instance
+    if logger_instance is None:
+        logger_instance = EnhancedLogger()
+    return logger_instance
 
 logger = logging.getLogger(__name__)
 
@@ -65,13 +160,15 @@ class ProgressTracker:
         self.queries_passed = 0
         self.queries_failed = 0
         self.database = database
+        self.logger = get_logger()
     
     def update(self, case: str = None, step: str = None):
         if case:
             self.current_case = case
         if step:
             self.current_step = step
-        self._print_status()
+        # Use enhanced logging instead of old print status
+        self._log_current_progress()
     
     def add_result(self, passed: bool):
         """Add a query result to the tracker"""
@@ -79,8 +176,23 @@ class ProgressTracker:
             self.queries_passed += 1
         else:
             self.queries_failed += 1
+        
+        # Log progress update
+        self._log_current_progress()
+    
+    def _log_current_progress(self):
+        """Log current progress using enhanced logger"""
+        if self.queries_tested > 0:
+            self.logger.log_progress(
+                current=self.queries_tested,
+                total=self.total_queries_all_cases,
+                passed=self.queries_passed,
+                failed=self.queries_failed,
+                case=self.current_case
+            )
     
     def _print_status(self):
+        # Keep for backward compatibility but use enhanced logging
         elapsed = time.time() - self.start_time
         eta = self._calculate_eta(elapsed)
         
@@ -540,26 +652,30 @@ class CheckSB:
         self.progress = ProgressTracker(args.database)
     
     def run(self):
+        logger = get_logger()
         cases = self._get_cases()
         skip_list = {s.strip().lower() for s in self.args.skip.split(",") if s}
         
         self.progress.total_cases = len(cases)
         self._print_header(f"SQL Compatibility Test", cases)
         
+        logger._write_all(f"📈 Total test cases to run: {len(cases)}")
+        
         for idx, case in enumerate(cases, 1):
             if case.lower() in skip_list:
-                print(f"\n Skipping {case} (--skip argument)")
+                logger._write_all(f"⏭️ Skipping {case} (--skip argument)")
                 self.progress.cases_completed += 1
                 continue
             
             self.progress.update(case=case, step="initializing")
             
-            # Enhanced case separator
-            print(f"\n\n{'#' * 80}")
-            print(f"{'#' * 80}")
-            print(f"##  [{idx}/{len(cases)}] CASE: {case.upper()}")
-            print(f"{'#' * 80}")
-            print(f"{'#' * 80}\n")
+            # Enhanced case separator with logging
+            separator = "#" * 80
+            logger._write_all(f"\n{separator}")
+            logger._write_all(f"{separator}")
+            logger._write_all(f"##  [{idx}/{len(cases)}] CASE: {case.upper()}")
+            logger._write_all(f"{separator}")
+            logger._write_all(f"{separator}")
             
             result = self._run_case(case)
             self.results[case] = result
@@ -575,17 +691,19 @@ class CheckSB:
         return [c.strip() for c in self.args.case.split(",")]
     
     def _run_case(self, case: str) -> TestResult:
+        logger = get_logger()
         base_dir = Path("sql") / case
         
         if not self.args.check_only:
             self._setup_case(base_dir, case)
         else:
-            print(f"\n  Skipping setup and action phases (--check-only mode)")
+            logger._write_all(f"⏭️ Skipping setup and action phases (--check-only mode)")
         
         self.progress.update(step="running comparison checks")
         return self._check_case(base_dir / "check.sql", case)
     
     def _setup_case(self, base_dir: Path, case: str):
+        logger = get_logger()
         tools = []
         
         if self.args.runbend:
@@ -600,26 +718,26 @@ class CheckSB:
         
         for tool_name, executor, subdir in tools:
             self.progress.update(step=f"setting up with {tool_name}")
-            print(f"\n  Setting up {case} with {tool_name}")
+            logger._write_all(f"🔧 Setting up {case} with {tool_name}")
             
             # Database setup
             self.progress.update(step=f"{tool_name}: creating database")
-            print(f"    • Creating database {self.args.database}")
+            logger._write_all(f"  🗄️ Creating database {self.args.database}")
             self._setup_database(executor)
             
             # Setup scripts
             setup_path = base_dir / subdir / "setup.sql"
             self.progress.update(step=f"{tool_name}: running setup.sql")
-            print(f"    • Running {setup_path}")
+            logger._write_all(f"  📋 Running setup script: {setup_path}")
             self._execute_script(setup_path, executor)
             
             # Action scripts
             action_path = base_dir / "action.sql"
             self.progress.update(step=f"{tool_name}: running action.sql")
-            print(f"    • Running {action_path}")
+            logger._write_all(f"  ⚡ Running action script: {action_path}")
             self._execute_script(action_path, executor)
             
-            print(f"    Setup complete")
+            logger._write_all(f"  ✅ Setup complete for {tool_name}")
     
     def _setup_database(self, executor: SQLExecutor):
         db = self.args.database
@@ -627,23 +745,27 @@ class CheckSB:
         base_executor.execute(f"CREATE DATABASE IF NOT EXISTS {db}", "create database if not exists")
     
     def _execute_script(self, script_path: Path, executor: SQLExecutor):
+        logger = get_logger()
+        
         with open(script_path) as f:
             queries = [q.strip() for q in f.read().split(";") if q.strip()]
+        
+        logger._write_all(f"📄 Executing script: {script_path.name} ({len(queries)} queries)")
         
         # Group queries by prefix and extract concurrency settings
         groups = self._group_queries_by_prefix(queries)
         
         for group_name, group_queries in groups.items():
-            print(f"      📋 Executing {group_name} group ({len(group_queries)} queries)")
+            logger._write_all(f"  📋 Executing {group_name} group ({len(group_queries)} queries)")
             
             # Extract concurrency setting for this group
             concurrency = self._extract_group_concurrency(group_queries)
             
             if concurrency > 1:
-                print(f"         🔄 Using {concurrency} concurrent workers")
+                logger._write_all(f"     🔄 Using {concurrency} concurrent workers")
                 self._execute_queries_parallel(group_queries, executor, script_path.name, concurrency)
             else:
-                print(f"         ➡️  Sequential execution")
+                logger._write_all(f"     ➡️ Sequential execution")
                 self._execute_queries_sequential(group_queries, executor, script_path.name)
     
     def _group_queries_by_prefix(self, queries: List[str]) -> Dict[str, List[Tuple[int, str]]]:
@@ -667,28 +789,37 @@ class CheckSB:
     
     def _execute_queries_sequential(self, group_queries: List[Tuple[int, str]], executor: SQLExecutor, script_name: str):
         """Execute queries sequentially"""
+        logger = get_logger()
+        
         for query_num, query in group_queries:
+            # Log query execution start
+            query_id = f"Query-{query_num}"
+            logger.log_query_execution(query_id, query, executor.tool, "RUNNING")
+            
             result = executor.execute(query, f"query {query_num}")
             
             # Check for errors using __ERROR__ prefix from SQLExecutor
             if result.startswith("__ERROR__:"):
                 error_msg = result[10:]  # Remove "__ERROR__:" prefix
-                
-                print(f"         ❌ ERROR in {script_name} query {query_num}:")
-                print(f"            Query: {query[:100]}{'...' if len(query) > 100 else ''}")
-                print(f"            Error: {error_msg.strip()}")
+                logger.log_query_execution(query_id, query, executor.tool, "ERROR")
+                logger.log_error(f"{script_name} {query_id}", error_msg.strip())
                 # Continue execution instead of stopping
             else:
-                print(f"         ✅ Query {query_num} completed")
+                logger.log_query_execution(query_id, query, executor.tool, "SUCCESS")
     
     def _execute_queries_parallel(self, group_queries: List[Tuple[int, str]], executor: SQLExecutor, script_name: str, concurrency: int):
         """Execute queries in parallel using ThreadPoolExecutor"""
         from concurrent.futures import ThreadPoolExecutor, as_completed
         import threading
+        logger = get_logger()
         
         def execute_single_query(query_data):
             query_num, query = query_data
             thread_id = threading.current_thread().ident
+            query_id = f"Query-{query_num}"
+            
+            # Log query start
+            logger.log_query_execution(query_id, query, executor.tool, "RUNNING")
             
             # Create a new executor instance for thread safety
             thread_executor = SQLExecutor(executor.tool, executor.database, executor.warehouse)
@@ -707,73 +838,92 @@ class CheckSB:
             # Process completed queries
             for future in as_completed(future_to_query):
                 query_num, query, result, error = future.result()
+                query_id = f"Query-{query_num}"
                 
                 if error:
-                    print(f"         ❌ ERROR in {script_name} query {query_num} (thread error):")
-                    print(f"            Query: {query[:100]}{'...' if len(query) > 100 else ''}")
-                    print(f"            Error: {error}")
+                    logger.log_query_execution(query_id, query, executor.tool, "ERROR")
+                    logger.log_error(f"{script_name} {query_id} (thread error)", error)
                 elif result and result.startswith("__ERROR__:"):
                     error_msg = result[10:]  # Remove "__ERROR__:" prefix
-                    print(f"         ❌ ERROR in {script_name} query {query_num}:")
-                    print(f"            Query: {query[:100]}{'...' if len(query) > 100 else ''}")
-                    print(f"            Error: {error_msg.strip()}")
+                    logger.log_query_execution(query_id, query, executor.tool, "ERROR")
+                    logger.log_error(f"{script_name} {query_id}", error_msg.strip())
                 else:
-                    print(f"         ✅ Query {query_num} completed")
+                    logger.log_query_execution(query_id, query, executor.tool, "SUCCESS")
     
     def _check_case(self, check_path: Path, case: str) -> TestResult:
         result = TestResult(case=case)
         start_time = time.time()
-        
-        print(f"\n  Running comparison checks")
+        logger = get_logger()
         
         with open(check_path) as f:
             queries = [q.strip() for q in f.read().split(";") if q.strip()]
         
         result.total = len(queries)
         
+        # Log test case start
+        logger.log_test_start(case, self.args.database, len(queries))
+        
         # Only run comparison if neither runbend nor runsnow is specified
         if self.args.runbend or self.args.runsnow:
-            print(f"    Skipping comparison (single tool mode)")
+            logger._write_all(f"⏭️ Skipping comparison checks (single tool mode)")
             result.elapsed = time.time() - start_time
             return result
         
         for i, query in enumerate(queries, 1):
             query_id = self._extract_query_id(query, i)
+            self.progress.queries_tested = i
             self.progress.update(step=f"checking query {i}/{len(queries)}: {query_id}")
             
-            print(f"\n    [{i}/{len(queries)}] Testing: {query_id}")
-            
-            print(f"      • Executing on bendsql...", end="", flush=True)
+            # Log query execution start
+            logger.log_query_execution(query_id, query, "bendsql", "RUNNING")
             bend_result = self.bend_executor.execute(query)
-            print(" done")
             
-            print(f"      • Executing on snowsql...", end="", flush=True)
+            # Check for bendsql errors
+            if bend_result.startswith("__ERROR__:"):
+                logger.log_query_execution(query_id, query, "bendsql", "ERROR")
+                logger.log_error(f"bendsql {query_id}", bend_result[10:][:100])
+            else:
+                logger.log_query_execution(query_id, query, "bendsql", "SUCCESS")
+            
+            # Log snowsql execution
+            logger.log_query_execution(query_id, query, "snowsql", "RUNNING")
             snow_result = self.snow_executor.execute(query)
-            print(" done")
             
+            # Check for snowsql errors
+            if snow_result.startswith("__ERROR__:"):
+                logger.log_query_execution(query_id, query, "snowsql", "ERROR")
+                logger.log_error(f"snowsql {query_id}", snow_result[10:][:100])
+            else:
+                logger.log_query_execution(query_id, query, "snowsql", "SUCCESS")
+            
+            # Handle execution errors
             if self._handle_errors(bend_result, snow_result, query_id, result):
                 continue
             
-            print(f"      • Comparing results...", end="", flush=True)
+            # Compare results
             match, match_type = QueryComparator.compare(bend_result, snow_result, query)
             
             if match:
                 result.passed += 1
                 self.progress.add_result(True)
-                print(f" MATCH ({match_type})")
+                logger.log_comparison_result(query_id, True, match_type)
             else:
                 result.failed += 1
                 self.progress.add_result(False)
                 result.errors.append((query_id, match_type, bend_result, snow_result))
-                print(f" MISMATCH")
-                print(f"        {match_type}")
+                logger.log_comparison_result(query_id, False, match_type)
         
         result.elapsed = time.time() - start_time
+        
+        # Log case summary
+        logger.log_case_summary(case, result.passed, result.failed, result.elapsed)
+        
         return result
     
     def _handle_errors(self, bend_result: str, snow_result: str, query_id: str, result: TestResult) -> bool:
         bend_err = bend_result.startswith("__ERROR__:")
         snow_err = snow_result.startswith("__ERROR__:")
+        logger = get_logger()
         
         if bend_err or snow_err:
             result.failed += 1
@@ -782,11 +932,12 @@ class CheckSB:
             snow_msg = snow_result[10:][:100] if snow_err else "OK"
             result.errors.append((query_id, "Execution Error", bend_msg, snow_msg))
             
-            print(f" ERROR")
+            # Log detailed error information
             if bend_err:
-                print(f"        bendsql: {bend_msg}")
+                logger.log_error(f"bendsql {query_id}", bend_msg)
             if snow_err:
-                print(f"        snowsql: {snow_msg}")
+                logger.log_error(f"snowsql {query_id}", snow_msg)
+            
             return True
         return False
     
@@ -1016,23 +1167,32 @@ def main():
     parser.add_argument("--skip", default="", help="Cases to skip (comma-separated)")
     parser.add_argument("--summary-only", action="store_true", help="Show only summary, suppress detailed diff tables")
     parser.add_argument("--check-only", action="store_true", help="Only run check.sql, skip setup and action phases")
+    parser.add_argument("--log-dir", default="logs", help="Directory to save log files")
     
     args = parser.parse_args()
     
+    # Initialize enhanced logger
+    global logger_instance
+    logger_instance = EnhancedLogger(args.log_dir)
+    
     try:
+        logger_instance._write_all(f"🚀 Starting checksb with database: {args.database}")
         CheckSB(args).run()
+        logger_instance._write_all(f"✅ checksb completed successfully")
     except KeyboardInterrupt:
+        logger_instance._write_all(f"⚠️ Test interrupted by user")
         print("\n\nTest interrupted by user")
         sys.exit(1)
     except Exception as e:
+        logger_instance.log_error("main", str(e))
         print(f"\n\nFatal error: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
     finally:
-        # Ensure log file is properly closed
-        if hasattr(sys.stdout, 'close'):
-            sys.stdout.close()
+        # Ensure log files are properly closed
+        if logger_instance:
+            logger_instance.close()
             sys.stdout = sys.__stdout__
 
 if __name__ == "__main__":
