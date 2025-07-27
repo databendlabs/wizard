@@ -52,17 +52,13 @@ COPY INTO sales
     FILE_FORMAT = (TYPE = parquet);
 
 -- Creating stream for 'customers' table
-DROP STREAM IF EXISTS customers_stream;
-CREATE STREAM customers_stream ON TABLE customers;
+CREATE OR REPLACE STREAM customers_stream ON TABLE customers;
 
 -- Creating stream for 'date_dim' table
-DROP STREAM IF EXISTS date_dim_stream;
-CREATE STREAM date_dim_stream ON TABLE date_dim;
+CREATE OR REPLACE STREAM date_dim_stream ON TABLE date_dim;
 
 -- Creating stream for 'products' table
-DROP STREAM IF EXISTS products_stream;
-CREATE STREAM products_stream ON TABLE products;
+CREATE OR REPLACE STREAM products_stream ON TABLE products;
 
 -- Creating stream for 'sales' table
-DROP STREAM IF EXISTS sales_stream;
-CREATE STREAM sales_stream ON TABLE sales;
+CREATE OR REPLACE STREAM sales_stream ON TABLE sales;

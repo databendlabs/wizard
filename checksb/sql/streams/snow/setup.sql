@@ -70,17 +70,13 @@ COPY INTO sales
     FROM @wizardbend/selects/sales.parquet (file_format => 'parquet_format'));
 
 -- Creating stream for 'customers' table
-DROP STREAM IF EXISTS customers_stream;
-CREATE STREAM customers_stream ON TABLE customers APPEND_ONLY = TRUE;
+CREATE OR REPLACE STREAM checksb_db.public.customers_stream ON TABLE customers APPEND_ONLY = TRUE;
 
 -- Creating stream for 'date_dim' table
-DROP STREAM IF EXISTS date_dim_stream;
-CREATE STREAM date_dim_stream ON TABLE date_dim APPEND_ONLY = TRUE;
+CREATE OR REPLACE STREAM checksb_db.public.date_dim_stream ON TABLE date_dim APPEND_ONLY = TRUE;
 
 -- Creating stream for 'products' table
-DROP STREAM IF EXISTS products_stream;
-CREATE STREAM products_stream ON TABLE products APPEND_ONLY = TRUE;
+CREATE OR REPLACE STREAM checksb_db.public.products_stream ON TABLE products APPEND_ONLY = TRUE;
 
 -- Creating stream for 'sales' table
-DROP STREAM IF EXISTS sales_stream;
-CREATE STREAM sales_stream ON TABLE sales APPEND_ONLY = TRUE;
+CREATE OR REPLACE STREAM checksb_db.public.sales_stream ON TABLE sales APPEND_ONLY = TRUE;
