@@ -39,26 +39,34 @@ class EnhancedLogger:
         msg = f"\n🚀 STARTING TEST CASE: {case} | DB: {database} | Queries: {total_queries}"
         self._write_all(msg)
     
-    def log_query_execution(self, query_id: str, query: str, engine: str, status: str = "RUNNING"):
-        """Log individual query execution"""
+    def log_query_execution(self, query_id: str, query: str, engine: str, status: str = "RUNNING", database: str = "", phase: str = ""):
+        """Log individual query execution with detailed context"""
         # Truncate long queries for readability
         query_preview = query.replace('\n', ' ').strip()[:80]
         if len(query_preview) < len(query.replace('\n', ' ').strip()):
             query_preview += "..."
         
+        # Build context information
+        context_parts = [engine]
+        if database:
+            context_parts.append(database)
+        if phase:
+            context_parts.append(phase)
+        context = "|".join(context_parts)
+        
         if status == "RUNNING":
-            msg = f"  🔄 [{engine}] {query_id}: {query_preview}"
+            msg = f"  🔄 [{context}] {query_id}: {query_preview}"
         elif status == "SUCCESS":
-            msg = f"  ✅ [{engine}] {query_id}: COMPLETED"
+            msg = f"  ✅ [{context}] {query_id}: COMPLETED"
         elif status == "ERROR":
-            msg = f"  OOPS ❌ [{engine}] {query_id}: FAILED"
+            msg = f"  OOPS ❌ [{context}] {query_id}: FAILED"
         else:
-            msg = f"  📝 [{engine}] {query_id}: {status}"
+            msg = f"  📝 [{context}] {query_id}: {status}"
         
         self._write_all(msg)
         
         # Write full query to detailed log
-        self.detailed_handle.write(f"\n--- {query_id} on {engine} ---\n")
+        self.detailed_handle.write(f"\n--- {query_id} on {context} ---\n")
         self.detailed_handle.write(query)
         self.detailed_handle.write("\n--- End Query ---\n")
         self.detailed_handle.flush()
@@ -93,9 +101,21 @@ class EnhancedLogger:
         self._write_all(msg)
     
     def log_error(self, context: str, error_msg: str):
-        """Log error with OOPS prefix"""
-        msg = f"OOPS ❌ ERROR in {context}: {error_msg}"
+        """Log error with OOPS prefix and full error details"""
+        # Clean up error message
+        clean_error = error_msg.strip()
+        
+        # Split into lines for better readability
+        error_lines = clean_error.split('\n')
+        
+        # Log the main error message
+        msg = f"OOPS ❌ ERROR in {context}:"
         self._write_all(msg)
+        
+        # Log each line of the error with proper indentation
+        for line in error_lines:
+            if line.strip():  # Skip empty lines
+                self._write_all(f"    {line.strip()}")
     
     def _write_all(self, message: str):
         """Write message to both terminal and log files"""
@@ -750,6 +770,15 @@ class CheckSB:
         with open(script_path) as f:
             queries = [q.strip() for q in f.read().split(";") if q.strip()]
         
+        # Determine phase from script name
+        phase = "unknown"
+        if "setup" in script_path.name.lower():
+            phase = "setup"
+        elif "action" in script_path.name.lower():
+            phase = "action"
+        elif "check" in script_path.name.lower():
+            phase = "check"
+        
         logger._write_all(f"📄 Executing script: {script_path.name} ({len(queries)} queries)")
         
         # Group queries by prefix and extract concurrency settings
@@ -763,10 +792,10 @@ class CheckSB:
             
             if concurrency > 1:
                 logger._write_all(f"     🔄 Using {concurrency} concurrent workers")
-                self._execute_queries_parallel(group_queries, executor, script_path.name, concurrency)
+                self._execute_queries_parallel(group_queries, executor, script_path.name, concurrency, phase)
             else:
                 logger._write_all(f"     ➡️ Sequential execution")
-                self._execute_queries_sequential(group_queries, executor, script_path.name)
+                self._execute_queries_sequential(group_queries, executor, script_path.name, phase)
     
     def _group_queries_by_prefix(self, queries: List[str]) -> Dict[str, List[Tuple[int, str]]]:
         """Group queries by their SQL command prefix (first word)"""
@@ -787,27 +816,27 @@ class CheckSB:
         # Default concurrency is 4 (parallel)
         return 4
     
-    def _execute_queries_sequential(self, group_queries: List[Tuple[int, str]], executor: SQLExecutor, script_name: str):
+    def _execute_queries_sequential(self, group_queries: List[Tuple[int, str]], executor: SQLExecutor, script_name: str, phase: str = "unknown"):
         """Execute queries sequentially"""
         logger = get_logger()
         
         for query_num, query in group_queries:
             # Log query execution start
             query_id = f"Query-{query_num}"
-            logger.log_query_execution(query_id, query, executor.tool, "RUNNING")
+            logger.log_query_execution(query_id, query, executor.tool, "RUNNING", executor.database, phase)
             
             result = executor.execute(query, f"query {query_num}")
             
             # Check for errors using __ERROR__ prefix from SQLExecutor
             if result.startswith("__ERROR__:"):
                 error_msg = result[10:]  # Remove "__ERROR__:" prefix
-                logger.log_query_execution(query_id, query, executor.tool, "ERROR")
-                logger.log_error(f"{script_name} {query_id}", error_msg.strip())
+                logger.log_query_execution(query_id, query, executor.tool, "ERROR", executor.database, phase)
+                logger.log_error(f"{script_name} {query_id}", error_msg)  # Show full error message
                 # Continue execution instead of stopping
             else:
-                logger.log_query_execution(query_id, query, executor.tool, "SUCCESS")
+                logger.log_query_execution(query_id, query, executor.tool, "SUCCESS", executor.database, phase)
     
-    def _execute_queries_parallel(self, group_queries: List[Tuple[int, str]], executor: SQLExecutor, script_name: str, concurrency: int):
+    def _execute_queries_parallel(self, group_queries: List[Tuple[int, str]], executor: SQLExecutor, script_name: str, concurrency: int, phase: str = "unknown"):
         """Execute queries in parallel using ThreadPoolExecutor"""
         from concurrent.futures import ThreadPoolExecutor, as_completed
         import threading
@@ -819,7 +848,7 @@ class CheckSB:
             query_id = f"Query-{query_num}"
             
             # Log query start
-            logger.log_query_execution(query_id, query, executor.tool, "RUNNING")
+            logger.log_query_execution(query_id, query, executor.tool, "RUNNING", executor.database, phase)
             
             # Create a new executor instance for thread safety
             thread_executor = SQLExecutor(executor.tool, executor.database, executor.warehouse)
@@ -841,14 +870,14 @@ class CheckSB:
                 query_id = f"Query-{query_num}"
                 
                 if error:
-                    logger.log_query_execution(query_id, query, executor.tool, "ERROR")
+                    logger.log_query_execution(query_id, query, executor.tool, "ERROR", executor.database, phase)
                     logger.log_error(f"{script_name} {query_id} (thread error)", error)
                 elif result and result.startswith("__ERROR__:"):
                     error_msg = result[10:]  # Remove "__ERROR__:" prefix
-                    logger.log_query_execution(query_id, query, executor.tool, "ERROR")
-                    logger.log_error(f"{script_name} {query_id}", error_msg.strip())
+                    logger.log_query_execution(query_id, query, executor.tool, "ERROR", executor.database, phase)
+                    logger.log_error(f"{script_name} {query_id}", error_msg)  # Show full error message
                 else:
-                    logger.log_query_execution(query_id, query, executor.tool, "SUCCESS")
+                    logger.log_query_execution(query_id, query, executor.tool, "SUCCESS", executor.database, phase)
     
     def _check_case(self, check_path: Path, case: str) -> TestResult:
         result = TestResult(case=case)
@@ -875,26 +904,26 @@ class CheckSB:
             self.progress.update(step=f"checking query {i}/{len(queries)}: {query_id}")
             
             # Log query execution start
-            logger.log_query_execution(query_id, query, "bendsql", "RUNNING")
+            logger.log_query_execution(query_id, query, "bendsql", "RUNNING", self.args.database, "check")
             bend_result = self.bend_executor.execute(query)
             
             # Check for bendsql errors
             if bend_result.startswith("__ERROR__:"):
-                logger.log_query_execution(query_id, query, "bendsql", "ERROR")
-                logger.log_error(f"bendsql {query_id}", bend_result[10:][:100])
+                logger.log_query_execution(query_id, query, "bendsql", "ERROR", self.args.database, "check")
+                logger.log_error(f"bendsql {query_id}", bend_result[10:])  # Remove __ERROR__: prefix, show full error
             else:
-                logger.log_query_execution(query_id, query, "bendsql", "SUCCESS")
+                logger.log_query_execution(query_id, query, "bendsql", "SUCCESS", self.args.database, "check")
             
             # Log snowsql execution
-            logger.log_query_execution(query_id, query, "snowsql", "RUNNING")
+            logger.log_query_execution(query_id, query, "snowsql", "RUNNING", self.args.database, "check")
             snow_result = self.snow_executor.execute(query)
             
             # Check for snowsql errors
             if snow_result.startswith("__ERROR__:"):
-                logger.log_query_execution(query_id, query, "snowsql", "ERROR")
-                logger.log_error(f"snowsql {query_id}", snow_result[10:][:100])
+                logger.log_query_execution(query_id, query, "snowsql", "ERROR", self.args.database, "check")
+                logger.log_error(f"snowsql {query_id}", snow_result[10:])  # Remove __ERROR__: prefix, show full error
             else:
-                logger.log_query_execution(query_id, query, "snowsql", "SUCCESS")
+                logger.log_query_execution(query_id, query, "snowsql", "SUCCESS", self.args.database, "check")
             
             # Handle execution errors
             if self._handle_errors(bend_result, snow_result, query_id, result):
@@ -928,8 +957,8 @@ class CheckSB:
         if bend_err or snow_err:
             result.failed += 1
             self.progress.add_result(False)
-            bend_msg = bend_result[10:][:100] if bend_err else "OK"
-            snow_msg = snow_result[10:][:100] if snow_err else "OK"
+            bend_msg = bend_result[10:] if bend_err else "OK"  # Remove length limit, show full error
+            snow_msg = snow_result[10:] if snow_err else "OK"  # Remove length limit, show full error
             result.errors.append((query_id, "Execution Error", bend_msg, snow_msg))
             
             # Log detailed error information
