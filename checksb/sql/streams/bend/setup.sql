@@ -1,5 +1,5 @@
 -- row_per_block is set to 513, 5113, 51113 to ensure that the data is distributed across multiple blocks.
-CREATE OR REPLACE TABLE checksb_db.public.customers (
+CREATE OR REPLACE TABLE checksb_db.customers (
     customer_id INT UNSIGNED NOT NULL,
     customer_name VARCHAR NOT NULL,
     segment VARCHAR NOT NULL,

@@ -779,35 +779,38 @@ class CheckSB:
         elif "check" in script_path.name.lower():
             phase = "check"
         
-        logger._write_all(f"📄 Executing script: {script_path.name} ({len(queries)} queries)")
-        
         # Group queries by prefix and extract concurrency settings
         groups = self._group_queries_by_prefix(queries)
+        logger._write_all(f"📄 {script_path.name}: {len(groups)} groups, {len(queries)} queries")
         
         for group_name, group_queries in groups.items():
-            logger._write_all(f"  📋 Executing {group_name} group ({len(group_queries)} queries)")
-            
-            # Extract concurrency setting for this group
             concurrency = self._extract_group_concurrency(group_queries)
+            mode = f"parallel({concurrency})" if concurrency > 1 else "sequential"
+            logger._write_all(f"  🔄 {group_name}: {len(group_queries)} queries [{mode}]")
             
             if concurrency > 1:
-                logger._write_all(f"     🔄 Using {concurrency} concurrent workers")
                 self._execute_queries_parallel(group_queries, executor, script_path.name, concurrency, phase)
             else:
-                logger._write_all(f"     ➡️ Sequential execution")
                 self._execute_queries_sequential(group_queries, executor, script_path.name, phase)
     
     def _group_queries_by_prefix(self, queries: List[str]) -> Dict[str, List[Tuple[int, str]]]:
-        """Group queries by their SQL command prefix (first word)"""
+        """Group queries by their SQL command prefix"""
         groups = {}
         
         for i, query in enumerate(queries, 1):
-            # Extract the first word (command) from the query
-            first_word = query.split()[0].upper() if query.split() else "UNKNOWN"
+            words = query.split()
+            if len(words) == 0:
+                prefix = "UNKNOWN"
+            elif words[0].upper() == "CREATE" and len(words) >= 4:
+                # For CREATE statements, use first 4 words: "CREATE OR REPLACE TABLE/STREAM/STAGE"
+                prefix = ' '.join(words[:4]).upper()
+            else:
+                # For other statements, first word is enough
+                prefix = words[0].upper()
             
-            if first_word not in groups:
-                groups[first_word] = []
-            groups[first_word].append((i, query))
+            if prefix not in groups:
+                groups[prefix] = []
+            groups[prefix].append((i, query))
         
         return groups
     
@@ -821,20 +824,16 @@ class CheckSB:
         logger = get_logger()
         
         for query_num, query in group_queries:
-            # Log query execution start
-            query_id = f"Query-{query_num}"
-            logger.log_query_execution(query_id, query, executor.tool, "RUNNING", executor.database, phase)
-            
             result = executor.execute(query, f"query {query_num}")
             
             # Check for errors using __ERROR__ prefix from SQLExecutor
             if result.startswith("__ERROR__:"):
                 error_msg = result[10:]  # Remove "__ERROR__:" prefix
-                logger.log_query_execution(query_id, query, executor.tool, "ERROR", executor.database, phase)
-                logger.log_error(f"{script_name} {query_id}", error_msg)  # Show full error message
+                logger._write_all(f"    ❌ Query-{query_num}: FAILED")
+                logger.log_error(f"{script_name} Query-{query_num}", error_msg)
                 # Continue execution instead of stopping
             else:
-                logger.log_query_execution(query_id, query, executor.tool, "SUCCESS", executor.database, phase)
+                logger._write_all(f"    ✅ Query-{query_num}: OK")
     
     def _execute_queries_parallel(self, group_queries: List[Tuple[int, str]], executor: SQLExecutor, script_name: str, concurrency: int, phase: str = "unknown"):
         """Execute queries in parallel using ThreadPoolExecutor"""
@@ -845,10 +844,6 @@ class CheckSB:
         def execute_single_query(query_data):
             query_num, query = query_data
             thread_id = threading.current_thread().ident
-            query_id = f"Query-{query_num}"
-            
-            # Log query start
-            logger.log_query_execution(query_id, query, executor.tool, "RUNNING", executor.database, phase)
             
             # Create a new executor instance for thread safety
             thread_executor = SQLExecutor(executor.tool, executor.database, executor.warehouse)
@@ -867,17 +862,16 @@ class CheckSB:
             # Process completed queries
             for future in as_completed(future_to_query):
                 query_num, query, result, error = future.result()
-                query_id = f"Query-{query_num}"
                 
                 if error:
-                    logger.log_query_execution(query_id, query, executor.tool, "ERROR", executor.database, phase)
-                    logger.log_error(f"{script_name} {query_id} (thread error)", error)
+                    logger._write_all(f"    ❌ Query-{query_num}: FAILED (thread error)")
+                    logger.log_error(f"{script_name} Query-{query_num}", error)
                 elif result and result.startswith("__ERROR__:"):
                     error_msg = result[10:]  # Remove "__ERROR__:" prefix
-                    logger.log_query_execution(query_id, query, executor.tool, "ERROR", executor.database, phase)
-                    logger.log_error(f"{script_name} {query_id}", error_msg)  # Show full error message
+                    logger._write_all(f"    ❌ Query-{query_num}: FAILED")
+                    logger.log_error(f"{script_name} Query-{query_num}", error_msg)
                 else:
-                    logger.log_query_execution(query_id, query, executor.tool, "SUCCESS", executor.database, phase)
+                    logger._write_all(f"    ✅ Query-{query_num}: OK")
     
     def _check_case(self, check_path: Path, case: str) -> TestResult:
         result = TestResult(case=case)
