@@ -12,6 +12,25 @@ from typing import Dict, List, Tuple, Optional, Any
 from dataclasses import dataclass, field
 from collections import defaultdict
 
+@dataclass
+class QueryWithMetadata:
+    """Represents a SQL query with its associated metadata"""
+    sql: str
+    metadata: str = ""
+    index: int = 0
+    
+    def get_display_name(self, max_sql_length: int = 50) -> str:
+        """Get display name for logging - metadata if available, otherwise short SQL"""
+        if self.metadata:
+            return self.metadata
+        else:
+            # Return shortened SQL for display
+            sql_oneline = ' '.join(self.sql.split())
+            if len(sql_oneline) <= max_sql_length:
+                return sql_oneline
+            else:
+                return sql_oneline[:max_sql_length-3] + "..."
+
 # Enhanced logging system for real-time test monitoring
 class EnhancedLogger:
     def __init__(self, log_dir: str = "logs"):
@@ -757,15 +776,13 @@ class CheckSB:
         with open(script_path) as f:
             content = f.read()
             
-            # Extract test metadata and queries
+            # Parse queries with metadata
             queries_with_metadata = self._parse_queries_with_metadata(content)
             
-            # Filter out empty lines and comment-only lines for execution
+            # Convert to list of QueryWithMetadata objects
             queries = []
-            for q in content.split(";"):
-                q = q.strip()
-                if q and not q.startswith('--'):
-                    queries.append(q)
+            for query_data in queries_with_metadata:
+                queries.append(query_data.sql)
         
         # Determine phase from script name
         phase = "unknown"
@@ -790,37 +807,43 @@ class CheckSB:
             else:
                 self._execute_queries_sequential(group_queries, executor, script_path.name, phase, queries_with_metadata)
     
-    def _parse_queries_with_metadata(self, content: str) -> Dict[int, str]:
+    def _parse_queries_with_metadata(self, content: str) -> List[QueryWithMetadata]:
         """Parse SQL content and extract test metadata for each query"""
-        import re
-        
-        query_metadata = {}
-        lines = content.split('\n')
-        current_test_name = None
+        queries_with_metadata = []
+        raw_segments = content.split(";")
         query_index = 0
         
-        for line in lines:
-            line = line.strip()
+        for segment in raw_segments:
+            segment = segment.strip()
+            if not segment:
+                continue
+                
+            # Check if this segment has SQL content (non-comment lines)
+            sql_lines = [line.strip() for line in segment.split('\n') 
+                        if line.strip() and not line.strip().startswith('--')]
             
-            # Check if this line contains test metadata comment
-            # Format: -- TEST-ID: Test Description
-            if line.startswith('--') and ':' in line:
-                # Extract test name from comment
-                match = re.match(r'^--\s*([A-Z0-9-]+):\s*(.+)$', line)
-                if match:
-                    test_id = match.group(1)
-                    test_desc = match.group(2)
-                    current_test_name = f"{test_id}: {test_desc}"
-            
-            # Check if this line contains actual SQL (not comment, not empty)
-            elif line and not line.startswith('--'):
-                # If we have a current test name, associate it with this query
-                if current_test_name:
-                    query_index += 1
-                    query_metadata[query_index] = current_test_name
-                    current_test_name = None  # Reset after assigning
+            if sql_lines:
+                query_index += 1  # Only increment for actual SQL queries
+                
+                # Extract comment lines from this segment as metadata
+                comment_lines = [line.strip()[2:].strip() for line in segment.split('\n') 
+                               if line.strip().startswith('--')]
+                
+                metadata = ""
+                if comment_lines:
+                    # Join multiple comment lines with ' | '
+                    metadata = ' | '.join(comment_lines)
+                
+                # Create QueryWithMetadata object
+                sql_content = '\n'.join(sql_lines)
+                query_obj = QueryWithMetadata(
+                    sql=sql_content,
+                    metadata=metadata,
+                    index=query_index
+                )
+                queries_with_metadata.append(query_obj)
         
-        return query_metadata
+        return queries_with_metadata
     
     def _group_queries_by_prefix(self, queries: List[str]) -> Dict[str, List[Tuple[int, str]]]:
         """Group queries by their SQL command prefix"""
@@ -848,27 +871,30 @@ class CheckSB:
         # Default concurrency is 4 (parallel)
         return 4
     
-    def _execute_queries_sequential(self, group_queries: List[Tuple[int, str]], executor: SQLExecutor, script_name: str, phase: str = "unknown", query_metadata: Dict[int, str] = None):
+    def _execute_queries_sequential(self, group_queries: List[Tuple[int, str]], executor: SQLExecutor, script_name: str, phase: str = "unknown", queries_with_metadata: List[QueryWithMetadata] = None):
         """Execute queries sequentially"""
         logger = get_logger()
         
         for query_num, query in group_queries:
-            # Get test name from metadata if available
-            test_name = query_metadata.get(query_num, "") if query_metadata else ""
-            test_display = f" ({test_name})" if test_name else ""
+            # Find corresponding metadata
+            query_obj = None
+            if queries_with_metadata:
+                query_obj = next((q for q in queries_with_metadata if q.index == query_num), None)
+            
+            display_name = query_obj.get_display_name() if query_obj else query[:50] + "..."
             
             result = executor.execute(query, f"query {query_num}")
             
             # Check for errors using __ERROR__ prefix from SQLExecutor
             if result.startswith("__ERROR__:"):
                 error_msg = result[10:]  # Remove "__ERROR__:" prefix
-                logger._write_all(f"    ❌ [{executor.tool}] Query-{query_num}: FAILED{test_display}")
+                logger._write_all(f"    ❌ [{executor.tool}] Query-{query_num}: FAILED ({display_name})")
                 logger.log_error(f"{script_name} Query-{query_num}", error_msg)
                 # Continue execution instead of stopping
             else:
-                logger._write_all(f"    ✅ [{executor.tool}] Query-{query_num}: OK{test_display}")
+                logger._write_all(f"    ✅ [{executor.tool}] Query-{query_num}: OK ({display_name})")
     
-    def _execute_queries_parallel(self, group_queries: List[Tuple[int, str]], executor: SQLExecutor, script_name: str, concurrency: int, phase: str = "unknown", query_metadata: Dict[int, str] = None):
+    def _execute_queries_parallel(self, group_queries: List[Tuple[int, str]], executor: SQLExecutor, script_name: str, concurrency: int, phase: str = "unknown", queries_with_metadata: List[QueryWithMetadata] = None):
         """Execute queries in parallel using ThreadPoolExecutor"""
         from concurrent.futures import ThreadPoolExecutor, as_completed
         import threading
@@ -896,19 +922,22 @@ class CheckSB:
             for future in as_completed(future_to_query):
                 query_num, query, result, error = future.result()
                 
-                # Get test name from metadata if available
-                test_name = query_metadata.get(query_num, "") if query_metadata else ""
-                test_display = f" ({test_name})" if test_name else ""
+                # Find corresponding metadata
+                query_obj = None
+                if queries_with_metadata:
+                    query_obj = next((q for q in queries_with_metadata if q.index == query_num), None)
+                
+                display_name = query_obj.get_display_name() if query_obj else query[:50] + "..."
                 
                 if error:
-                    logger._write_all(f"    ❌ [{executor.tool}] Query-{query_num}: FAILED (thread error){test_display}")
+                    logger._write_all(f"    ❌ [{executor.tool}] Query-{query_num}: FAILED (thread error) ({display_name})")
                     logger.log_error(f"{script_name} Query-{query_num}", error)
                 elif result and result.startswith("__ERROR__:"):
                     error_msg = result[10:]  # Remove "__ERROR__:" prefix
-                    logger._write_all(f"    ❌ [{executor.tool}] Query-{query_num}: FAILED{test_display}")
+                    logger._write_all(f"    ❌ [{executor.tool}] Query-{query_num}: FAILED ({display_name})")
                     logger.log_error(f"{script_name} Query-{query_num}", error_msg)
                 else:
-                    logger._write_all(f"    ✅ [{executor.tool}] Query-{query_num}: OK{test_display}")
+                    logger._write_all(f"    ✅ [{executor.tool}] Query-{query_num}: OK ({display_name})")
     
     def _check_case(self, check_path: Path, case: str) -> TestResult:
         result = TestResult(case=case)
@@ -917,9 +946,9 @@ class CheckSB:
         
         with open(check_path) as f:
             content = f.read()
-            queries = [q.strip() for q in content.split(";") if q.strip()]
-            # Parse test metadata from check.sql
-            query_metadata = self._parse_queries_with_metadata(content)
+            # Parse queries with metadata from check.sql
+            queries_with_metadata = self._parse_queries_with_metadata(content)
+            queries = [q.sql for q in queries_with_metadata]
         
         result.total = len(queries)
         
@@ -934,9 +963,9 @@ class CheckSB:
         
         for i, query in enumerate(queries, 1):
             query_id = self._extract_query_id(query, i)
-            # Get test name from metadata if available
-            test_name = query_metadata.get(i, "")
-            display_name = test_name if test_name else query_id
+            # Get corresponding query object for metadata
+            query_obj = queries_with_metadata[i-1] if i <= len(queries_with_metadata) else None
+            display_name = query_obj.get_display_name() if query_obj else query_id
             
             self.progress.queries_tested = i
             self.progress.update(step=f"checking query {i}/{len(queries)}: {display_name}")
