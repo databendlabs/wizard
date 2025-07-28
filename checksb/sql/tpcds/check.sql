@@ -2561,8 +2561,7 @@ FROM
   (SELECT *
    FROM
      (SELECT item_sk,
-             rank() OVER (
-                          ORDER BY rank_col ASC) rnk
+             rank() OVER (ORDER BY rank_col ASC, item_sk ASC) rnk
       FROM
         (SELECT ss_item_sk item_sk,
                 avg(ss_net_profit) rank_col
@@ -2579,8 +2578,7 @@ FROM
   (SELECT *
    FROM
      (SELECT item_sk,
-             rank() OVER (
-                          ORDER BY rank_col DESC) rnk
+             rank() OVER (ORDER BY rank_col DESC, item_sk ASC) rnk
       FROM
         (SELECT ss_item_sk item_sk,
                 avg(ss_net_profit) rank_col
@@ -2601,6 +2599,7 @@ WHERE asceding.rnk = descending.rnk
   AND i2.i_item_sk=descending.item_sk
 ORDER BY asceding.rnk
 LIMIT 10;
+
 
 -- Query 45
 SELECT ca_zip,

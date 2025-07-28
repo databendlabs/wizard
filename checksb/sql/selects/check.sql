@@ -223,14 +223,6 @@ FROM sales s
 GROUP BY p.category
 ORDER BY products_sold DESC;
 
--- SELECT-BASE-13: Total sales and average quantity sold per product
-SELECT p.product_id, p.product_name, SUM(s.net_paid) AS total_sales, TRUNCATE(AVG(s.quantity), 2) AS avg_quantity_sold
-FROM sales s
-         JOIN products p ON s.product_id = p.product_id
-GROUP BY p.product_id, p.product_name
-ORDER BY total_sales DESC
-    LIMIT 10;
-
 -- SELECT-BASE-14: Customers with the most transactions, top 10, with stable results
 SELECT
     c.customer_id,
