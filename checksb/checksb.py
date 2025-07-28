@@ -768,7 +768,12 @@ class CheckSB:
         logger = get_logger()
         
         with open(script_path) as f:
-            queries = [q.strip() for q in f.read().split(";") if q.strip()]
+            # Split by semicolon and filter out empty lines and comment-only lines
+            queries = []
+            for q in f.read().split(";"):
+                q = q.strip()
+                if q and not q.startswith('--'):
+                    queries.append(q)
         
         # Determine phase from script name
         phase = "unknown"
