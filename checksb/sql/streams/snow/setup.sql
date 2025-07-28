@@ -1,4 +1,4 @@
-CREATE OR REPLACE TABLE customers (
+CREATE OR REPLACE TABLE checksb_db.public.customers (
                            customer_id INT  NOT NULL,
                            customer_name VARCHAR NOT NULL,
                            segment VARCHAR NOT NULL,
@@ -6,14 +6,14 @@ CREATE OR REPLACE TABLE customers (
                            active BOOLEAN NOT NULL
 );
 
-CREATE OR REPLACE TABLE date_dim (
+CREATE OR REPLACE TABLE checksb_db.public.date_dim (
                           date_key DATE NOT NULL,
                           day_of_week TINYINT  NOT NULL,
                           month TINYINT  NOT NULL,
                           year SMALLINT  NOT NULL
 );
 
-CREATE OR REPLACE TABLE products
+CREATE OR REPLACE TABLE checksb_db.public.products
 (
     product_id   INT  NOT NULL,
     product_name VARCHAR        NOT NULL,
@@ -21,7 +21,7 @@ CREATE OR REPLACE TABLE products
     category     VARCHAR        NOT NULL
 );
 
-CREATE OR REPLACE TABLE sales (
+CREATE OR REPLACE TABLE checksb_db.public.sales (
                        sale_id INT  NOT NULL,
                        product_id INT  NOT NULL,
                        customer_id INT  NOT NULL,
@@ -34,7 +34,7 @@ CREATE OR REPLACE TABLE sales (
 CREATE OR REPLACE STAGE wizardbend URL='s3://wizardbend/';
 CREATE OR REPLACE FILE FORMAT parquet_format TYPE = 'parquet';
 
-COPY INTO customers
+COPY INTO checksb_db.public.customers
     FROM (SELECT
     $1:customer_id::INT,
     $1:customer_name::VARCHAR,
@@ -43,7 +43,7 @@ COPY INTO customers
     $1:active::BOOLEAN
     FROM @wizardbend/selects/customers.parquet (file_format => 'parquet_format'));
 
-COPY INTO date_dim
+COPY INTO checksb_db.public.date_dim
     FROM (SELECT
     $1:date_key::DATE,
     $1:day_of_week::TINYINT,
@@ -51,7 +51,7 @@ COPY INTO date_dim
     $1:year::SMALLINT
     FROM @wizardbend/selects/date_dim.parquet (file_format => 'parquet_format'));
 
-COPY INTO products
+COPY INTO checksb_db.public.products
     FROM (SELECT
     $1:product_id::INT,
     $1:product_name::VARCHAR,
@@ -59,7 +59,7 @@ COPY INTO products
     $1:category::VARCHAR
     FROM @wizardbend/selects/products.parquet (file_format => 'parquet_format'));
 
-COPY INTO sales
+COPY INTO checksb_db.public.sales
     FROM (SELECT
     $1:sale_id::INT,
     $1:product_id::INT,
