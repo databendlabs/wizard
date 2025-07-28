@@ -18,21 +18,17 @@ class EnhancedLogger:
         # Create log directory
         os.makedirs(log_dir, exist_ok=True)
         
-        # Set up log files
+        # Set up log file
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         self.log_file = os.path.join(log_dir, f"checksb_{timestamp}.log")
-        self.detailed_log = os.path.join(log_dir, f"checksb_detailed_{timestamp}.log")
         
-        # Open log files
+        # Open log file
         self.log_handle = open(self.log_file, 'w', encoding='utf-8')
-        self.detailed_handle = open(self.detailed_log, 'w', encoding='utf-8')
         
         # Terminal output
         self.terminal = sys.stdout
         
-        print(f"📋 Logs will be saved to: {log_dir}/")
-        print(f"   - Main log: {os.path.basename(self.log_file)}")
-        print(f"   - Detailed log: {os.path.basename(self.detailed_log)}")
+        print(f"📋 Log will be saved to: {os.path.basename(self.log_file)}")
     
     def log_test_start(self, case: str, database: str, total_queries: int):
         """Log test case start"""
@@ -65,11 +61,7 @@ class EnhancedLogger:
         
         self._write_all(msg)
         
-        # Write full query to detailed log
-        self.detailed_handle.write(f"\n--- {query_id} on {context} ---\n")
-        self.detailed_handle.write(query)
-        self.detailed_handle.write("\n--- End Query ---\n")
-        self.detailed_handle.flush()
+        # Query details are now included in main log when needed
     
     def log_comparison_result(self, query_id: str, passed: bool, match_type: str = ""):
         """Log query comparison result"""
@@ -125,19 +117,14 @@ class EnhancedLogger:
         # Write to terminal
         print(formatted_msg)
         
-        # Write to log files
+        # Write to log file
         self.log_handle.write(formatted_msg + "\n")
         self.log_handle.flush()
-        
-        self.detailed_handle.write(formatted_msg + "\n")
-        self.detailed_handle.flush()
     
     def close(self):
-        """Close log files"""
+        """Close log file"""
         if hasattr(self, 'log_handle'):
             self.log_handle.close()
-        if hasattr(self, 'detailed_handle'):
-            self.detailed_handle.close()
 
 # Global logger instance
 logger_instance = None
@@ -768,9 +755,14 @@ class CheckSB:
         logger = get_logger()
         
         with open(script_path) as f:
-            # Split by semicolon and filter out empty lines and comment-only lines
+            content = f.read()
+            
+            # Extract test metadata and queries
+            queries_with_metadata = self._parse_queries_with_metadata(content)
+            
+            # Filter out empty lines and comment-only lines for execution
             queries = []
-            for q in f.read().split(";"):
+            for q in content.split(";"):
                 q = q.strip()
                 if q and not q.startswith('--'):
                     queries.append(q)
@@ -794,9 +786,41 @@ class CheckSB:
             logger._write_all(f"  🔄 [{executor.tool}] {group_name}: {len(group_queries)} queries [{mode}]")
             
             if concurrency > 1:
-                self._execute_queries_parallel(group_queries, executor, script_path.name, concurrency, phase)
+                self._execute_queries_parallel(group_queries, executor, script_path.name, concurrency, phase, queries_with_metadata)
             else:
-                self._execute_queries_sequential(group_queries, executor, script_path.name, phase)
+                self._execute_queries_sequential(group_queries, executor, script_path.name, phase, queries_with_metadata)
+    
+    def _parse_queries_with_metadata(self, content: str) -> Dict[int, str]:
+        """Parse SQL content and extract test metadata for each query"""
+        import re
+        
+        query_metadata = {}
+        lines = content.split('\n')
+        current_test_name = None
+        query_index = 0
+        
+        for line in lines:
+            line = line.strip()
+            
+            # Check if this line contains test metadata comment
+            # Format: -- TEST-ID: Test Description
+            if line.startswith('--') and ':' in line:
+                # Extract test name from comment
+                match = re.match(r'^--\s*([A-Z0-9-]+):\s*(.+)$', line)
+                if match:
+                    test_id = match.group(1)
+                    test_desc = match.group(2)
+                    current_test_name = f"{test_id}: {test_desc}"
+            
+            # Check if this line contains actual SQL (not comment, not empty)
+            elif line and not line.startswith('--'):
+                # If we have a current test name, associate it with this query
+                if current_test_name:
+                    query_index += 1
+                    query_metadata[query_index] = current_test_name
+                    current_test_name = None  # Reset after assigning
+        
+        return query_metadata
     
     def _group_queries_by_prefix(self, queries: List[str]) -> Dict[str, List[Tuple[int, str]]]:
         """Group queries by their SQL command prefix"""
@@ -824,23 +848,27 @@ class CheckSB:
         # Default concurrency is 4 (parallel)
         return 4
     
-    def _execute_queries_sequential(self, group_queries: List[Tuple[int, str]], executor: SQLExecutor, script_name: str, phase: str = "unknown"):
+    def _execute_queries_sequential(self, group_queries: List[Tuple[int, str]], executor: SQLExecutor, script_name: str, phase: str = "unknown", query_metadata: Dict[int, str] = None):
         """Execute queries sequentially"""
         logger = get_logger()
         
         for query_num, query in group_queries:
+            # Get test name from metadata if available
+            test_name = query_metadata.get(query_num, "") if query_metadata else ""
+            test_display = f" ({test_name})" if test_name else ""
+            
             result = executor.execute(query, f"query {query_num}")
             
             # Check for errors using __ERROR__ prefix from SQLExecutor
             if result.startswith("__ERROR__:"):
                 error_msg = result[10:]  # Remove "__ERROR__:" prefix
-                logger._write_all(f"    ❌ [{executor.tool}] Query-{query_num}: FAILED")
+                logger._write_all(f"    ❌ [{executor.tool}] Query-{query_num}: FAILED{test_display}")
                 logger.log_error(f"{script_name} Query-{query_num}", error_msg)
                 # Continue execution instead of stopping
             else:
-                logger._write_all(f"    ✅ [{executor.tool}] Query-{query_num}: OK")
+                logger._write_all(f"    ✅ [{executor.tool}] Query-{query_num}: OK{test_display}")
     
-    def _execute_queries_parallel(self, group_queries: List[Tuple[int, str]], executor: SQLExecutor, script_name: str, concurrency: int, phase: str = "unknown"):
+    def _execute_queries_parallel(self, group_queries: List[Tuple[int, str]], executor: SQLExecutor, script_name: str, concurrency: int, phase: str = "unknown", query_metadata: Dict[int, str] = None):
         """Execute queries in parallel using ThreadPoolExecutor"""
         from concurrent.futures import ThreadPoolExecutor, as_completed
         import threading
@@ -868,15 +896,19 @@ class CheckSB:
             for future in as_completed(future_to_query):
                 query_num, query, result, error = future.result()
                 
+                # Get test name from metadata if available
+                test_name = query_metadata.get(query_num, "") if query_metadata else ""
+                test_display = f" ({test_name})" if test_name else ""
+                
                 if error:
-                    logger._write_all(f"    ❌ [{executor.tool}] Query-{query_num}: FAILED (thread error)")
+                    logger._write_all(f"    ❌ [{executor.tool}] Query-{query_num}: FAILED (thread error){test_display}")
                     logger.log_error(f"{script_name} Query-{query_num}", error)
                 elif result and result.startswith("__ERROR__:"):
                     error_msg = result[10:]  # Remove "__ERROR__:" prefix
-                    logger._write_all(f"    ❌ [{executor.tool}] Query-{query_num}: FAILED")
+                    logger._write_all(f"    ❌ [{executor.tool}] Query-{query_num}: FAILED{test_display}")
                     logger.log_error(f"{script_name} Query-{query_num}", error_msg)
                 else:
-                    logger._write_all(f"    ✅ [{executor.tool}] Query-{query_num}: OK")
+                    logger._write_all(f"    ✅ [{executor.tool}] Query-{query_num}: OK{test_display}")
     
     def _check_case(self, check_path: Path, case: str) -> TestResult:
         result = TestResult(case=case)
@@ -884,7 +916,10 @@ class CheckSB:
         logger = get_logger()
         
         with open(check_path) as f:
-            queries = [q.strip() for q in f.read().split(";") if q.strip()]
+            content = f.read()
+            queries = [q.strip() for q in content.split(";") if q.strip()]
+            # Parse test metadata from check.sql
+            query_metadata = self._parse_queries_with_metadata(content)
         
         result.total = len(queries)
         
@@ -899,8 +934,12 @@ class CheckSB:
         
         for i, query in enumerate(queries, 1):
             query_id = self._extract_query_id(query, i)
+            # Get test name from metadata if available
+            test_name = query_metadata.get(i, "")
+            display_name = test_name if test_name else query_id
+            
             self.progress.queries_tested = i
-            self.progress.update(step=f"checking query {i}/{len(queries)}: {query_id}")
+            self.progress.update(step=f"checking query {i}/{len(queries)}: {display_name}")
             
             # Log query execution start
             logger.log_query_execution(query_id, query, "bendsql", "RUNNING", self.args.database, "check")
