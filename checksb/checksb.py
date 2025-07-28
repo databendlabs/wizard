@@ -781,12 +781,12 @@ class CheckSB:
         
         # Group queries by prefix and extract concurrency settings
         groups = self._group_queries_by_prefix(queries)
-        logger._write_all(f"📄 {script_path.name}: {len(groups)} groups, {len(queries)} queries")
+        logger._write_all(f"📄 [{executor.tool}|{executor.database}] {script_path.name}: {len(groups)} groups, {len(queries)} queries")
         
         for group_name, group_queries in groups.items():
             concurrency = self._extract_group_concurrency(group_queries)
             mode = f"parallel({concurrency})" if concurrency > 1 else "sequential"
-            logger._write_all(f"  🔄 {group_name}: {len(group_queries)} queries [{mode}]")
+            logger._write_all(f"  🔄 [{executor.tool}] {group_name}: {len(group_queries)} queries [{mode}]")
             
             if concurrency > 1:
                 self._execute_queries_parallel(group_queries, executor, script_path.name, concurrency, phase)
@@ -829,11 +829,11 @@ class CheckSB:
             # Check for errors using __ERROR__ prefix from SQLExecutor
             if result.startswith("__ERROR__:"):
                 error_msg = result[10:]  # Remove "__ERROR__:" prefix
-                logger._write_all(f"    ❌ Query-{query_num}: FAILED")
+                logger._write_all(f"    ❌ [{executor.tool}] Query-{query_num}: FAILED")
                 logger.log_error(f"{script_name} Query-{query_num}", error_msg)
                 # Continue execution instead of stopping
             else:
-                logger._write_all(f"    ✅ Query-{query_num}: OK")
+                logger._write_all(f"    ✅ [{executor.tool}] Query-{query_num}: OK")
     
     def _execute_queries_parallel(self, group_queries: List[Tuple[int, str]], executor: SQLExecutor, script_name: str, concurrency: int, phase: str = "unknown"):
         """Execute queries in parallel using ThreadPoolExecutor"""
@@ -864,14 +864,14 @@ class CheckSB:
                 query_num, query, result, error = future.result()
                 
                 if error:
-                    logger._write_all(f"    ❌ Query-{query_num}: FAILED (thread error)")
+                    logger._write_all(f"    ❌ [{executor.tool}] Query-{query_num}: FAILED (thread error)")
                     logger.log_error(f"{script_name} Query-{query_num}", error)
                 elif result and result.startswith("__ERROR__:"):
                     error_msg = result[10:]  # Remove "__ERROR__:" prefix
-                    logger._write_all(f"    ❌ Query-{query_num}: FAILED")
+                    logger._write_all(f"    ❌ [{executor.tool}] Query-{query_num}: FAILED")
                     logger.log_error(f"{script_name} Query-{query_num}", error_msg)
                 else:
-                    logger._write_all(f"    ✅ Query-{query_num}: OK")
+                    logger._write_all(f"    ✅ [{executor.tool}] Query-{query_num}: OK")
     
     def _check_case(self, check_path: Path, case: str) -> TestResult:
         result = TestResult(case=case)
